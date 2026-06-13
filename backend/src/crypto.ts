@@ -34,7 +34,9 @@ export function stateHash(parts: string[]): string {
   return h.toString(16).padStart(8, "0").slice(0, 6);
 }
 
-export function memoryHead(memories: Pick<Memory, "id" | "text" | "verified" | "tombstone">[]): string {
+export function memoryHead(
+  memories: Pick<Memory, "id" | "text" | "verified" | "tombstone">[],
+): string {
   const live = memories
     .filter((m) => !m.tombstone)
     .map((m) => `${m.id}:${m.verified ? "v" : ""}:${m.text}`)
@@ -43,11 +45,17 @@ export function memoryHead(memories: Pick<Memory, "id" | "text" | "verified" | "
 }
 
 export function encode(artifact: Artifact): Uint8Array {
-  if (!artifact || !KINDS.has(artifact.kind)) throw new Error(`encode: unknown kind ${(artifact as { kind?: string })?.kind}`);
+  if (!artifact || !KINDS.has(artifact.kind))
+    throw new Error(
+      `encode: unknown kind ${(artifact as { kind?: string })?.kind}`,
+    );
   return new TextEncoder().encode(JSON.stringify(artifact));
 }
 
-export function decode<T extends Artifact = Artifact>(bytes: Uint8Array, expectedKind?: T["kind"]): T {
+export function decode<T extends Artifact = Artifact>(
+  bytes: Uint8Array,
+  expectedKind?: T["kind"],
+): T {
   let obj: unknown;
   try {
     obj = JSON.parse(new TextDecoder().decode(bytes));
@@ -55,7 +63,9 @@ export function decode<T extends Artifact = Artifact>(bytes: Uint8Array, expecte
     throw new Error("decode: not valid JSON");
   }
   const kind = (obj as { kind?: unknown })?.kind;
-  if (typeof kind !== "string" || !KINDS.has(kind)) throw new Error(`decode: unknown kind ${String(kind)}`);
-  if (expectedKind && kind !== expectedKind) throw new Error(`decode: expected ${expectedKind}, got ${kind}`);
+  if (typeof kind !== "string" || !KINDS.has(kind))
+    throw new Error(`decode: unknown kind ${String(kind)}`);
+  if (expectedKind && kind !== expectedKind)
+    throw new Error(`decode: expected ${expectedKind}, got ${kind}`);
   return obj as T;
 }

@@ -16,8 +16,16 @@ export interface MemWriteOpts {
 }
 
 export interface MemWalClient {
-  remember(namespace: string, text: string, opts?: MemWriteOpts): Promise<{ memoryId: string; suiTxn: string }>;
-  recall(namespace: string, query: string, opts?: { limit?: number }): Promise<Memory[]>;
+  remember(
+    namespace: string,
+    text: string,
+    opts?: MemWriteOpts,
+  ): Promise<{ memoryId: string; suiTxn: string }>;
+  recall(
+    namespace: string,
+    query: string,
+    opts?: { limit?: number },
+  ): Promise<Memory[]>;
   restore(namespace: string): Promise<{ head: string; memories: Memory[] }>;
   tombstone(namespace: string, memoryId: string, note: string): Promise<void>;
   stampVerified(namespace: string, memoryId: string, at: string): Promise<void>;
@@ -81,14 +89,22 @@ class LiveMemWal implements MemWalClient {
     if (!this.clientP) {
       this.clientP = (async () => {
         const mod: any = await importExternal("@mysten-incubation/memwal");
-        return new mod.MemWal({ url: this.cfg.memwal.url, apiKey: this.cfg.memwal.apiKey, delegateKey: this.cfg.delegateKey });
+        return new mod.MemWal({
+          url: this.cfg.memwal.url,
+          apiKey: this.cfg.memwal.apiKey,
+          delegateKey: this.cfg.delegateKey,
+        });
       })();
     }
     return this.clientP;
   }
   async remember(ns: string, text: string, opts?: MemWriteOpts) {
     const c = await this.client();
-    const r = await c.remember({ namespace: ns, text, metadata: { agent: opts?.agent, via: opts?.via, tags: opts?.tags } });
+    const r = await c.remember({
+      namespace: ns,
+      text,
+      metadata: { agent: opts?.agent, via: opts?.via, tags: opts?.tags },
+    });
     return { memoryId: r.id ?? r.memoryId, suiTxn: r.suiTxn ?? r.txn ?? "" };
   }
   async recall(ns: string, query: string, opts?: { limit?: number }) {
@@ -103,11 +119,19 @@ class LiveMemWal implements MemWalClient {
   }
   async tombstone(ns: string, id: string, note: string) {
     const c = await this.client();
-    await c.remember({ namespace: ns, text: `__tombstone__:${id} ${note}`, metadata: { tombstones: id } });
+    await c.remember({
+      namespace: ns,
+      text: `__tombstone__:${id} ${note}`,
+      metadata: { tombstones: id },
+    });
   }
   async stampVerified(ns: string, id: string, at: string) {
     const c = await this.client();
-    await c.remember({ namespace: ns, text: `__verify__:${id}@${at}`, metadata: { verifies: id } });
+    await c.remember({
+      namespace: ns,
+      text: `__verify__:${id}@${at}`,
+      metadata: { verifies: id },
+    });
   }
 }
 

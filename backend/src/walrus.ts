@@ -48,7 +48,10 @@ class LiveWalrus implements WalrusClient {
         const sui: any = await importExternal("@mysten/sui/client");
         const walrus: any = await importExternal("@mysten/walrus");
         const suiClient = new sui.SuiClient({ url: this.cfg.sui.rpc });
-        return new walrus.WalrusClient({ network: this.cfg.sui.network, suiClient });
+        return new walrus.WalrusClient({
+          network: this.cfg.sui.network,
+          suiClient,
+        });
       })();
     }
     return this.clientP;
@@ -59,7 +62,12 @@ class LiveWalrus implements WalrusClient {
   }
   async putBlob(bytes: Uint8Array): Promise<string> {
     const c = await this.client();
-    const { blobId } = await c.writeBlob({ blob: bytes, epochs: this.cfg.walrus.epochs, deletable: false, signer: await this.signer() });
+    const { blobId } = await c.writeBlob({
+      blob: bytes,
+      epochs: this.cfg.walrus.epochs,
+      deletable: false,
+      signer: await this.signer(),
+    });
     return blobId;
   }
   async getBlob(blobId: string): Promise<Uint8Array> {
