@@ -19,11 +19,19 @@ export interface Config {
 const DEFAULTS: Config = {
   namespace: "personal",
   sui: { rpc: "https://fullnode.testnet.sui.io", network: "testnet" },
-  walrus: { publisher: "", aggregator: "https://aggregator.walrus-testnet.walrus.space", epochs: 5 },
+  walrus: {
+    publisher: "",
+    aggregator: "https://aggregator.walrus-testnet.walrus.space",
+    epochs: 5,
+  },
   seal: { policyPackage: "", policyObject: "" },
   memwal: { url: "", apiKey: "" },
   delegateKey: "",
-  models: { chat: "claude-sonnet-4-6", extract: "claude-sonnet-4-6", anthropicApiKey: "" },
+  models: {
+    chat: "claude-sonnet-4-6",
+    extract: "claude-sonnet-4-6",
+    anthropicApiKey: "",
+  },
   watch: { paths: [] },
 };
 
@@ -33,12 +41,17 @@ function deepMerge<T>(base: T, over: Partial<T> | undefined): T {
   for (const k of Object.keys(over)) {
     const b = (base as any)[k];
     const o = (over as any)[k];
-    out[k] = o && typeof o === "object" && !Array.isArray(o) && typeof b === "object" ? deepMerge(b, o) : o;
+    out[k] =
+      o && typeof o === "object" && !Array.isArray(o) && typeof b === "object"
+        ? deepMerge(b, o)
+        : o;
   }
   return out;
 }
 
-export function loadConfig(path = resolve(process.cwd(), "config/config.yaml")): Config {
+export function loadConfig(
+  path = resolve(process.cwd(), "config/config.yaml"),
+): Config {
   let fromFile: Partial<Config> = {};
   if (existsSync(path)) {
     try {
@@ -49,9 +62,12 @@ export function loadConfig(path = resolve(process.cwd(), "config/config.yaml")):
   }
   const cfg = deepMerge(DEFAULTS, fromFile);
   // env overrides for secrets
-  if (process.env.CORTEX_DELEGATE_KEY) cfg.delegateKey = process.env.CORTEX_DELEGATE_KEY;
-  if (process.env.MEMWAL_API_KEY) cfg.memwal.apiKey = process.env.MEMWAL_API_KEY;
-  if (process.env.ANTHROPIC_API_KEY) cfg.models.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  if (process.env.CORTEX_DELEGATE_KEY)
+    cfg.delegateKey = process.env.CORTEX_DELEGATE_KEY;
+  if (process.env.MEMWAL_API_KEY)
+    cfg.memwal.apiKey = process.env.MEMWAL_API_KEY;
+  if (process.env.ANTHROPIC_API_KEY)
+    cfg.models.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
   return cfg;
 }
 

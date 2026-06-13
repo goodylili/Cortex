@@ -1,8 +1,14 @@
 // Derived: a period digest (highlights) over live memories.
 import type { Digest, Memory } from "../models.js";
-export function buildDigest(namespace: string, memories: Memory[], period: { from: string; to: string }): Digest {
+export function buildDigest(
+  namespace: string,
+  memories: Memory[],
+  period: { from: string; to: string },
+): Digest {
   const live = memories.filter((m) => !m.tombstone);
-  const inPeriod = live.filter((m) => m.when >= period.from && m.when <= period.to);
+  const inPeriod = live.filter(
+    (m) => m.when >= period.from && m.when <= period.to,
+  );
   const pick = (inPeriod.length ? inPeriod : live).slice(0, 5);
   return {
     kind: "cortex.digest.v1",

@@ -13,15 +13,15 @@ walrus:
   epochs: 5
 
 seal:
-  policyPackage: ""        # Move package id for the allowlist policy
-  policyObject: ""         # the namespace's allowlist object id
+  policyPackage: "" # Move package id for the allowlist policy
+  policyObject: "" # the namespace's allowlist object id
 
 memwal:
   url: ""
   apiKey: ""
 
 # server-side ONLY, never shipped to a client
-delegateKey: ""            # suiprivkey... for the delegate that writes + decrypts
+delegateKey: "" # suiprivkey... for the delegate that writes + decrypts
 
 models:
   chat: claude-sonnet-4-6
@@ -29,4 +29,4 @@ models:
   anthropicApiKey: ""
 
 watch:
-  paths: []                # folders to ingest, e.g. ["~/Documents/notes"]
+  paths: [] # folders to ingest, e.g. ["~/Documents/notes"]

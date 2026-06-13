@@ -36,7 +36,11 @@ const Schema = z.object({
 });
 
 export function parseExtraction(text: string): ExtractResult {
-  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  const cleaned = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
   let obj: unknown;
   try {
     obj = JSON.parse(cleaned);
@@ -57,6 +61,11 @@ export function heuristicExtract(text: string, hint = ""): ExtractResult {
     .slice(0, 8);
   return {
     summary: (hint ? hint + ": " : "") + (chunks[0] ?? text.slice(0, 80)),
-    memories: chunks.map((c) => ({ text: c, tags: hint ? [hint] : [], when: "", confidence: 0.6 })),
+    memories: chunks.map((c) => ({
+      text: c,
+      tags: hint ? [hint] : [],
+      when: "",
+      confidence: 0.6,
+    })),
   };
 }

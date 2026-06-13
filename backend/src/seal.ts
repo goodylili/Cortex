@@ -30,7 +30,10 @@ class LiveSeal implements SealHelper {
         const sui: any = await importExternal("@mysten/sui/client");
         const seal: any = await importExternal("@mysten/seal");
         const suiClient = new sui.SuiClient({ url: this.cfg.sui.rpc });
-        return new seal.SealClient({ suiClient, serverConfigs: seal.getAllowlistedKeyServers?.(this.cfg.sui.network) });
+        return new seal.SealClient({
+          suiClient,
+          serverConfigs: seal.getAllowlistedKeyServers?.(this.cfg.sui.network),
+        });
       })();
     }
     return this.clientP;
@@ -52,5 +55,7 @@ class LiveSeal implements SealHelper {
 }
 
 export function createSeal(cfg: Config): SealHelper {
-  return isLive(cfg) && cfg.seal.policyObject ? new LiveSeal(cfg) : new MockSeal();
+  return isLive(cfg) && cfg.seal.policyObject
+    ? new LiveSeal(cfg)
+    : new MockSeal();
 }

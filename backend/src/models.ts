@@ -2,7 +2,14 @@
 // it hits Walrus, and addressed by its blob id (content hash). Lock these early —
 // the whole system (backend, desktop, mobile) agrees on them.
 
-export type SourceKind = "note" | "document" | "image" | "audio" | "video" | "url" | "structured";
+export type SourceKind =
+  | "note"
+  | "document"
+  | "image"
+  | "audio"
+  | "video"
+  | "url"
+  | "structured";
 
 /** A raw input the user gave Cortex: a file, a note, a page. */
 export interface Source {
@@ -50,10 +57,34 @@ export interface Extraction {
 
 /** A consolidation operation produced by the agent; each cites its evidence. */
 export type DiffOperation =
-  | { type: "consolidate"; mergeIds: string[]; into: { text: string }; confidence: number; evidence: string[] }
-  | { type: "pattern"; text: string; confidence: number; evidence: string[]; incidents: number }
-  | { type: "prune"; targetId: string; reason: string; confidence: number; evidence: string[] }
-  | { type: "verify"; targetId: string; verifiedAt: string; confidence: number; evidence: string[] };
+  | {
+      type: "consolidate";
+      mergeIds: string[];
+      into: { text: string };
+      confidence: number;
+      evidence: string[];
+    }
+  | {
+      type: "pattern";
+      text: string;
+      confidence: number;
+      evidence: string[];
+      incidents: number;
+    }
+  | {
+      type: "prune";
+      targetId: string;
+      reason: string;
+      confidence: number;
+      evidence: string[];
+    }
+  | {
+      type: "verify";
+      targetId: string;
+      verifiedAt: string;
+      confidence: number;
+      evidence: string[];
+    };
 
 export type DiffOpType = DiffOperation["type"];
 

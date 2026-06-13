@@ -1,0 +1,7 @@
+.next
+node_modules
+backend/dist
+pnpm-lock.yaml
+tsconfig.tsbuildinfo
+src/app/app/cortex.css
+public

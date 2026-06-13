@@ -7,6 +7,8 @@ export async function importExternal(name: string): Promise<any> {
   try {
     return await import(/* @vite-ignore */ name);
   } catch {
-    throw new Error(`optional SDK "${name}" is not installed. Run \`pnpm add ${name}\` to enable the live path.`);
+    throw new Error(
+      `optional SDK "${name}" is not installed. Run \`pnpm add ${name}\` to enable the live path.`,
+    );
   }
 }
