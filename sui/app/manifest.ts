@@ -2,7 +2,11 @@
 // from Sui. Read current -> append -> write new blob -> record pointer on chain.
 
 import type { Clients } from "./clients";
-import type { MemoryDiff, NamespaceManifest, VersionRef } from "../../src/core/models";
+import type {
+  MemoryDiff,
+  NamespaceManifest,
+  VersionRef,
+} from "../../src/core/models";
 import { putArtifact, getArtifact } from "./clients";
 
 export function emptyManifest(namespace: string): NamespaceManifest {

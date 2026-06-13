@@ -3,7 +3,11 @@
 // which lets external agents reach the same memory through this same facade.
 
 import { type Config, isLive, loadConfig } from "./config";
-import { type Clients, createClients, getArtifact } from "../../sui/app/clients";
+import {
+  type Clients,
+  createClients,
+  getArtifact,
+} from "../../sui/app/clients";
 import { loadManifest } from "../../sui/app/manifest";
 import {
   applyDiff,
