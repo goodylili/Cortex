@@ -420,13 +420,13 @@ export function CortexApp() {
   // integrations: MCP clients, storage backends, import sources
   const mcpSnippet = (key: string) =>
     key === "claude-code"
-      ? "claude mcp add cortex -- node ./backend/dist/mcp.js"
+      ? "claude mcp add cortex -- node ./dist/mcp/server.js"
       : JSON.stringify(
           {
             mcpServers: {
               cortex: {
                 command: "node",
-                args: ["./backend/dist/mcp.js"],
+                args: ["./dist/mcp/server.js"],
                 env: { CORTEX_CONFIG: "./config/config.yaml" },
               },
             },

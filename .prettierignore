@@ -1,7 +1,10 @@
 .next
 node_modules
-backend/dist
+dist
+.agents
+.claude
 pnpm-lock.yaml
 tsconfig.tsbuildinfo
-src/app/app/cortex.css
+src/app/cortex.css
+sui/contract
 public
