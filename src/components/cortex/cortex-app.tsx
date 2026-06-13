@@ -420,13 +420,13 @@ export function CortexApp() {
   // integrations: MCP clients, storage backends, import sources
   const mcpSnippet = (key: string) =>
     key === "claude-code"
-      ? "claude mcp add cortex -- node ./dist/mcp/server.js"
+      ? "claude mcp add cortex -- npx tsx ./mcp/server.ts"
       : JSON.stringify(
           {
             mcpServers: {
               cortex: {
-                command: "node",
-                args: ["./dist/mcp/server.js"],
+                command: "npx",
+                args: ["tsx", "./mcp/server.ts"],
                 env: { CORTEX_CONFIG: "./config/config.yaml" },
               },
             },
@@ -1210,36 +1210,38 @@ export function CortexApp() {
                   </div>
                 ))}
               </div>
-            ) : (
-              <button
-                className="kb-drop"
-                onClick={() => fileRef.current?.click()}
+            ) : null}
+            <button
+              className="kb-drop"
+              onClick={() => fileRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.currentTarget.classList.add("over");
+              }}
+              onDragLeave={(e) => e.currentTarget.classList.remove("over")}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.currentTarget.classList.remove("over");
+                onFiles(e.dataTransfer.files);
+              }}
+              style={{ marginTop: sources.length ? 16 : 0 }}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                <div className="et" style={{ marginTop: 10 }}>
-                  No documents yet
-                </div>
-                <div className="es">
-                  Drop a note, PDF, or markdown file here. Cortex reads it and
-                  keeps what matters.
-                </div>
-              </button>
-            )}
-            <div style={{ marginTop: 18 }}>
-              <button
-                className="pill-btn keep"
-                onClick={() => fileRef.current?.click()}
-              >
-                + Add documents
-              </button>
-            </div>
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              <div className="et" style={{ marginTop: 10 }}>
+                {sources.length ? "Add more documents" : "No documents yet"}
+              </div>
+              <div className="es">
+                Drop a note, PDF, or markdown file here, or click to browse.
+                Cortex reads it and keeps what matters.
+              </div>
+            </button>
           </section>
 
           {/* INTEGRATIONS — MCP clients, storage backends, sources */}
@@ -1808,6 +1810,15 @@ export function CortexApp() {
                   onKeyDown={onKey}
                 />
                 <div className="capture-bar">
+                  <button
+                    className="cap-tool icon"
+                    onClick={() => fileRef.current?.click()}
+                    aria-label="Attach"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M21.4 11 12 20.4a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 1 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 1 1-2.6-2.6l7.8-7.8" />
+                    </svg>
+                  </button>
                   <div className="mode-toggle">
                     <button
                       className={s.mode === "remember" ? "on" : ""}
@@ -1822,15 +1833,6 @@ export function CortexApp() {
                       Ask
                     </button>
                   </div>
-                  <button
-                    className="cap-tool icon"
-                    onClick={() => fileRef.current?.click()}
-                    aria-label="Attach"
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M21.4 11 12 20.4a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 1 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 1 1-2.6-2.6l7.8-7.8" />
-                    </svg>
-                  </button>
                   <button
                     className="cap-tool model-chip ask-only"
                     onClick={(e) => {
