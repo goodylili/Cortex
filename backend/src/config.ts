@@ -1,0 +1,73 @@
+// Load config from config/config.yaml (+ env overrides). The deterministic core
+// runs with none of it (mock infra); these values wire the live clients.
+
+import { readFileSync, existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { parse } from "yaml";
+
+export interface Config {
+  namespace: string;
+  sui: { rpc: string; network: string };
+  walrus: { publisher: string; aggregator: string; epochs: number };
+  seal: { policyPackage: string; policyObject: string };
+  memwal: { url: string; apiKey: string };
+  delegateKey: string;
+  models: { chat: string; extract: string; anthropicApiKey: string };
+  watch: { paths: string[] };
+}
+
+const DEFAULTS: Config = {
+  namespace: "personal",
+  sui: { rpc: "https://fullnode.testnet.sui.io", network: "testnet" },
+  walrus: { publisher: "", aggregator: "https://aggregator.walrus-testnet.walrus.space", epochs: 5 },
+  seal: { policyPackage: "", policyObject: "" },
+  memwal: { url: "", apiKey: "" },
+  delegateKey: "",
+  models: { chat: "claude-sonnet-4-6", extract: "claude-sonnet-4-6", anthropicApiKey: "" },
+  watch: { paths: [] },
+};
+
+function deepMerge<T>(base: T, over: Partial<T> | undefined): T {
+  if (!over) return base;
+  const out: any = Array.isArray(base) ? [...(base as any)] : { ...base };
+  for (const k of Object.keys(over)) {
+    const b = (base as any)[k];
+    const o = (over as any)[k];
+    out[k] = o && typeof o === "object" && !Array.isArray(o) && typeof b === "object" ? deepMerge(b, o) : o;
+  }
+  return out;
+}
+
+export function loadConfig(path = resolve(process.cwd(), "config/config.yaml")): Config {
+  let fromFile: Partial<Config> = {};
+  if (existsSync(path)) {
+    try {
+      fromFile = parse(readFileSync(path, "utf8")) ?? {};
+    } catch {
+      /* fall back to defaults */
+    }
+  }
+  const cfg = deepMerge(DEFAULTS, fromFile);
+  // env overrides for secrets
+  if (process.env.CORTEX_DELEGATE_KEY) cfg.delegateKey = process.env.CORTEX_DELEGATE_KEY;
+  if (process.env.MEMWAL_API_KEY) cfg.memwal.apiKey = process.env.MEMWAL_API_KEY;
+  if (process.env.ANTHROPIC_API_KEY) cfg.models.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  return cfg;
+}
+
+/** Which fields are still missing for the live (non-mock) path. */
+export function missingForLive(cfg: Config): string[] {
+  const need: [string, string][] = [
+    ["walrus.publisher", cfg.walrus.publisher],
+    ["walrus.aggregator", cfg.walrus.aggregator],
+    ["sui.rpc", cfg.sui.rpc],
+    ["memwal.url", cfg.memwal.url],
+    ["memwal.apiKey", cfg.memwal.apiKey],
+    ["delegateKey", cfg.delegateKey],
+  ];
+  return need.filter(([, v]) => !v).map(([k]) => k);
+}
+
+export function isLive(cfg: Config): boolean {
+  return missingForLive(cfg).length === 0;
+}
