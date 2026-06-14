@@ -59,12 +59,27 @@ export interface ChatMsg {
 type Mode = "remember" | "ask";
 type Importance = "low" | "normal" | "high";
 
+// A source document memories were distilled from — note, file or webpage. Tracks
+// provenance (where it's from) and the memories it produced.
+export interface CortexDocument {
+  id: string;
+  kind: "note" | "file" | "url";
+  title: string;
+  origin?: string; // url or filename
+  summary: string;
+  count: number;
+  createdAt: number;
+  memoryIds: string[];
+  url?: string; // durable copy (Walrus aggregator) when stored
+}
+
 interface Persisted {
   memories: Memory[];
   events: CortexEvent[];
   cost: Cost;
   config?: Partial<MemoryConfig>;
   lastSweep?: number;
+  documents?: CortexDocument[];
 }
 
 interface State {
@@ -73,6 +88,7 @@ interface State {
   cost: Cost;
   config: MemoryConfig;
   lastSweep: number;
+  documents: CortexDocument[];
   // ephemeral UI
   mode: Mode;
   importance: Importance;
@@ -86,6 +102,13 @@ interface State {
   live: () => Memory[];
   remember: (text: string, importance: Importance) => void;
   ingestText: (text: string, source: string) => number;
+  ingestSource: (input: {
+    kind: "note" | "file" | "url";
+    title: string;
+    text: string;
+    origin?: string;
+    url?: string;
+  }) => { docId: string; facts: string[] };
   syncFiles: (
     files: {
       id: string;
@@ -130,6 +153,7 @@ function persist(s: {
   cost: Cost;
   config?: MemoryConfig;
   lastSweep?: number;
+  documents?: CortexDocument[];
 }) {
   try {
     const cur = (() => {
@@ -141,6 +165,7 @@ function persist(s: {
     })();
     const config = s.config ? serializeConfig(s.config) : cur.config;
     const lastSweep = s.lastSweep ?? cur.lastSweep;
+    const documents = s.documents ?? cur.documents ?? [];
     localStorage.setItem(
       KEY,
       JSON.stringify({
@@ -149,6 +174,7 @@ function persist(s: {
         cost: s.cost,
         config,
         lastSweep,
+        documents,
       }),
     );
   } catch {}
@@ -169,6 +195,7 @@ export const useCortex = create<State>((set, get) => ({
   cost: { rawIngestedTokens: 0, dedupTokens: 0, retrievalTokens: 0, asks: 0 },
   config: DEFAULT_CONFIG,
   lastSweep: 0,
+  documents: [],
   mode: "remember",
   importance: "normal",
   model: MODELS[1]!,
@@ -214,8 +241,17 @@ export const useCortex = create<State>((set, get) => ({
         );
       }
     }
-    persist({ memories, events, cost: data.cost, config, lastSweep });
-    set({ memories, events, cost: data.cost, config, lastSweep, ready: true });
+    const documents = data.documents ?? [];
+    persist({ memories, events, cost: data.cost, config, lastSweep, documents });
+    set({
+      memories,
+      events,
+      cost: data.cost,
+      config,
+      lastSweep,
+      documents,
+      ready: true,
+    });
   },
 
   live: () =>
@@ -311,6 +347,76 @@ export const useCortex = create<State>((set, get) => ({
       return next;
     });
     return parts.length;
+  },
+
+  // Build memory from a source (note / file / webpage): distill it into fact
+  // memories and record the source document for provenance. The caller pushes the
+  // returned facts to Walrus Memory (memwal) when signed in.
+  ingestSource: (input) => {
+    const docId = uid("doc");
+    const now = Date.now();
+    const extracted = extract(input.text);
+    const facts = extracted.length ? extracted : [input.text.trim()];
+    let createdFacts: string[] = [];
+    set((s) => {
+      const mems = facts.map((p) =>
+        newMemory(
+          {
+            id: uid("mem"),
+            text: p,
+            tags: autoTags(p),
+            ts: now,
+            createdAt: now,
+            source: input.title,
+            docId,
+            origin: input.origin,
+          } as Memory,
+          "normal",
+          input.kind === "note" ? "stated" : "inferred",
+        ),
+      );
+      createdFacts = mems.map((m) => m.text);
+      const doc: CortexDocument = {
+        id: docId,
+        kind: input.kind,
+        title: input.title,
+        origin: input.origin,
+        summary:
+          input.text.trim().slice(0, 240) +
+          (input.text.trim().length > 240 ? "…" : ""),
+        count: mems.length,
+        createdAt: now,
+        memoryIds: mems.map((m) => m.id),
+        url: input.url,
+      };
+      const cost = {
+        ...s.cost,
+        rawIngestedTokens: s.cost.rawIngestedTokens + toks(input.text),
+      };
+      const label =
+        input.kind === "url"
+          ? "Saved a link"
+          : input.kind === "file"
+            ? `Read “${input.title}”`
+            : "Wrote a note";
+      const events = logEvent(
+        s.events,
+        "imported",
+        label,
+        `${mems.length} ${mems.length === 1 ? "memory" : "memories"} from ${input.title}`,
+      );
+      const documents = [doc, ...s.documents];
+      const next = {
+        memories: [...mems, ...s.memories],
+        events,
+        cost,
+        config: s.config,
+        documents,
+      };
+      persist(next);
+      return next;
+    });
+    return { docId, facts: createdFacts };
   },
 
   // Mirror on-chain KbFiles as "file" memory nodes so they show in the Knowledge
