@@ -2,11 +2,10 @@
 
 import { useRef, useState } from "react";
 import { useCortex } from "@/lib/cortex/store";
+import { extractContent } from "@/lib/cortex/extract";
 import type { CortexWallet } from "@/lib/cortex/use-wallet";
 
 type Mode = "note" | "link" | "file";
-
-const TEXT_LIKE = /\.(txt|md|markdown|csv|json|log|html?|rtf|tsv|ya?ml)$/i;
 
 // Build memory from a source: a written note, a webpage, or text/markdown files.
 // Each is distilled into fact memories (and pushed to Walrus Memory when signed in)
@@ -81,19 +80,24 @@ export function CaptureModal({
     setBusy(true);
     let total = 0;
     for (const f of [...files]) {
-      if (!(TEXT_LIKE.test(f.name) || f.type.startsWith("text"))) {
-        flash(`${f.name}: only text/markdown files are supported for now.`);
-        continue;
+      try {
+        flash(`Reading ${f.name}…`);
+        const content = await extractContent(f);
+        if (!content.trim()) {
+          flash(`${f.name}: nothing to extract.`);
+          continue;
+        }
+        const { facts } = s.ingestSource({
+          kind: "file",
+          title: f.name,
+          origin: f.name,
+          text: content,
+        });
+        pushLive(facts);
+        total += facts.length;
+      } catch (err) {
+        flash((err as Error).message);
       }
-      const content = await f.text();
-      const { facts } = s.ingestSource({
-        kind: "file",
-        title: f.name,
-        origin: f.name,
-        text: content,
-      });
-      pushLive(facts);
-      total += facts.length;
     }
     setBusy(false);
     if (total) {
@@ -116,7 +120,7 @@ export function CaptureModal({
     {
       id: "file",
       name: "Upload files",
-      desc: "Turn text, markdown, CSV and JSON into memories",
+      desc: "Images, audio, video, text and docs — distilled into memories",
     },
   ];
 
@@ -174,16 +178,18 @@ export function CaptureModal({
                 type="file"
                 multiple
                 hidden
-                accept=".txt,.md,.markdown,.csv,.json,.log,.html,.htm,.rtf,.tsv,.yaml,.yml,text/*"
+                accept="image/*,audio/*,video/*,text/*,.txt,.md,.markdown,.csv,.json,.log,.html,.htm,.rtf,.tsv,.yaml,.yml"
                 onChange={(e) => void addFiles(e.target.files)}
               />
               <button
                 className="cap-drop"
                 onClick={() => fileRef.current?.click()}
               >
-                <div className="cap-drop-t">Choose files</div>
+                <div className="cap-drop-t">
+                  {busy ? "Working…" : "Choose files"}
+                </div>
                 <div className="cap-drop-s">
-                  text, markdown, CSV, JSON — distilled into memories
+                  images, audio, video, text — distilled into memories
                 </div>
               </button>
             </div>
