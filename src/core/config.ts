@@ -14,6 +14,7 @@ export interface Config {
   delegateKey: string;
   models: { chat: string; extract: string; anthropicApiKey: string };
   watch: { paths: string[] };
+  webhookUrl: string;
 }
 
 const DEFAULTS: Config = {
@@ -33,6 +34,7 @@ const DEFAULTS: Config = {
     anthropicApiKey: "",
   },
   watch: { paths: [] },
+  webhookUrl: "",
 };
 
 function deepMerge<T>(base: T, over: Partial<T> | undefined): T {
@@ -68,6 +70,8 @@ export function loadConfig(
     cfg.memwal.apiKey = process.env.MEMWAL_API_KEY;
   if (process.env.ANTHROPIC_API_KEY)
     cfg.models.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  if (process.env.CORTEX_WEBHOOK_URL)
+    cfg.webhookUrl = process.env.CORTEX_WEBHOOK_URL;
   return cfg;
 }
 
