@@ -1,0 +1,6 @@
+{
+  "//": "IDE-facing config so editors resolve Node types for the local-first core. The CLI typecheck uses ../../tsconfig.server.json (which globs this dir); this nearest config just stops 'Cannot find name process' in excluded-from-root files.",
+  "extends": "../../tsconfig.server.json",
+  "include": ["."],
+  "exclude": ["../../node_modules"]
+}
