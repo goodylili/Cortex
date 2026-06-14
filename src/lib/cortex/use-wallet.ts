@@ -26,6 +26,13 @@ import {
   type SessionMeta,
 } from "@/lib/cortex/walrus/sessions";
 import {
+  saveTasks,
+  loadTasks,
+  saveBus,
+  loadBus,
+} from "@/lib/cortex/walrus/agents";
+import type { AgentTask, AgentMessage } from "@/lib/cortex/agents";
+import {
   ensureMemory,
   loadMemoryCreds,
   recallLive,
@@ -54,6 +61,11 @@ export interface CortexWallet {
   loadTimeline: () => Promise<unknown | null>;
   saveDocuments: (documents: unknown) => Promise<void>;
   loadDocuments: () => Promise<unknown | null>;
+  saveAgents: (tasks: AgentTask[], messages: AgentMessage[]) => Promise<void>;
+  loadAgents: () => Promise<{
+    tasks: AgentTask[] | null;
+    messages: AgentMessage[] | null;
+  } | null>;
 }
 
 export interface CortexWalletState {
@@ -208,6 +220,29 @@ export function useCortexWallet(): CortexWalletState {
         if (!contractsEnabled()) return null;
         const accountId = await getAccountId(address);
         return accountId ? loadState(signer, accountId, DOCUMENTS_KEY) : null;
+      },
+      saveAgents: async (tasks: AgentTask[], messages: AgentMessage[]) => {
+        if (!contractsEnabled()) return;
+        const accountId = await ensureAccount({
+          signer,
+          memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? ZERO_ID,
+          displayName: "Cortex",
+          handle: `cortex_${address.slice(2, 10)}`,
+        });
+        await Promise.all([
+          saveTasks(signer, accountId, tasks),
+          saveBus(signer, accountId, messages),
+        ]);
+      },
+      loadAgents: async () => {
+        if (!contractsEnabled()) return null;
+        const accountId = await getAccountId(address);
+        if (!accountId) return null;
+        const [tasks, messages] = await Promise.all([
+          loadTasks(signer, accountId),
+          loadBus(signer, accountId),
+        ]);
+        return { tasks, messages };
       },
     };
   }, [signer, user]);

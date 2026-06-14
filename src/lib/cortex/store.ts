@@ -34,8 +34,22 @@ import {
   type SweepSummary,
 } from "./memory-model";
 import type { SessionMeta } from "./walrus/sessions";
+import {
+  type AgentTask,
+  type AgentMessage,
+  AGENTS,
+  agentById,
+  newTask,
+  newObservation,
+  newMessage,
+  addObservation,
+  addOutput,
+  setStatus as taskSetStatus,
+  handoff as taskHandoff,
+} from "./agents";
 
 const KEY = "cortex.db.v3";
+const STEP_MEMORY_LIMIT = 6;
 
 export interface ChatSource {
   type: "memory" | "web";
@@ -85,6 +99,8 @@ interface Persisted {
   sessions?: SessionMeta[];
   activeId?: string;
   chatsById?: Record<string, ChatMsg[]>;
+  tasks?: AgentTask[];
+  agentMessages?: AgentMessage[];
 }
 
 interface State {
@@ -96,6 +112,8 @@ interface State {
   documents: CortexDocument[];
   sessions: SessionMeta[];
   activeId: string;
+  tasks: AgentTask[];
+  agentMessages: AgentMessage[];
   // ephemeral UI
   mode: Mode;
   importance: Importance;
@@ -159,6 +177,14 @@ interface State {
   switchSession: (id: string) => void;
   renameSession: (id: string, title: string) => void;
   setSessions: (sessions: SessionMeta[]) => void;
+  // multi-agent collaboration
+  createTask: (goal: string, assignTo: string) => string;
+  runAgentStep: (taskId: string) => Promise<void>;
+  handoffTask: (taskId: string, toAgentId: string) => void;
+  completeTask: (taskId: string) => void;
+  saveObservationAsMemory: (taskId: string, obsId: string) => string | null;
+  setTasks: (tasks: AgentTask[]) => void;
+  setAgentMessages: (messages: AgentMessage[]) => void;
 }
 
 function persist(s: {
@@ -171,6 +197,8 @@ function persist(s: {
   chat?: ChatMsg[];
   sessions?: SessionMeta[];
   activeId?: string;
+  tasks?: AgentTask[];
+  agentMessages?: AgentMessage[];
 }) {
   try {
     const cur = (() => {
@@ -185,6 +213,8 @@ function persist(s: {
     const documents = s.documents ?? cur.documents ?? [];
     const sessions = s.sessions ?? cur.sessions ?? [];
     const activeId = s.activeId ?? cur.activeId ?? "";
+    const tasks = s.tasks ?? cur.tasks ?? [];
+    const agentMessages = s.agentMessages ?? cur.agentMessages ?? [];
     // The active session's messages live under its id; a single chat passed in is
     // committed to the active bucket so existing call sites keep working.
     const chatsById: Record<string, ChatMsg[]> = { ...(cur.chatsById ?? {}) };
@@ -201,6 +231,8 @@ function persist(s: {
         sessions,
         activeId,
         chatsById,
+        tasks,
+        agentMessages,
       }),
     );
   } catch {}
@@ -224,6 +256,8 @@ export const useCortex = create<State>((set, get) => ({
   documents: [],
   sessions: [],
   activeId: "",
+  tasks: [],
+  agentMessages: [],
   mode: "remember",
   importance: "normal",
   model: MODELS[1]!,
@@ -282,6 +316,8 @@ export const useCortex = create<State>((set, get) => ({
     }
     if (!sessions.some((x) => x.id === activeId)) activeId = sessions[0]!.id;
     const chat = chatsById[activeId] ?? [];
+    const tasks = data.tasks ?? [];
+    const agentMessages = data.agentMessages ?? [];
     persist({
       memories,
       events,
@@ -292,6 +328,8 @@ export const useCortex = create<State>((set, get) => ({
       chat,
       sessions,
       activeId,
+      tasks,
+      agentMessages,
     });
     set({
       memories,
@@ -303,6 +341,8 @@ export const useCortex = create<State>((set, get) => ({
       chat,
       sessions,
       activeId,
+      tasks,
+      agentMessages,
       ready: true,
     });
   },
@@ -957,6 +997,231 @@ export const useCortex = create<State>((set, get) => ({
       persist({ memories: s.memories, events: s.events, cost: s.cost, sessions });
       return { sessions };
     }),
+  // ---- multi-agent collaboration ----
+  // A small team of specialist agents share this same memory store. Tasks and the
+  // agent message bus live in the local cache and sync to Walrus/Sui (agents:tasks,
+  // agents:bus) exactly like sessions/timeline/documents.
+  createTask: (goal, assignTo) => {
+    const g = goal.trim();
+    if (!g) return "";
+    const now = Date.now();
+    const agent = agentById(assignTo) ?? AGENTS[0]!;
+    const task = newTask(g, agent.id, "user", now);
+    const msg = newMessage(
+      "user",
+      agent.id,
+      task.id,
+      "handoff",
+      `New task assigned to ${agent.name}: ${g}`,
+      now,
+    );
+    set((s) => {
+      const tasks = [task, ...s.tasks];
+      const agentMessages = [msg, ...s.agentMessages];
+      const events = logEvent(
+        s.events,
+        "agent",
+        `Opened a task for ${agent.name}`,
+        g.length > 60 ? g.slice(0, 60) + "…" : g,
+      );
+      persist({
+        memories: s.memories,
+        events,
+        cost: s.cost,
+        tasks,
+        agentMessages,
+      });
+      return { tasks, agentMessages, events };
+    });
+    return task.id;
+  },
+  runAgentStep: async (taskId) => {
+    const state = get();
+    const task = state.tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const agent = agentById(task.assignedTo) ?? AGENTS[0]!;
+    const now = Date.now();
+    const cfg = state.config;
+    const live = state.live().filter((m) => isRetrievable(m, now, cfg));
+    const cites = retrieve(task.goal, live).slice(0, STEP_MEMORY_LIMIT);
+    const memoryRefs = cites.map((c) => c.id);
+    set((s) => {
+      const tasks = s.tasks.map((t) =>
+        t.id === taskId ? taskSetStatus(t, "in_progress", now) : t,
+      );
+      persist({ memories: s.memories, events: s.events, cost: s.cost, tasks });
+      return { tasks };
+    });
+    let observationText: string;
+    try {
+      const res = await fetch("/api/agent", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          agentId: agent.id,
+          goal: task.goal,
+          observations: task.observations.map((o) => o.text),
+          memories: cites.map((c) => ({
+            text: c.text,
+            label: c.tags[0] || "note",
+            when: ago(c.ts),
+          })),
+          model: get().model.name,
+        }),
+      });
+      const data = (await res.json()) as { observation?: string };
+      observationText =
+        typeof data.observation === "string" && data.observation
+          ? data.observation
+          : `${agent.name} reviewed “${task.goal}” but produced no output.`;
+    } catch {
+      observationText = `${agent.name} could not reach the model for “${task.goal}”.`;
+    }
+    const after = Date.now();
+    const obs = newObservation(agent.id, observationText, after, memoryRefs);
+    const message = newMessage(
+      agent.id,
+      "team",
+      taskId,
+      "result",
+      observationText,
+      after,
+    );
+    set((s) => {
+      const tasks = s.tasks.map((t) =>
+        t.id === taskId ? addObservation(t, obs, after) : t,
+      );
+      const agentMessages = [message, ...s.agentMessages];
+      const events = logEvent(
+        s.events,
+        "agent",
+        `${agent.name} worked the task`,
+        observationText.length > 60
+          ? observationText.slice(0, 60) + "…"
+          : observationText,
+      );
+      persist({
+        memories: s.memories,
+        events,
+        cost: s.cost,
+        tasks,
+        agentMessages,
+      });
+      return { tasks, agentMessages, events };
+    });
+  },
+  handoffTask: (taskId, toAgentId) =>
+    set((s) => {
+      const now = Date.now();
+      const task = s.tasks.find((t) => t.id === taskId);
+      const to = agentById(toAgentId);
+      if (!task || !to) return {};
+      const from = agentById(task.assignedTo);
+      const tasks = s.tasks.map((t) =>
+        t.id === taskId ? taskHandoff(t, toAgentId, now) : t,
+      );
+      const msg = newMessage(
+        task.assignedTo,
+        toAgentId,
+        taskId,
+        "handoff",
+        `${from?.name ?? "Someone"} handed “${task.goal}” to ${to.name} to continue.`,
+        now,
+      );
+      const agentMessages = [msg, ...s.agentMessages];
+      const events = logEvent(
+        s.events,
+        "agent",
+        `Handoff to ${to.name}`,
+        task.goal.length > 60 ? task.goal.slice(0, 60) + "…" : task.goal,
+      );
+      persist({
+        memories: s.memories,
+        events,
+        cost: s.cost,
+        tasks,
+        agentMessages,
+      });
+      return { tasks, agentMessages, events };
+    }),
+  completeTask: (taskId) =>
+    set((s) => {
+      const now = Date.now();
+      const task = s.tasks.find((t) => t.id === taskId);
+      if (!task) return {};
+      const agent = agentById(task.assignedTo);
+      const lastObs = task.observations[task.observations.length - 1];
+      let updated = taskSetStatus(task, "done", now);
+      if (lastObs) updated = addOutput(updated, lastObs.text, now);
+      const tasks = s.tasks.map((t) => (t.id === taskId ? updated : t));
+      const msg = newMessage(
+        task.assignedTo,
+        "team",
+        taskId,
+        "result",
+        `Task “${task.goal}” marked done by ${agent?.name ?? "the team"}.`,
+        now,
+      );
+      const agentMessages = [msg, ...s.agentMessages];
+      const events = logEvent(
+        s.events,
+        "agent",
+        "Closed a task",
+        task.goal.length > 60 ? task.goal.slice(0, 60) + "…" : task.goal,
+      );
+      persist({
+        memories: s.memories,
+        events,
+        cost: s.cost,
+        tasks,
+        agentMessages,
+      });
+      return { tasks, agentMessages, events };
+    }),
+  saveObservationAsMemory: (taskId, obsId) => {
+    const state = get();
+    const task = state.tasks.find((t) => t.id === taskId);
+    const obs = task?.observations.find((o) => o.id === obsId);
+    if (!task || !obs) return null;
+    const agent = agentById(obs.agentId);
+    const now = Date.now();
+    const base: Memory = {
+      id: uid("mem"),
+      text: obs.text,
+      tags: autoTags(obs.text),
+      ts: now,
+      createdAt: now,
+      source: agent ? `agent:${agent.name}` : "agent",
+    };
+    const m = newMemory(base, "normal", "inferred");
+    set((s) => {
+      const memories = [m, ...s.memories];
+      const events = logEvent(
+        s.events,
+        "agent",
+        `${agent?.name ?? "An agent"} saved a finding to memory`,
+        obs.text.length > 60 ? obs.text.slice(0, 60) + "…" : obs.text,
+      );
+      persist({ memories, events, cost: s.cost });
+      return { memories, events };
+    });
+    return obs.text;
+  },
+  setTasks: (tasks) =>
+    set((s) => {
+      persist({ memories: s.memories, events: s.events, cost: s.cost, tasks });
+      return { tasks };
+    }),
+  setAgentMessages: (agentMessages) =>
+    set((s) => {
+      persist({
+        memories: s.memories,
+        events: s.events,
+        cost: s.cost,
+        agentMessages,
+      });
+      return { agentMessages };
+    }),
   resetMemory: () =>
     set((s) => {
       const fresh = emptyState();
@@ -966,6 +1231,8 @@ export const useCortex = create<State>((set, get) => ({
         cost: fresh.cost,
         config: s.config,
         lastSweep: 0,
+        tasks: [],
+        agentMessages: [],
       };
       persist(next);
       return { ...next, chat: [] };
