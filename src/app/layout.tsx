@@ -57,7 +57,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <Suspense fallback={null}>{children}</Suspense>
       </body>
     </html>

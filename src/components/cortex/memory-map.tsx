@@ -1,307 +1,1390 @@
 "use client";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useCortex } from "@/lib/cortex/store";
-import { ago, type Memory } from "@/lib/cortex/logic";
+import { type Memory } from "@/lib/cortex/logic";
 
-const TAG_COLOR: Record<string, string> = {
-  work: "#58A6FF",
-  travel: "#3FB950",
-  people: "#F778BA",
-  habits: "#D6A53B",
-  ideas: "#B79BEA",
-  reading: "#7FD0A0",
-  money: "#E0B760",
-  health: "#5CD6C0",
-  note: "#9b8cff",
-  file: "#8B8B95",
-};
-const clusterName = (tag: string) =>
-  ({
-    work: "Work & projects",
-    travel: "Travel",
-    people: "People",
-    habits: "Habits & routines",
-    ideas: "Ideas",
-    reading: "Reading",
-    money: "Money",
-    health: "Health",
-    note: "Notes",
-    file: "Files",
-  })[tag] || tag;
-
-const W = 1200,
-  H = 760,
-  CX = W / 2,
-  CY = H / 2,
-  R1 = 235,
-  R2 = 150;
-const trunc = (s: string, n: number) =>
-  s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s;
+// Full canvas "memory mesh": a force-directed graph of your memories with glossy
+// glowing orbs, lavender seal beams, a rotating seal, a category legend, a hub
+// fan-out and a detail card. Asking is handled by the app's global composer.
+// Ported to run on the app's live memories. Self-contained dark immersive view.
 
 export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
-  const liveFn = useCortex((s) => s.live);
-  const live = liveFn();
-  const [sel, setSel] = useState<string | null>(null);
-  const [hover, setHover] = useState<Memory | null>(null);
-  const [vt, setVt] = useState({ x: 0, y: 0, k: 1 });
-  const drag = useRef<{ x: number; y: number; vx: number; vy: number } | null>(
-    null,
-  );
+  const live = useCortex((s) => s.live)();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const liveRef = useRef(live);
+  liveRef.current = live;
 
-  const clusters = useMemo(() => {
-    const by: Record<string, Memory[]> = {};
-    live.forEach((m) => {
-      const t = m.tags[0] || "note";
-      (by[t] ||= []).push(m);
-    });
-    const entries = Object.entries(by).sort(
-      (a, b) => b[1].length - a[1].length,
-    );
-    const n = entries.length;
-    return entries.map(([tag, mems], i) => {
-      const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
-      const x = CX + R1 * Math.cos(a),
-        y = CY + R1 * Math.sin(a);
-      const span = Math.min(((2 * Math.PI) / n) * 0.92, 1.7),
-        m = mems.length;
-      const leaves = mems.map((mem, j) => {
-        const la = a + (m === 1 ? 0 : (j / (m - 1) - 0.5) * span);
-        return {
-          mem,
-          x: x + R2 * Math.cos(la),
-          y: y + R2 * Math.sin(la),
-          right: Math.cos(la) >= 0,
-        };
-      });
-      return { tag, mems, x, y, leaves, color: TAG_COLOR[tag] || "#9b8cff" };
-    });
-  }, [live]);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const q = <T extends Element = HTMLElement>(sel: string) =>
+      root.querySelector(sel) as T | null;
+    const css = (k: string) =>
+      getComputedStyle(root).getPropertyValue(k).trim();
+    const PI2 = Math.PI * 2;
+    const PALETTE = [
+      "#f0a73c",
+      "#4d9bff",
+      "#2fd0c8",
+      "#b07bff",
+      "#44d27e",
+      "#ff5fa8",
+      "#5fb8d6",
+      "#ffaa3c",
+      "#7c83ff",
+      "#5fd29a",
+    ];
+    const LBL: Record<string, string> = {
+      work: "Work",
+      travel: "Travel",
+      people: "People",
+      habits: "Habits",
+      ideas: "Ideas",
+      reading: "Reading",
+      money: "Money",
+      health: "Health",
+      note: "Notes",
+      file: "Files",
+    };
 
-  function onWheel(e: React.WheelEvent) {
-    e.preventDefault();
-    const k = Math.min(2.4, Math.max(0.5, vt.k * (e.deltaY < 0 ? 1.12 : 0.89)));
-    setVt((v) => ({ ...v, k }));
-  }
-  function onDown(e: React.MouseEvent) {
-    drag.current = { x: e.clientX, y: e.clientY, vx: vt.x, vy: vt.y };
-  }
-  function onMove(e: React.MouseEvent) {
-    if (!drag.current) return;
-    setVt((v) => ({
-      ...v,
-      x: drag.current!.vx + (e.clientX - drag.current!.x),
-      y: drag.current!.vy + (e.clientY - drag.current!.y),
+    // ----- build data from live memories -----
+    type M = {
+      id: string;
+      cat: string;
+      emo: string;
+      full: string;
+      clause: string;
+      day: number;
+      by: string;
+      seal: boolean;
+      mem: Memory;
+      blob?: string;
+      pinned?: boolean;
+      forgotten?: boolean;
+      verified?: boolean;
+      rel?: { m: M; why: string }[];
+      node?: Node;
+    };
+    type Node = {
+      id: string;
+      type: "center" | "hub" | "leaf";
+      cat?: string;
+      mem?: M;
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      a?: number;
+      s?: number;
+      pulse?: number;
+    };
+    const EMO: Record<string, { c: string }> = {
+      calm: { c: "#5fb8d6" },
+      focused: { c: "#7c83ff" },
+      excited: { c: "#ffaa3c" },
+      joyful: { c: "#ff7eb0" },
+      curious: { c: "#5fd29a" },
+      anxious: { c: "#ff6b6b" },
+    };
+    const EMOK = Object.keys(EMO);
+    const emoOf = (id: string) => {
+      let h = 0;
+      for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+      return EMOK[h % EMOK.length]!;
+    };
+    const data = liveRef.current;
+    const cats = Array.from(new Set(data.map((m) => m.tags[0] || "note")));
+    const CATS: Record<string, { c: string; label: string }> = {};
+    cats.forEach((c, i) => {
+      CATS[c] = {
+        c: PALETTE[i % PALETTE.length]!,
+        label: LBL[c] || c.charAt(0).toUpperCase() + c.slice(1),
+      };
+    });
+    const sorted = [...data].sort((a, b) => a.ts - b.ts);
+    const dayMax = Math.max(1, sorted.length);
+    const MEM: M[] = sorted.map((m, i) => ({
+      id: m.id,
+      mem: m,
+      cat: m.tags[0] || "note",
+      emo: emoOf(m.id),
+      full: m.text,
+      clause: m.text.replace(/[.!?]+$/, "").toLowerCase(),
+      day: i + 1,
+      by: (m as unknown as { source?: string }).source || "you",
+      seal: !!m.kept,
+      pinned: false,
+      forgotten: false,
+      verified: false,
+      rel: [],
     }));
-  }
-  function onUp() {
-    drag.current = null;
-  }
-  const leafColor = (m: Memory) =>
-    m.kept
-      ? "#7FD0A0"
-      : m.noticed
-        ? "#B79BEA"
-        : m.importance === "high"
-          ? "#D6A53B"
-          : "#8B8B95";
+    const byId: Record<string, M> = {};
+    MEM.forEach((m) => (byId[m.id] = m));
+    // relationships from shared tags
+    const RELS: [string, string, string][] = [];
+    for (let i = 0; i < MEM.length && RELS.length < MEM.length * 2; i++) {
+      for (let j = i + 1; j < MEM.length && RELS.length < MEM.length * 2; j++) {
+        const ti = MEM[i]!.mem.tags,
+          tj = MEM[j]!.mem.tags;
+        const shared = ti.find((t) => tj.includes(t));
+        if (shared) RELS.push([MEM[i]!.id, MEM[j]!.id, shared]);
+      }
+    }
+    RELS.forEach(([a, b, why]) => {
+      byId[a]?.rel!.push({ m: byId[b]!, why });
+      byId[b]?.rel!.push({ m: byId[a]!, why });
+    });
+
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const canvas = q<HTMLCanvasElement>("#mc")!;
+    const ctx = canvas.getContext("2d")!;
+    let W = 0,
+      H = 0,
+      raf = 0;
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    let vign: CanvasGradient | null = null;
+    function resize() {
+      W = canvas.clientWidth;
+      H = canvas.clientHeight;
+      canvas.width = W * DPR;
+      canvas.height = H * DPR;
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      vign = ctx.createRadialGradient(
+        W * 0.46,
+        H * 0.5,
+        40,
+        W * 0.46,
+        H * 0.5,
+        Math.max(W, H) * 0.8,
+      );
+      vign.addColorStop(0, "#0a0810");
+      vign.addColorStop(0.5, "#040307");
+      vign.addColorStop(1, "#000000");
+    }
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
+
+    const nodes: Node[] = [],
+      hubs: Record<string, Node> = {},
+      leaves: Node[] = [],
+      links: { a: M; b: M }[] = [];
+    const center: Node = {
+      id: "center",
+      type: "center",
+      x: 0,
+      y: 0,
+      vx: 0,
+      vy: 0,
+    };
+    nodes.push(center);
+    const hubKeys = Object.keys(CATS);
+    hubKeys.forEach((k, i) => {
+      const a = ((-90 + i * (360 / hubKeys.length)) * Math.PI) / 180;
+      const hub: Node = {
+        id: "hub_" + k,
+        type: "hub",
+        cat: k,
+        x: Math.cos(a) * 225,
+        y: Math.sin(a) * 225,
+        vx: 0,
+        vy: 0,
+        a: 1,
+      };
+      nodes.push(hub);
+      hubs[k] = hub;
+      MEM.filter((m) => m.cat === k).forEach((m, j, arr) => {
+        const la = a + (j - (arr.length - 1) / 2) * 0.5;
+        m.node = {
+          id: "leaf_" + m.id,
+          type: "leaf",
+          mem: m,
+          cat: k,
+          x: hub.x + Math.cos(la) * 95,
+          y: hub.y + Math.sin(la) * 95,
+          vx: 0,
+          vy: 0,
+          a: 1,
+          s: 1,
+          pulse: 0,
+        };
+        nodes.push(m.node);
+        leaves.push(m.node);
+      });
+    });
+    RELS.forEach(([a, b]) => {
+      if (byId[a]?.node && byId[b]?.node)
+        links.push({ a: byId[a]!, b: byId[b]! });
+    });
+
+    const cam = { tx: 0, ty: 0, scale: 1 };
+    let camT = { tx: 0, ty: 0, scale: 1 };
+    const camV = { tx: 0, ty: 0, scale: 0 };
+    const toScreen = (x: number, y: number): [number, number] => [
+      (x - cam.tx) * cam.scale + W * 0.46,
+      (y - cam.ty) * cam.scale + H / 2,
+    ];
+    const toWorld = (sx: number, sy: number): [number, number] => [
+      (sx - W * 0.46) / cam.scale + cam.tx,
+      (sy - H / 2) / cam.scale + cam.ty,
+    ];
+
+    const asOf = dayMax;
+    let view = "overview",
+      detailCat: string | null = null,
+      focusCat: string | null = null,
+      focusEmo: string | null = null,
+      selectedMem: M | null = null,
+      hoverMem: M | null = null,
+      hoverFan: FanItem | null = null;
+    let dragging = false,
+      dragNode: Node | null = null,
+      lastM = { x: 0, y: 0 },
+      didDrag = false,
+      appear = 0;
+    const t0 = performance.now();
+    let relevant = new Set<string>(),
+      pings: { wx: number; wy: number; r: number; a: number; c: string }[] = [],
+      fanItems: FanItem[] = [],
+      detailT = 0;
+    type FanItem = { m: M; x: number; y: number; cy: number };
+    const vis = (m: M) => m.day <= asOf && !m.forgotten;
+    const hexA = (hex: string, a: number) => {
+      hex = hex.replace("#", "");
+      if (hex.length === 3)
+        hex = hex
+          .split("")
+          .map((c) => c + c)
+          .join("");
+      const r = parseInt(hex.slice(0, 2), 16),
+        g = parseInt(hex.slice(2, 4), 16),
+        b = parseInt(hex.slice(4, 6), 16);
+      return `rgba(${r},${g},${b},${a})`;
+    };
+    const rgb = (hex: string) => {
+      hex = hex.replace("#", "");
+      if (hex.length === 3)
+        hex = hex
+          .split("")
+          .map((c) => c + c)
+          .join("");
+      return [
+        parseInt(hex.slice(0, 2), 16),
+        parseInt(hex.slice(2, 4), 16),
+        parseInt(hex.slice(4, 6), 16),
+      ];
+    };
+    const mix = (hex: string, t: number[], amt: number) => {
+      const a = rgb(hex);
+      return `rgb(${Math.round(a[0]! + (t[0]! - a[0]!) * amt)},${Math.round(a[1]! + (t[1]! - a[1]!) * amt)},${Math.round(a[2]! + (t[2]! - a[2]!) * amt)})`;
+    };
+    const mixHex = (h1: string, h2: string, amt: number) => {
+      const a = rgb(h1),
+        b = rgb(h2);
+      return `rgb(${Math.round(a[0]! + (b[0]! - a[0]!) * amt)},${Math.round(a[1]! + (b[1]! - a[1]!) * amt)},${Math.round(a[2]! + (b[2]! - a[2]!) * amt)})`;
+    };
+    const WHITE = [255, 255, 255],
+      BLACK = [0, 0, 0];
+    const SANS = css("--mesh-sans") || "system-ui, sans-serif";
+    const MONO = css("--mesh-mono") || "ui-monospace, monospace";
+    const HEAD = css("--mesh-head") || SANS;
+    const trunc = (s: string, n: number) =>
+      s.length <= n ? s : s.slice(0, n - 1).trimEnd() + "…";
+    function rr(x: number, y: number, w: number, h: number, r: number) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+    const neighbor = (m: M) =>
+      (hoverMem && hoverMem.rel!.some((r) => r.m === m)) ||
+      (selectedMem && selectedMem.rel!.some((r) => r.m === m));
+    function memActive(m: M) {
+      if (!vis(m)) return false;
+      if (relevant.size) return relevant.has("leaf_" + m.id);
+      if (focusCat) return m.cat === focusCat;
+      if (focusEmo) return m.emo === focusEmo;
+      return true;
+    }
+    function orb(x: number, y: number, r: number, hex: string, bright: number) {
+      const gg = ctx.createRadialGradient(x, y, 0, x, y, r * 3.6);
+      gg.addColorStop(0, hexA(hex, 0.4 * bright));
+      gg.addColorStop(0.4, hexA(hex, 0.13 * bright));
+      gg.addColorStop(1, hexA(hex, 0));
+      ctx.fillStyle = gg;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 3.6, 0, PI2);
+      ctx.fill();
+      ctx.strokeStyle = hexA(mix(hex, WHITE, 0.4), 0.28 * bright);
+      ctx.lineWidth = Math.max(1.5, r * 0.18);
+      ctx.shadowColor = hexA(hex, 0.6 * bright);
+      ctx.shadowBlur = r * 0.7;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 1.28, 0, PI2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      const g = ctx.createRadialGradient(
+        x - r * 0.38,
+        y - r * 0.44,
+        r * 0.08,
+        x + r * 0.15,
+        y + r * 0.2,
+        r * 1.1,
+      );
+      g.addColorStop(0, mix(hex, WHITE, 0.65));
+      g.addColorStop(0.45, hex);
+      g.addColorStop(1, mix(hex, BLACK, 0.55));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, PI2);
+      ctx.fill();
+      ctx.strokeStyle = hexA(mix(hex, WHITE, 0.55), 0.55 * bright);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, PI2);
+      ctx.stroke();
+      const sp = ctx.createRadialGradient(
+        x - r * 0.34,
+        y - r * 0.42,
+        0,
+        x - r * 0.34,
+        y - r * 0.42,
+        r * 0.5,
+      );
+      sp.addColorStop(0, "rgba(255,255,255," + 0.75 * bright + ")");
+      sp.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = sp;
+      ctx.beginPath();
+      ctx.ellipse(x - r * 0.32, y - r * 0.4, r * 0.34, r * 0.22, -0.6, 0, PI2);
+      ctx.fill();
+    }
+    function ring(
+      x: number,
+      y: number,
+      r: number,
+      hex: string,
+      a: number,
+      w?: number,
+    ) {
+      ctx.strokeStyle = hexA(hex, a);
+      ctx.lineWidth = w || 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, PI2);
+      ctx.stroke();
+    }
+    function spikyAura(
+      x: number,
+      y: number,
+      base: number,
+      amp: number,
+      hex: string,
+      alpha: number,
+      tnow: number,
+      seed: number,
+    ) {
+      ctx.strokeStyle = hexA(hex, alpha);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      const N = 120;
+      for (let i = 0; i <= N; i++) {
+        const a = (i / N) * PI2;
+        const n =
+          Math.sin(a * 9 + seed) +
+          Math.sin(a * 17 - seed * 1.7 + tnow * 1.5) +
+          Math.sin(a * 31 + tnow);
+        const r = base + amp * (0.5 + (0.5 * Math.abs(n)) / 3);
+        const px = x + Math.cos(a) * r,
+          py = y + Math.sin(a) * r;
+        if (i) ctx.lineTo(px, py);
+        else ctx.moveTo(px, py);
+      }
+      ctx.stroke();
+    }
+    function spring(a: Node, b: Node, len: number, k: number) {
+      const dx = b.x - a.x,
+        dy = b.y - a.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      const f = (d - len) * k;
+      const fx = (dx / d) * f,
+        fy = (dy / d) * f;
+      if (a !== dragNode) {
+        a.vx += fx;
+        a.vy += fy;
+      }
+      if (b !== dragNode) {
+        b.vx -= fx;
+        b.vy -= fy;
+      }
+    }
+    function physics() {
+      const vn = nodes.filter((n) => n.type !== "leaf" || vis(n.mem!));
+      for (let i = 0; i < vn.length; i++)
+        for (let j = i + 1; j < vn.length; j++) {
+          const a = vn[i]!,
+            b = vn[j]!;
+          const dx = b.x - a.x,
+            dy = b.y - a.y;
+          let d2 = dx * dx + dy * dy;
+          if (d2 < 1) d2 = 1;
+          const d = Math.sqrt(d2);
+          let f = 8800 / d2;
+          if (f > 2.1) f = 2.1;
+          const fx = (dx / d) * f,
+            fy = (dy / d) * f;
+          if (a !== dragNode) {
+            a.vx -= fx;
+            a.vy -= fy;
+          }
+          if (b !== dragNode) {
+            b.vx += fx;
+            b.vy += fy;
+          }
+        }
+      hubKeys.forEach((k) => spring(center, hubs[k]!, 225, 0.02));
+      leaves.forEach((lf) => {
+        if (vis(lf.mem!)) spring(hubs[lf.cat!]!, lf, 95, 0.026);
+      });
+      links.forEach((l) => {
+        if (vis(l.a) && vis(l.b)) spring(l.a.node!, l.b.node!, 135, 0.006);
+      });
+      vn.forEach((n) => {
+        if (n.type === "center") {
+          n.x = 0;
+          n.y = 0;
+          n.vx = 0;
+          n.vy = 0;
+          return;
+        }
+        n.vx += (0 - n.x) * 0.0009;
+        n.vy += (0 - n.y) * 0.0009;
+        n.vx *= 0.85;
+        n.vy *= 0.85;
+        if (n !== dragNode) {
+          n.x += n.vx;
+          n.y += n.vy;
+        }
+      });
+      const dim = relevant.size || focusCat || focusEmo;
+      leaves.forEach((lf) => {
+        const m = lf.mem!;
+        const v = vis(m),
+          nb = neighbor(m),
+          act = memActive(m);
+        const at = !v ? 0 : act ? 1 : nb ? 0.92 : dim ? 0.12 : 0.82;
+        const st = relevant.has("leaf_" + m.id)
+          ? 1.32
+          : hoverMem === m
+            ? 1.4
+            : nb
+              ? 1.16
+              : act
+                ? 1
+                : 0.86;
+        lf.a! += (at - lf.a!) * (reduce ? 1 : 0.14);
+        lf.s! += (st - lf.s!) * (reduce ? 1 : 0.16);
+        if (lf.pulse! > 0.01) lf.pulse! *= 0.93;
+        else lf.pulse = 0;
+      });
+      Object.values(hubs).forEach((h) => {
+        const anyInCat = MEM.some((m) => m.cat === h.cat && memActive(m));
+        const act = relevant.size
+          ? anyInCat
+          : focusCat
+            ? focusCat === h.cat
+            : focusEmo
+              ? anyInCat
+              : true;
+        h.a! += ((act ? 1 : 0.28) - h.a!) * 0.14;
+      });
+      pings = pings.filter((p) => {
+        p.r += reduce ? 40 : 3;
+        p.a *= 0.94;
+        return p.a > 0.03;
+      });
+    }
+    function beam(
+      p0: number[],
+      p1: number[],
+      intensity: number,
+      tnow: number,
+      phase: number,
+    ) {
+      const mx = (p0[0]! + p1[0]!) / 2,
+        my = (p0[1]! + p1[1]!) / 2;
+      const dx = p1[0]! - p0[0]!,
+        dy = p1[1]! - p0[1]!;
+      const L = Math.hypot(dx, dy) || 1;
+      const c = [mx - (dy / L) * L * 0.1, my + (dx / L) * L * 0.1];
+      ctx.beginPath();
+      ctx.moveTo(p0[0]!, p0[1]!);
+      ctx.quadraticCurveTo(c[0]!, c[1]!, p1[0]!, p1[1]!);
+      ctx.strokeStyle = hexA("#a98fe0", 0.13 * intensity);
+      ctx.lineWidth = 6;
+      ctx.shadowColor = hexA("#c9b3f0", 0.55 * intensity);
+      ctx.shadowBlur = 14;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(p0[0]!, p0[1]!);
+      ctx.quadraticCurveTo(c[0]!, c[1]!, p1[0]!, p1[1]!);
+      ctx.strokeStyle = hexA("#d8c6f8", 0.6 * intensity);
+      ctx.lineWidth = 1.2;
+      ctx.shadowBlur = 0;
+      ctx.stroke();
+      const tt = (tnow * 0.16 + phase) % 1,
+        u = 1 - tt;
+      const gx = u * u * p0[0]! + 2 * u * tt * c[0]! + tt * tt * p1[0]!,
+        gy = u * u * p0[1]! + 2 * u * tt * c[1]! + tt * tt * p1[1]!;
+      ctx.beginPath();
+      ctx.arc(gx, gy, 2, 0, PI2);
+      ctx.fillStyle = hexA("#fff", 0.85 * intensity);
+      ctx.shadowColor = hexA("#d8c6f8", 0.9 * intensity);
+      ctx.shadowBlur = 8;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      return c;
+    }
+    function edgeTag(x: number, y: number, text: string) {
+      ctx.font = "9px " + MONO;
+      const w = ctx.measureText(text).width + 10;
+      rr(x - w / 2, y - 8, w, 16, 5);
+      ctx.fillStyle = "rgba(4,10,12,0.85)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.12)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = "#cdd6d3";
+      ctx.textAlign = "center";
+      ctx.fillText(text, x, y + 3);
+    }
+    function draw() {
+      const tnow = (performance.now() - t0) / 1000;
+      ctx.fillStyle = vign!;
+      ctx.fillRect(0, 0, W, H);
+      if (view === "detail") {
+        drawDetail(tnow);
+        return;
+      }
+      ctx.globalAlpha = appear;
+      const [cx0, cy0] = toScreen(0, 0);
+      [160, 250, 360].forEach((r) =>
+        ring(cx0, cy0, r * cam.scale, "#3a3550", 0.09, 1),
+      );
+      hubKeys.forEach((k, i) => {
+        const h = hubs[k]!;
+        const p1 = toScreen(h.x, h.y);
+        beam([cx0, cy0], p1, 0.4 + h.a! * 0.6, tnow, i / 6);
+        const tx = (cx0 + p1[0]) / 2,
+          ty = (cy0 + p1[1]) / 2;
+        const cnt = MEM.filter((m) => m.cat === k && vis(m)).length;
+        if (cnt) edgeTag(tx, ty, String(cnt));
+      });
+      leaves.forEach((lf) => {
+        if (!vis(lf.mem!)) return;
+        const h = hubs[lf.cat!]!;
+        const [ax, ay] = toScreen(h.x, h.y),
+          [bx, by] = toScreen(lf.x, lf.y);
+        ctx.strokeStyle = hexA("#a98fe0", 0.09 * lf.a!);
+        ctx.lineWidth = 1;
+        ctx.setLineDash([1, 3]);
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+      const anyQ = relevant.size > 0;
+      links.forEach((l) => {
+        if (!vis(l.a) || !vis(l.b)) return;
+        const [ax, ay] = toScreen(l.a.node!.x, l.a.node!.y),
+          [bx, by] = toScreen(l.b.node!.x, l.b.node!.y);
+        const hot =
+          (hoverMem && (hoverMem === l.a || hoverMem === l.b)) ||
+          (selectedMem && (selectedMem === l.a || selectedMem === l.b)) ||
+          (relevant.has("leaf_" + l.a.id) && relevant.has("leaf_" + l.b.id));
+        const al = hot ? 0.5 : anyQ || focusCat || focusEmo ? 0.04 : 0.1;
+        const mx = (ax + bx) / 2,
+          my = (ay + by) / 2 - Math.hypot(bx - ax, by - ay) * 0.13;
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.quadraticCurveTo(mx, my, bx, by);
+        ctx.strokeStyle = hot
+          ? hexA(CATS[l.a.cat]!.c, al)
+          : hexA("#7a7596", al);
+        ctx.lineWidth = hot ? 1.4 : 1;
+        if (hot) {
+          ctx.shadowColor = hexA(CATS[l.a.cat]!.c, 0.4);
+          ctx.shadowBlur = 6;
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      });
+      relevant.forEach((id) => {
+        const m = MEM.find((x) => "leaf_" + x.id === id);
+        if (!m || !vis(m)) return;
+        beam(
+          [cx0, cy0],
+          toScreen(m.node!.x, m.node!.y),
+          0.9 * m.node!.a!,
+          tnow,
+          0.4,
+        );
+      });
+      pings.forEach((p) => {
+        const [sx, sy] = toScreen(p.wx, p.wy);
+        ctx.beginPath();
+        ctx.arc(sx, sy, p.r, 0, PI2);
+        ctx.strokeStyle = hexA(p.c, p.a);
+        ctx.lineWidth = 1.6;
+        ctx.shadowColor = hexA(p.c, p.a);
+        ctx.shadowBlur = 10;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      });
+      leaves.forEach((lf) => {
+        const m = lf.mem!;
+        if (!vis(m)) return;
+        const [x, y] = toScreen(lf.x, lf.y);
+        const cc = CATS[m.cat]!.c;
+        const al = lf.a!,
+          r = 7 * lf.s! * cam.scale;
+        if (lf.pulse! > 0.01)
+          ring(x, y, r + 7 + lf.pulse! * 12, cc, lf.pulse! * 0.6, 1.4);
+        orb(x, y, r, cc, Math.max(al, 0.25));
+        ring(x, y, r + 4, "#ffffff", Math.max(al, 0.25) * 0.3, 1.3);
+        if (m.pinned) ring(x, y, r + 7.5, "#ffffff", 0.6 * al, 1);
+        const showL =
+          relevant.has("leaf_" + m.id) ||
+          hoverMem === m ||
+          neighbor(m) ||
+          focusCat === m.cat ||
+          focusEmo === m.emo;
+        if (showL && al > 0.3) {
+          const right = lf.x >= 0;
+          ctx.textAlign = right ? "left" : "right";
+          const lx = right ? x + r + 8 : x - r - 8;
+          ctx.font = "10.5px " + MONO;
+          ctx.fillStyle = hexA("#dfe6e3", Math.min(al, 0.95));
+          ctx.fillText(
+            trunc(
+              m.full,
+              right
+                ? Math.floor((W - x - 30) / 6.3)
+                : Math.floor((x - 60) / 6.3),
+            ),
+            lx,
+            y + 3.5,
+          );
+        }
+      });
+      hubKeys.forEach((k) => {
+        const h = hubs[k]!;
+        const [x, y] = toScreen(h.x, h.y);
+        const cnt = MEM.filter((m) => m.cat === k && vis(m)).length;
+        const sealed = MEM.filter(
+          (m) => m.cat === k && m.seal && vis(m),
+        ).length;
+        const pct = Math.round((sealed / Math.max(cnt, 1)) * 100);
+        const r = 16 * cam.scale;
+        orb(x, y, r, CATS[k]!.c, 0.5 + h.a! * 0.5);
+        ctx.textAlign = "left";
+        ctx.fillStyle = hexA("#eef2f0", 0.95 * h.a!);
+        ctx.font = "600 14px " + HEAD;
+        ctx.fillText(CATS[k]!.label, x + r + 12, y - 2);
+        ctx.font = "10px " + MONO;
+        const pw = ctx.measureText(pct + "%").width + 12;
+        rr(x + r + 12, y + 5, pw, 15, 5);
+        ctx.fillStyle = hexA("#ffffff", 0.07 * h.a!);
+        ctx.fill();
+        ctx.fillStyle = hexA("#cbd4d1", 0.85 * h.a!);
+        ctx.textAlign = "center";
+        ctx.fillText(pct + "%", x + r + 12 + pw / 2, y + 15.5);
+      });
+      drawSeal(cx0, cy0, tnow);
+      ctx.globalAlpha = 1;
+    }
+    function drawSeal(x: number, y: number, tnow: number) {
+      const N = MEM.filter((m) => vis(m)).length,
+        sealed = MEM.filter((m) => m.seal && vis(m)).length;
+      const gg = ctx.createRadialGradient(x, y, 0, x, y, 95 * cam.scale);
+      gg.addColorStop(0, "rgba(183,155,234,0.30)");
+      gg.addColorStop(0.5, "rgba(183,155,234,0.08)");
+      gg.addColorStop(1, "rgba(183,155,234,0)");
+      ctx.fillStyle = gg;
+      ctx.beginPath();
+      ctx.arc(x, y, 95 * cam.scale, 0, PI2);
+      ctx.fill();
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(cam.scale, cam.scale);
+      ctx.rotate(tnow * 0.06);
+      for (let i = 0; i < 80; i++) {
+        const a = (i / 80) * PI2,
+          r1 = 34,
+          r2 = i % 4 === 0 ? 41 : 37;
+        ctx.strokeStyle = hexA("#a98fe0", i % 4 === 0 ? 0.6 : 0.25);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1);
+        ctx.lineTo(Math.cos(a) * r2, Math.sin(a) * r2);
+        ctx.stroke();
+      }
+      ctx.restore();
+      ring(x, y, 44 * cam.scale, "#a98fe0", 0.45, 1);
+      ring(x, y, 31 * cam.scale, "#d8c6f8", 0.5, 1);
+      orb(x, y, 22 * cam.scale, "#9b7fd6", 1);
+      ctx.textAlign = "left";
+      ctx.fillStyle = hexA("#e9e0fb", 0.95);
+      ctx.font = "600 15px " + HEAD;
+      ctx.fillText("your memory", x + 54 * cam.scale, y - 1 * cam.scale);
+      ctx.font = "10px " + MONO;
+      const pct = Math.round((sealed / Math.max(N, 1)) * 100) + "%";
+      const pw = ctx.measureText(pct).width + 12;
+      rr(x + 54 * cam.scale, y + 7, pw, 15, 5);
+      ctx.fillStyle = "rgba(255,255,255,0.08)";
+      ctx.fill();
+      ctx.fillStyle = hexA("#cbb8ec", 0.9);
+      ctx.textAlign = "center";
+      ctx.fillText(pct, x + 54 * cam.scale + pw / 2, y + 17.5);
+    }
+    function buildFan() {
+      fanItems = [];
+      const mems = MEM.filter((m) => m.cat === detailCat && vis(m));
+      const n = mems.length,
+        top = H * 0.16,
+        bot = H * 0.84,
+        cardY = H * 0.5;
+      mems.forEach((m, i) => {
+        const fy = n > 1 ? top + (bot - top) * (i / (n - 1)) : H * 0.5;
+        fanItems.push({ m, x: W * 0.66, y: fy, cy: cardY });
+      });
+    }
+    function drawDetail(tnow: number) {
+      detailT += (1 - detailT) * (reduce ? 1 : 0.12);
+      ctx.globalAlpha = detailT;
+      const cat = detailCat!,
+        col = CATS[cat]!.c;
+      const ox = W * 0.2,
+        oy = H * 0.5;
+      [120, 200].forEach((r) => ring(ox, oy, r, "#3a3550", 0.1, 1));
+      const cards = [
+        {
+          n: fanItems.length,
+          l: CATS[cat]!.label + " memories",
+          hi: true,
+          _x: 0,
+          _y: 0,
+          _w: 0,
+          _h: 0,
+        },
+        {
+          n: RELS.filter(
+            ([a, b]) => byId[a]!.cat === cat || byId[b]!.cat === cat,
+          ).length,
+          l: "Linked",
+          hi: false,
+          _x: 0,
+          _y: 0,
+          _w: 0,
+          _h: 0,
+        },
+        {
+          n: MEM.filter((m) => m.cat === cat && m.seal && vis(m)).length,
+          l: "Sealed",
+          hi: false,
+          _x: 0,
+          _y: 0,
+          _w: 0,
+          _h: 0,
+        },
+      ];
+      const cx = W * 0.4,
+        cw = 220,
+        chh = 64,
+        gap = 14,
+        total = cards.length * chh + (cards.length - 1) * gap;
+      const cyTop = H * 0.5 - total / 2;
+      cards.forEach((cd, i) => {
+        const y = cyTop + i * (chh + gap);
+        cd._x = cx;
+        cd._y = y;
+        cd._w = cw;
+        cd._h = chh;
+        rr(cx, y, cw, chh, 13);
+        ctx.fillStyle = "rgba(10,22,24,0.7)";
+        ctx.fill();
+        ctx.lineWidth = cd.hi ? 1.5 : 1;
+        ctx.strokeStyle = cd.hi
+          ? hexA("#a98fe0", 0.7)
+          : "rgba(255,255,255,0.1)";
+        if (cd.hi) {
+          ctx.shadowColor = "rgba(183,155,234,0.4)";
+          ctx.shadowBlur = 12;
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.textAlign = "left";
+        ctx.fillStyle = hexA(col, 0.9);
+        ctx.font = "600 24px " + HEAD;
+        ctx.fillText(String(cd.n), cx + 16, y + 30);
+        ctx.fillStyle = "#9fb0ab";
+        ctx.font = "11px " + MONO;
+        ctx.fillText(cd.l, cx + 16, y + 48);
+      });
+      const hc = cards[0]!;
+      beam([ox + 50, oy], [hc._x, hc._y + hc._h / 2], 0.9, tnow, 0);
+      const fx0 = hc._x + hc._w,
+        fy0 = hc._y + hc._h / 2;
+      fanItems.forEach((it, i) => {
+        const frac = fanItems.length > 1 ? i / (fanItems.length - 1) : 0.5;
+        const ec = EMO[it.m.emo]!.c;
+        const col2 = mixHex("#a98fe0", ec, frac);
+        const mx = (fx0 + it.x) / 2;
+        const hot = hoverFan === it;
+        ctx.beginPath();
+        ctx.moveTo(fx0, fy0);
+        ctx.quadraticCurveTo(mx, fy0, it.x, it.y);
+        ctx.strokeStyle = hexA(col2, hot ? 0.85 : 0.5);
+        ctx.lineWidth = hot ? 2 : 1;
+        ctx.shadowColor = hexA(col2, hot ? 0.6 : 0.3);
+        ctx.shadowBlur = hot ? 8 : 4;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        orb(it.x, it.y, 5, ec, hot ? 1 : 0.7);
+        ctx.textAlign = "left";
+        ctx.fillStyle = "#e7edea";
+        ctx.font = "12px " + SANS;
+        ctx.fillText(trunc(it.m.full, 26), it.x + 12, it.y - 2);
+        ctx.font = "9px " + MONO;
+        const pillT = "#" + it.m.day;
+        const pw = ctx.measureText(pillT).width + 10;
+        rr(it.x + 12, it.y + 6, pw, 14, 4);
+        ctx.fillStyle = "rgba(255,255,255,0.06)";
+        ctx.fill();
+        ctx.fillStyle = "#aeb8b5";
+        ctx.textAlign = "center";
+        ctx.fillText(pillT, it.x + 12 + pw / 2, it.y + 16);
+      });
+      spikyAura(ox, oy, 52, 16, col, 0.5, tnow, cat.length);
+      spikyAura(ox, oy, 52, 16, col, 0.25, tnow * 1.3 + 1, cat.length + 3);
+      orb(ox, oy, 30, col, 1);
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#eef2f0";
+      ctx.font = "600 16px " + HEAD;
+      ctx.fillText(CATS[cat]!.label, ox, oy - 78);
+      ctx.font = "10px " + MONO;
+      ctx.fillStyle = "#9fb0ab";
+      ctx.fillText(fanItems.length + " memories", ox, oy - 62);
+      ctx.globalAlpha = 1;
+    }
+    function frame() {
+      if (view === "overview") physics();
+      if (reduce) {
+        cam.tx = camT.tx;
+        cam.ty = camT.ty;
+        cam.scale = camT.scale;
+      } else {
+        (["tx", "ty", "scale"] as const).forEach((p) => {
+          camV[p] += (camT[p] - cam[p]) * 0.09;
+          camV[p] *= 0.78;
+          cam[p] += camV[p];
+        });
+      }
+      appear += (1 - appear) * (reduce ? 1 : 0.05);
+      draw();
+      raf = requestAnimationFrame(frame);
+    }
+    function hit(sx: number, sy: number): HitRes {
+      if (view === "detail") {
+        for (const it of fanItems) {
+          if ((sx - it.x) ** 2 + (sy - it.y) ** 2 < 400)
+            return { kind: "fan", it };
+        }
+        return null;
+      }
+      let best: HitRes = null,
+        bd = 1e9;
+      leaves.forEach((lf) => {
+        if (!vis(lf.mem!)) return;
+        const [x, y] = toScreen(lf.x, lf.y);
+        const d = (sx - x) ** 2 + (sy - y) ** 2;
+        if (d < 400 && d < bd) {
+          bd = d;
+          best = { kind: "leaf", m: lf.mem! };
+        }
+      });
+      if (best) return best;
+      for (const k of hubKeys) {
+        const h = hubs[k]!;
+        const [x, y] = toScreen(h.x, h.y);
+        if ((sx - x) ** 2 + (sy - y) ** 2 < 24 * 24)
+          return { kind: "hub", cat: k };
+      }
+      const [cx, cy] = toScreen(0, 0);
+      if ((sx - cx) ** 2 + (sy - cy) ** 2 < 28 * 28) return { kind: "center" };
+      return null;
+    }
+    type HitRes =
+      | { kind: "fan"; it: FanItem }
+      | { kind: "leaf"; m: M }
+      | { kind: "hub"; cat: string }
+      | { kind: "center" }
+      | null;
+
+    const onMove = (e: MouseEvent) => {
+      const sx = e.offsetX,
+        sy = e.offsetY;
+      if (view === "overview" && dragging && dragNode) {
+        const [wx, wy] = toWorld(sx, sy);
+        dragNode.x = wx;
+        dragNode.y = wy;
+        dragNode.vx = 0;
+        dragNode.vy = 0;
+        didDrag = true;
+        return;
+      }
+      if (view === "overview" && dragging) {
+        const dx = (sx - lastM.x) / cam.scale,
+          dy = (sy - lastM.y) / cam.scale;
+        camT.tx -= dx;
+        camT.ty -= dy;
+        cam.tx -= dx;
+        cam.ty -= dy;
+        lastM = { x: sx, y: sy };
+        didDrag = true;
+        return;
+      }
+      const h = hit(sx, sy);
+      hoverMem = h && h.kind === "leaf" ? h.m : null;
+      hoverFan = h && h.kind === "fan" ? h.it : null;
+      canvas.classList.toggle("pointer", !!h);
+      if (hoverMem) showPeek(hoverMem, e.clientX, e.clientY);
+      else if (hoverFan) showPeek(hoverFan.m, e.clientX, e.clientY);
+      else hidePeek();
+    };
+    const onDown = (e: MouseEvent) => {
+      lastM = { x: e.offsetX, y: e.offsetY };
+      didDrag = false;
+      dragging = true;
+      canvas.classList.add("grabbing");
+      if (view === "overview") {
+        const h = hit(e.offsetX, e.offsetY);
+        if (h && h.kind === "leaf") dragNode = h.m.node!;
+      }
+    };
+    const onUp = () => {
+      dragging = false;
+      dragNode = null;
+      canvas.classList.remove("grabbing");
+    };
+    const onClick = (e: MouseEvent) => {
+      if (didDrag) return;
+      const h = hit(e.offsetX, e.offsetY);
+      if (view === "detail") {
+        if (h && h.kind === "fan") openCard(h.it.m);
+        else if (!h) exitDetail();
+        return;
+      }
+      if (!h) {
+        resetView();
+        return;
+      }
+      if (h.kind === "leaf") openCard(h.m);
+      else if (h.kind === "hub") enterDetail(h.cat);
+      else resetView();
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (view !== "overview") return;
+      e.preventDefault();
+      const f = e.deltaY < 0 ? 1.1 : 0.9;
+      camT.scale = Math.max(0.6, Math.min(2.4, camT.scale * f));
+    };
+    canvas.addEventListener("mousemove", onMove);
+    canvas.addEventListener("mousedown", onDown);
+    window.addEventListener("mouseup", onUp);
+    canvas.addEventListener("click", onClick);
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+
+    function enterDetail(cat: string) {
+      killHint();
+      clearQuery();
+      closeCard();
+      detailCat = cat;
+      buildFan();
+      detailT = 0;
+      view = "detail";
+    }
+    function exitDetail() {
+      view = "overview";
+      detailCat = null;
+      closeCard();
+    }
+    function resetView() {
+      if (view === "detail") {
+        exitDetail();
+        return;
+      }
+      focusCat = null;
+      focusEmo = null;
+      clearQuery();
+      closeCard();
+      hideAnswer();
+      camT = { tx: 0, ty: 0, scale: 1 };
+      syncLegends();
+    }
+    const peek = q("#peek")!;
+    function showPeek(m: M, cx: number, cy: number) {
+      const rect = root!.getBoundingClientRect();
+      peek.querySelector(".tags")!.innerHTML =
+        `<span class="tgg" style="color:${CATS[m.cat]!.c}"><span class="d" style="background:${CATS[m.cat]!.c}"></span>${m.cat}</span><span class="tgg" style="color:${EMO[m.emo]!.c}"><span class="d" style="background:${EMO[m.emo]!.c}"></span>${m.emo}</span>`;
+      peek.querySelector(".txt")!.textContent = m.full;
+      peek.querySelector(".meta")!.textContent =
+        m.by +
+        "  ·  " +
+        m.mem.tags.join(", ") +
+        (m.rel!.length ? "  ·  " + m.rel!.length + " links" : "");
+      let x = cx - rect.left + 18,
+        y = cy - rect.top + 18;
+      if (x + 290 > rect.width) x = cx - rect.left - 288;
+      if (y + 150 > rect.height) y = cy - rect.top - 150;
+      (peek as HTMLElement).style.left = x + "px";
+      (peek as HTMLElement).style.top = y + "px";
+      peek.classList.add("on");
+    }
+    function hidePeek() {
+      peek.classList.remove("on");
+    }
+
+    // legend — categories only (the real axis)
+    const rowsCat = q("#rowsCat")!;
+    rowsCat.innerHTML = "";
+    Object.entries(CATS).forEach(([k, v]) => {
+      const el = document.createElement("div");
+      el.className = "li";
+      el.dataset.cat = k;
+      el.style.setProperty("--bc", v.c);
+      el.innerHTML = `<span class="dot" style="background:${v.c}"></span><span class="nm">${v.label}</span><span class="ct">${MEM.filter((m) => m.cat === k).length}</span>`;
+      el.onclick = () => {
+        focusEmo = null;
+        focusCat = focusCat === k ? null : k;
+        camT = focusCat
+          ? { tx: hubs[k]!.x * 0.5, ty: hubs[k]!.y * 0.5, scale: 1.3 }
+          : { tx: 0, ty: 0, scale: 1 };
+        syncLegends();
+      };
+      rowsCat.appendChild(el);
+    });
+    function syncLegends() {
+      rowsCat.querySelectorAll<HTMLElement>(".li").forEach((li) => {
+        li.classList.toggle("on", li.dataset.cat === focusCat);
+        li.classList.toggle("off", !!focusCat && li.dataset.cat !== focusCat);
+      });
+    }
+    const mSealed = q("#mSealed"),
+      mLinks = q("#mLinks");
+
+    // ask + answer are handled by the global composer now
+    function hideAnswer() {
+      q("#mAnswer")?.classList.remove("on");
+    }
+    function clearQuery() {
+      relevant = new Set();
+    }
+    function updateStats() {
+      const kept = MEM.filter((m) => vis(m)).length,
+        sealed = MEM.filter((m) => m.seal && vis(m)).length,
+        lk = RELS.filter(([a, b]) => vis(byId[a]!) && vis(byId[b]!)).length,
+        ver = MEM.filter((m) => m.verified && vis(m)).length;
+      const set = (id: string, v: string) => {
+        const el = q("#" + id);
+        if (el) el.textContent = v;
+      };
+      set("sKept", String(kept));
+      set("sLinks", String(lk));
+      set("sSealed", String(sealed));
+      set("sSealedU", "/ " + kept);
+      set("sRecall", String(Math.round(80 + (ver / Math.max(kept, 1)) * 20)));
+      if (mSealed)
+        mSealed.textContent =
+          Math.round((sealed / Math.max(kept, 1)) * 100) + "%";
+      if (mLinks) mLinks.textContent = String(lk);
+    }
+    // detail card
+    const card = q("#mCard")!;
+    function openCard(m: M) {
+      selectedMem = m;
+      killHint();
+      hideAnswer();
+      m.node!.pulse = 1;
+      if (view === "overview") {
+        camT.tx = m.node!.x * 0.4;
+        camT.ty = m.node!.y * 0.4;
+        camT.scale = Math.max(camT.scale, 1.15);
+      }
+      const cc = q("#cCat")!;
+      (cc.querySelector(".d") as HTMLElement).style.background = CATS[m.cat]!.c;
+      cc.querySelector(".t")!.textContent = CATS[m.cat]!.label;
+      (cc as HTMLElement).style.color = CATS[m.cat]!.c;
+      q("#cTtl")!.textContent = m.full;
+      const seal = q("#cSeal")!;
+      seal.className = "badge2 " + (m.seal ? "sealed" : "plain");
+      seal.innerHTML = m.seal ? '<span class="d"></span>Kept close' : "Passing";
+      q("#cSrc")!.textContent = m.by;
+      (q("#cFeel") as HTMLElement).style.borderColor = hexA(EMO[m.emo]!.c, 0.4);
+      const cEmo = q("#cEmo")!;
+      cEmo.textContent = m.emo;
+      (cEmo as HTMLElement).style.color = EMO[m.emo]!.c;
+      q("#cEmoSub")!.textContent = "primary tone";
+      const bars = q("#cBars")!;
+      bars.innerHTML = "";
+      let seed = (parseInt(m.id.replace(/\D/g, "") || "7", 10) || 7) * 97;
+      for (let i = 0; i < 22; i++) {
+        seed = (seed * 1103515245 + 12345) >>> 0;
+        const hgt = 6 + ((seed >> 24) / 255) * 26;
+        const bb2 = document.createElement("i");
+        bb2.style.height = hgt + "px";
+        bb2.style.background = hexA(EMO[m.emo]!.c, 0.35 + (i / 22) * 0.55);
+        bars.appendChild(bb2);
+      }
+      q("#tLinks")!.textContent = String(m.rel!.filter((r) => vis(r.m)).length);
+      q("#tDay")!.textContent = m.mem.tags[0] || "note";
+      q("#tSeal")!.textContent = m.verified
+        ? "verified"
+        : m.seal
+          ? "kept"
+          : "open";
+      q("#tBy")!.textContent = m.by;
+      const cRel = q("#cRel")!;
+      cRel.innerHTML = "";
+      const linksv = m.rel!.filter((r) => vis(r.m));
+      (q("#cAnalysis") as HTMLElement).style.display = linksv.length
+        ? "block"
+        : "none";
+      linksv.forEach((r) => {
+        const it = document.createElement("div");
+        it.className = "rel-item";
+        it.innerHTML = `<span class="d" style="background:${EMO[r.m.emo]!.c}"></span><span class="t">${r.m.full}</span><span class="lk">${r.why}</span>`;
+        it.onmouseenter = () => (r.m.node!.pulse = 1);
+        it.onclick = () => openCard(r.m);
+        cRel.appendChild(it);
+      });
+      const bp = q("#bPin")!;
+      bp.textContent = m.pinned ? "unpin" : "pin";
+      bp.classList.toggle("on", !!m.pinned);
+      q("#bForget")!.textContent = m.forgotten ? "restore" : "forget";
+      const bv = q("#bVerify")!;
+      bv.innerHTML = m.verified ? "verified" : "verify";
+      bv.classList.toggle("ok", !!m.verified);
+      card.classList.add("on");
+    }
+    function closeCard() {
+      card.classList.remove("on");
+      selectedMem = null;
+    }
+    const cClose = q("#cClose");
+    if (cClose) cClose.onclick = closeCard;
+    const bVerify = q("#bVerify"),
+      bPin = q("#bPin"),
+      bForget = q("#bForget");
+    if (bVerify)
+      bVerify.onclick = () => {
+        const m = selectedMem;
+        if (!m) return;
+        (bVerify as HTMLElement).innerHTML = '<span class="spin"></span>';
+        pings.push({
+          wx: m.node!.x,
+          wy: m.node!.y,
+          r: 8,
+          a: 0.85,
+          c: EMO[m.emo]!.c,
+        });
+        setTimeout(
+          () => {
+            m.verified = true;
+            (bVerify as HTMLElement).innerHTML = "verified";
+            bVerify.classList.add("ok");
+            q("#tSeal")!.textContent = "verified";
+            pings.push({
+              wx: m.node!.x,
+              wy: m.node!.y,
+              r: 8,
+              a: 0.95,
+              c: EMO[m.emo]!.c,
+            });
+            updateStats();
+          },
+          reduce ? 0 : 850,
+        );
+      };
+    if (bPin)
+      bPin.onclick = () => {
+        if (!selectedMem) return;
+        selectedMem.pinned = !selectedMem.pinned;
+        openCard(selectedMem);
+      };
+    if (bForget)
+      bForget.onclick = () => {
+        if (!selectedMem) return;
+        selectedMem.forgotten = !selectedMem.forgotten;
+        if (selectedMem.forgotten) closeCard();
+        else openCard(selectedMem);
+        updateStats();
+        if (view === "detail") buildFan();
+      };
+    function killHint() {
+      const h = q("#mHint");
+      if (h) (h as HTMLElement).style.opacity = "0";
+    }
+
+    // init
+    resize();
+    syncLegends();
+    updateStats();
+    frame();
+
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      canvas.removeEventListener("mousemove", onMove);
+      canvas.removeEventListener("mousedown", onDown);
+      window.removeEventListener("mouseup", onUp);
+      canvas.removeEventListener("click", onClick);
+      canvas.removeEventListener("wheel", onWheel);
+    };
+  }, [live, onOpen]);
 
   return (
-    <div
-      className="map-wrap"
-      onWheel={onWheel}
-      onMouseDown={onDown}
-      onMouseMove={onMove}
-      onMouseUp={onUp}
-      onMouseLeave={onUp}
-    >
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        width="100%"
-        height="100%"
-        style={{ cursor: drag.current ? "grabbing" : "grab" }}
-      >
-        <g
-          transform={`translate(${vt.x} ${vt.y}) scale(${vt.k})`}
-          style={{ transformOrigin: "center" }}
-        >
-          {/* membership + leaf edges */}
-          {clusters.map((c) => {
-            const dim = sel && sel !== c.tag ? 0.12 : 0.5;
-            return (
-              <g key={"e" + c.tag}>
-                <path
-                  d={`M ${CX} ${CY} Q ${(CX + c.x) / 2} ${(CY + c.y) / 2}, ${c.x} ${c.y}`}
-                  stroke={c.color}
-                  strokeWidth={1.6}
-                  fill="none"
-                  opacity={dim}
-                />
-                {c.leaves.map(({ mem, x, y }) => (
-                  <path
-                    key={mem.id}
-                    d={`M ${c.x} ${c.y} Q ${(c.x + x) / 2} ${(c.y + y) / 2}, ${x} ${y}`}
-                    stroke={c.color}
-                    strokeWidth={1}
-                    fill="none"
-                    opacity={dim * 0.6}
-                  />
-                ))}
-              </g>
-            );
-          })}
-          {/* centre */}
-          <circle
-            cx={CX}
-            cy={CY}
-            r={42}
-            fill="rgba(124,92,214,.14)"
-            stroke="rgba(124,92,214,.55)"
-            strokeWidth={1.4}
-          />
-          <text
-            x={CX}
-            y={CY - 2}
-            textAnchor="middle"
-            fill="#c9b8ff"
-            fontSize={12}
-            fontFamily="var(--sans)"
-          >
-            your memory
-          </text>
-          <text
-            x={CX}
-            y={CY + 13}
-            textAnchor="middle"
-            fill="rgba(255,255,255,.5)"
-            fontSize={10}
-            fontFamily="var(--mono, monospace)"
-          >
-            {live.length} kept
-          </text>
-          {/* clusters */}
-          {clusters.map((c) => {
-            const dim = sel && sel !== c.tag ? 0.28 : 1;
-            return (
-              <g key={c.tag} opacity={dim}>
-                <g
-                  style={{ cursor: "pointer" }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSel((s) => (s === c.tag ? null : c.tag));
-                  }}
-                >
-                  <rect
-                    x={c.x - 82}
-                    y={c.y - 20}
-                    width={164}
-                    height={40}
-                    rx={8}
-                    fill="#141417"
-                    stroke={c.color}
-                    strokeWidth={sel === c.tag ? 1.8 : 1.2}
-                  />
-                  <text
-                    x={c.x}
-                    y={c.y - 2}
-                    textAnchor="middle"
-                    fill="#fff"
-                    fontSize={12}
-                    fontFamily="var(--sans)"
-                  >
-                    {trunc(clusterName(c.tag), 22)}
-                  </text>
-                  <text
-                    x={c.x}
-                    y={c.y + 12}
-                    textAnchor="middle"
-                    fill={c.color}
-                    fontSize={9}
-                    fontFamily="var(--mono, monospace)"
-                  >
-                    {c.mems.length}{" "}
-                    {c.mems.length === 1 ? "memory" : "memories"}
-                  </text>
-                </g>
-                {c.leaves.map(({ mem, x, y, right }) => (
-                  <g
-                    key={mem.id}
-                    style={{ cursor: "pointer" }}
-                    onMouseEnter={() => setHover(mem)}
-                    onMouseLeave={() => setHover((h) => (h === mem ? null : h))}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpen(mem);
-                    }}
-                  >
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r={hover === mem ? 7 : 5}
-                      fill={leafColor(mem)}
-                      stroke="#2a2a30"
-                      strokeWidth={1}
-                    />
-                    <text
-                      x={x + (right ? 10 : -10)}
-                      y={y - 3}
-                      textAnchor={right ? "start" : "end"}
-                      fill={c.color}
-                      fontSize={9.5}
-                      fontFamily="var(--mono, monospace)"
-                    >
-                      {mem.tags[0]}
-                    </text>
-                    <text
-                      x={x + (right ? 10 : -10)}
-                      y={y + 9}
-                      textAnchor={right ? "start" : "end"}
-                      fill="rgba(255,255,255,.55)"
-                      fontSize={9}
-                      fontFamily="var(--mono, monospace)"
-                    >
-                      {trunc(mem.text, 26)}
-                    </text>
-                  </g>
-                ))}
-              </g>
-            );
-          })}
-        </g>
-      </svg>
+    <div ref={rootRef} className="mesh">
+      <canvas id="mc" className="mesh-canvas" />
 
-      {hover && (
-        <div className="map-tip">
-          <div className="mt-text">{hover.text}</div>
-          <div className="mt-meta">
-            {hover.tags.join(" · ")} · {ago(hover.ts)}
-            {hover.kept
-              ? " · kept close"
-              : hover.noticed
-                ? " · noticed by Cortex"
-                : ""}
+      <div className="mesh-legends">
+        <div className="leg panel">
+          <div className="lh">legend</div>
+          <div id="rowsCat" />
+          <div className="ldiv" />
+          <div className="metric">
+            <span className="ic">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              >
+                <path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z" />
+              </svg>
+            </span>
+            Sealed
+            <span className="pill" id="mSealed">
+              0%
+            </span>
+          </div>
+          <div className="metric">
+            <span className="ic">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              >
+                <circle cx="6" cy="12" r="2.5" />
+                <circle cx="18" cy="6" r="2.5" />
+                <circle cx="18" cy="18" r="2.5" />
+                <path d="M8 11l8-4M8 13l8 4" />
+              </svg>
+            </span>
+            Links
+            <span className="pill" id="mLinks">
+              0
+            </span>
           </div>
         </div>
-      )}
-      <div className="map-legend">
-        <span>
-          <i style={{ background: "#7FD0A0" }} />
-          kept close
-        </span>
-        <span>
-          <i style={{ background: "#B79BEA" }} />
-          noticed by Cortex
-        </span>
-        <span>
-          <i style={{ background: "#D6A53B" }} />
-          important
-        </span>
-        <span>
-          <i style={{ background: "#8B8B95" }} />
-          held
-        </span>
-        <span className="lg-hint">
-          drag to pan · scroll to zoom · click a node to open
-        </span>
+      </div>
+
+      <div className="peek panel" id="peek">
+        <div className="tags" />
+        <div className="txt" />
+        <div className="meta" />
+      </div>
+
+      <div className="mesh-card panel" id="mCard">
+        <div className="ch">
+          <div className="eyebrow">
+            <span className="cat" id="cCat">
+              <span className="d" />
+              <span className="t" />
+            </span>
+            <span className="x" id="cClose">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </span>
+          </div>
+          <div className="ttl" id="cTtl" />
+          <div className="badges">
+            <span className="badge2" id="cSeal" />
+            <span className="src" id="cSrc" />
+          </div>
+        </div>
+        <div className="cb">
+          <div className="feel" id="cFeel">
+            <div className="lab">Feeling</div>
+            <div className="big">
+              <span className="e" id="cEmo" />
+              <span className="sub" id="cEmoSub" />
+            </div>
+            <div className="bars" id="cBars" />
+          </div>
+          <div className="tiles">
+            <div className="tile">
+              <div className="n" id="tLinks">
+                0
+              </div>
+              <div className="l">Linked memories</div>
+            </div>
+            <div className="tile">
+              <div className="n" id="tDay" />
+              <div className="l">Topic</div>
+            </div>
+            <div className="tile">
+              <div className="n" id="tSeal" style={{ fontSize: 13 }} />
+              <div className="l">Integrity</div>
+            </div>
+            <div className="tile">
+              <div className="n" id="tBy" style={{ fontSize: 12 }} />
+              <div className="l">Source</div>
+            </div>
+          </div>
+          <div className="analysis" id="cAnalysis">
+            <div className="ah2">Linked memories</div>
+            <div id="cRel" />
+          </div>
+          <div className="acts">
+            <button className="act-btn" id="bVerify">
+              verify
+            </button>
+            <button className="act-btn" id="bPin">
+              pin
+            </button>
+            <button className="act-btn" id="bForget">
+              forget
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

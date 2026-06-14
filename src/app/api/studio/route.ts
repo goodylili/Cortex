@@ -1,0 +1,84 @@
+// Prompt Studio generation. Writes a ready-to-use prompt grounded in the user's
+// memories, in the chosen style/type/modality, using whichever model the user
+// picked (any of the 8 providers). Falls back to the deterministic template when
+// the chosen provider has no key configured, so the studio always returns output.
+
+import {
+  buildSpec,
+  compilePrompt,
+  type PromptStyle,
+  type PromptType,
+  type PromptModality,
+} from "@/lib/cortex/prompt";
+import type { Memory } from "@/lib/cortex/logic";
+import { modelByName } from "@/lib/llm/models";
+import { complete } from "@/lib/llm/complete";
+
+interface Body {
+  task: string;
+  memories: Memory[];
+  style: PromptStyle;
+  type: PromptType;
+  modality: PromptModality;
+  model?: string;
+  web?: boolean;
+}
+
+const MAX_TOKENS = 1600;
+
+export async function POST(req: Request) {
+  let body: Body;
+  try {
+    body = (await req.json()) as Body;
+  } catch {
+    return Response.json({ error: "bad request" }, { status: 400 });
+  }
+  const { task, memories = [], style, type, modality, model, web } = body;
+  const input = { task, memories, modality };
+  const fallback = compilePrompt(style, type, input);
+  const spec = buildSpec(style, input);
+  const chosen = modelByName(model);
+
+  const system =
+    "You are an expert prompt engineer working inside Cortex, a personal memory system. " +
+    "Write ONE ready-to-use prompt and nothing else — no preamble, no commentary, no markdown code fences around it. " +
+    "Ground it in the user's stated memories, treat their standing preferences as non-negotiable, and keep their voice. " +
+    (web
+      ? "Where the memories don't cover something, you may draw on broad general knowledge. "
+      : "Do not invent facts beyond the user's memories and the task. ") +
+    `Render the prompt in the requested output format (${type}).`;
+  const user = [
+    `Prompting technique (style): ${style} — ${spec.system}`,
+    `Output format (type): ${type}`,
+    `Target modality: ${modality}`,
+    "",
+    spec.standing.length
+      ? `Standing preferences (honor these exactly):\n${spec.standing.map((s) => `- ${s}`).join("\n")}`
+      : "",
+    spec.context.length
+      ? `Context memories:\n${spec.context.map((s) => `- ${s}`).join("\n")}`
+      : "",
+    spec.demos.length
+      ? `Examples to stay consistent with:\n${spec.demos.map((s) => `- ${s}`).join("\n")}`
+      : "",
+    spec.instructions.length
+      ? `Technique directives:\n${spec.instructions.map((s) => `- ${s}`).join("\n")}`
+      : "",
+    "",
+    `What the user needs a prompt for: ${spec.task}`,
+    "",
+    `Now write the final ${modality} prompt, formatted as ${type}.`,
+  ]
+    .filter((l) => l !== "")
+    .join("\n");
+
+  const result = await complete({
+    model: chosen,
+    system,
+    user,
+    maxTokens: MAX_TOKENS,
+  });
+  return result.ok
+    ? Response.json({ prompt: result.text, ai: true, model: chosen.name })
+    : Response.json({ prompt: fallback, ai: false, reason: result.reason });
+}

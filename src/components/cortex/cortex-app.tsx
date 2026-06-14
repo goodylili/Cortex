@@ -12,7 +12,18 @@ import {
   MODELS,
   type Memory,
 } from "@/lib/cortex/logic";
-import { compilePrompt, FORMATS, type PromptFormat } from "@/lib/cortex/prompt";
+import {
+  compilePrompt,
+  DEFAULT_MODALITY,
+  DEFAULT_STYLE,
+  DEFAULT_TYPE,
+  MODALITIES,
+  STYLES,
+  TYPES,
+  type PromptModality,
+  type PromptStyle,
+  type PromptType,
+} from "@/lib/cortex/prompt";
 import {
   stateOf,
   retention,
@@ -20,6 +31,8 @@ import {
   type Tier,
   type MemState,
 } from "@/lib/cortex/memory-model";
+import type { CortexWalletState } from "@/lib/cortex/use-wallet";
+import { sealEnabled } from "@/lib/cortex/walrus/env";
 
 const MARK = (
   <svg viewBox="0 0 120 120" fill="currentColor">
@@ -45,7 +58,6 @@ const MemoryMap = dynamic(
 type View =
   | "home"
   | "memories"
-  | "lookback"
   | "reflect"
   | "brain"
   | "studio"
@@ -67,24 +79,93 @@ type Notice = {
   count?: number;
 };
 
-export function CortexApp() {
+// Popular destinations per modality — "Open in …" from the Studio output.
+// `prefill` URLs accept the prompt as a ?q= query; the rest just open the app
+// (we always copy the prompt to the clipboard so it's ready to paste).
+const STUDIO_PRODUCTS: Record<
+  PromptModality,
+  { name: string; url: string; prefill?: boolean }[]
+> = {
+  text: [
+    { name: "ChatGPT", url: "https://chatgpt.com/?q=", prefill: true },
+    { name: "Claude", url: "https://claude.ai/new?q=", prefill: true },
+    { name: "Gemini", url: "https://gemini.google.com/app" },
+    {
+      name: "Perplexity",
+      url: "https://www.perplexity.ai/search?q=",
+      prefill: true,
+    },
+  ],
+  image: [
+    { name: "Midjourney", url: "https://www.midjourney.com/imagine" },
+    {
+      name: "DALL·E in ChatGPT",
+      url: "https://chatgpt.com/?q=",
+      prefill: true,
+    },
+    { name: "Ideogram", url: "https://ideogram.ai" },
+    { name: "Leonardo", url: "https://app.leonardo.ai" },
+  ],
+  audio: [
+    { name: "Suno", url: "https://suno.com/create" },
+    { name: "Udio", url: "https://www.udio.com" },
+    { name: "ElevenLabs", url: "https://elevenlabs.io/app" },
+  ],
+  video: [
+    { name: "Sora", url: "https://sora.chatgpt.com" },
+    { name: "Runway", url: "https://app.runwayml.com" },
+    { name: "Veo in Gemini", url: "https://gemini.google.com/app" },
+    { name: "Pika", url: "https://pika.art" },
+  ],
+};
+const CODE_TYPES = ["json", "xml", "yaml", "function", "multimodal", "schema"];
+
+export function CortexApp({
+  walletState,
+}: {
+  walletState?: CortexWalletState;
+}) {
   const s = useCortex();
   const [view, setView] = useState<View>("home");
   const [theme, setTheme] = useState<Theme>("system");
+  const [railOpen, setRailOpen] = useState(true);
   const [dev, setDev] = useState(false);
   const [input, setInput] = useState("");
   const [memFilter, setMemFilter] = useState("all");
   const [memQuery, setMemQuery] = useState("");
+  const [memTab, setMemTab] = useState<"cards" | "timeline">("cards");
+  const [rrIdx, setRrIdx] = useState(0);
+  const [rmIdx, setRmIdx] = useState(0);
+  const [reflectIdx, setReflectIdx] = useState(0);
+  const [reflected, setReflected] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
   const [drawer, setDrawer] = useState<Memory | "savings" | null>(null);
   const [notices, setNotices] = useState<Notice[] | null>(null);
+  const [dreams, setDreams] = useState<
+    { title: string; body: string }[] | null
+  >(null);
+  const [dreaming, setDreaming] = useState(false);
   const [studioTask, setStudioTask] = useState("");
-  const [studioFmt, setStudioFmt] = useState<PromptFormat>("system");
+  const [studioStyle, setStudioStyle] = useState<PromptStyle>(DEFAULT_STYLE);
+  const [studioType, setStudioType] = useState<PromptType>(DEFAULT_TYPE);
   const [studioSel, setStudioSel] = useState<Set<string> | null>(null);
-  const [intTab, setIntTab] = useState<"all" | "mcp" | "storage" | "sources">(
-    "all",
-  );
+  const [studioModality, setStudioModality] =
+    useState<PromptModality>(DEFAULT_MODALITY);
+  const [studioResult, setStudioResult] = useState<{
+    key: string;
+    text: string;
+    ai: boolean;
+  } | null>(null);
+  const [studioLoading, setStudioLoading] = useState(false);
+  const [studioPick, setStudioPick] = useState(false);
+  const [studioDrop, setStudioDrop] = useState<
+    "modality" | "style" | "type" | "model" | null
+  >(null);
+  const [studioMenu, setStudioMenu] = useState(false);
+  const [intTab, setIntTab] = useState<
+    "all" | "mcp" | "frameworks" | "storage" | "sources"
+  >("all");
   const [intOpen, setIntOpen] = useState<string | null>(null);
   const [session, setSession] = useState<{ addr: string; via: string } | null>(
     null,
@@ -111,7 +192,6 @@ export function CortexApp() {
         [
           "home",
           "memories",
-          "lookback",
           "reflect",
           "brain",
           "studio",
@@ -140,6 +220,15 @@ export function CortexApp() {
     document.body.classList.toggle("dev", dev);
     document.body.classList.toggle("mode-ask", s.mode === "ask");
   }, [dev, s.mode]);
+  // Mirror on-chain KbFiles into the store so they appear in Knowledge + the brain.
+  useEffect(() => {
+    const w = walletState?.wallet;
+    if (!w) return;
+    w.listFiles()
+      .then((files) => s.syncFiles(files))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletState?.wallet]);
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (
@@ -151,6 +240,14 @@ export function CortexApp() {
     document.addEventListener("click", onClick);
     return () => document.removeEventListener("click", onClick);
   }, []);
+  // Reflect on load: surface insights + tidy-ups for the Home carousel.
+  useEffect(() => {
+    if (s.ready && !reflected && s.live().length) {
+      setReflected(true);
+      runReflect();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.ready, reflected]);
   function flash(m: string) {
     setToast(m);
     setTimeout(() => setToast(""), 2600);
@@ -190,7 +287,14 @@ export function CortexApp() {
       grow(ta.current);
     } else {
       if (!input.trim()) return;
-      s.remember(input, s.importance);
+      const text = input;
+      s.remember(text, s.importance);
+      if (wallet)
+        void wallet
+          .remember(text)
+          .catch((err) =>
+            flash(`Saved locally; Walrus memory failed: ${(err as Error).message}`),
+          );
       setInput("");
       grow(ta.current);
       flash(
@@ -210,6 +314,7 @@ export function CortexApp() {
     if (!files) return;
     [...files].forEach((f) => {
       s.attachDoc(f.name);
+      if (wallet) void storeFileLive(f);
       if (
         /\.(txt|md|markdown|csv|json|log)$/i.test(f.name) ||
         f.type.startsWith("text")
@@ -233,6 +338,18 @@ export function CortexApp() {
   // ---- reflect ----
   function runReflect() {
     setNotices([{ loading: true }]);
+    // Dreams: AI-surfaced insights across your memories (with fallback).
+    setDreaming(true);
+    setDreams(null);
+    fetch("/api/dream", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ memories: live }),
+    })
+      .then((r) => r.json())
+      .then((d) => setDreams(d.dreams || []))
+      .catch(() => setDreams([]))
+      .finally(() => setDreaming(false));
     setTimeout(() => {
       const out: Notice[] = [];
       findClusters(live).forEach((g) => {
@@ -297,20 +414,6 @@ export function CortexApp() {
       />,
     ],
     [
-      "lookback",
-      "Looking back",
-      <>
-        <path key="a" d="M3 12a9 9 0 1 0 3-6.7" />
-        <path key="b" d="M3 4v4h4" />
-        <path key="c" d="M12 8v4l3 2" />
-      </>,
-    ],
-    [
-      "reflect",
-      "Reflect",
-      <path key="i" d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" />,
-    ],
-    [
       "brain",
       "Brain",
       <>
@@ -371,11 +474,18 @@ export function CortexApp() {
   const sources = (() => {
     const by: Record<string, Memory[]> = {};
     live.forEach((m) => {
-      if (m.source && m.source !== "note" && m.source !== "reflection")
+      if (
+        m.source &&
+        m.source !== "note" &&
+        m.source !== "reflection" &&
+        !m.blobId
+      )
         (by[m.source] ||= []).push(m);
     });
     return Object.entries(by).map(([name, mems]) => ({ name, mems }));
   })();
+  // Files stored on Walrus (KbFile nodes synced from chain).
+  const walrusFiles = live.filter((m) => m.blobId);
   const recommendations = (() => {
     const recs: string[] = [];
     findClusters(live)
@@ -406,10 +516,63 @@ export function CortexApp() {
     studioSel ??
     new Set(live.filter((m) => m.kept || m.noticed).map((m) => m.id));
   const studioMems = live.filter((m) => studioSelected.has(m.id));
-  const studioOut = compilePrompt(studioFmt, {
+  const studioPreview = compilePrompt(studioStyle, studioType, {
     task: studioTask,
     memories: studioMems,
+    modality: studioModality,
   });
+  const studioKey = [
+    studioStyle,
+    studioType,
+    studioModality,
+    studioTask,
+    [...studioSelected].sort().join(","),
+  ].join("|");
+  const studioFresh = studioResult?.key === studioKey ? studioResult : null;
+  const studioOut = studioFresh?.text ?? studioPreview;
+  async function generateStudio() {
+    setStudioLoading(true);
+    const key = studioKey;
+    try {
+      const res = await fetch("/api/studio", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          task: studioTask,
+          memories: studioMems,
+          style: studioStyle,
+          type: studioType,
+          modality: studioModality,
+          model: s.model.name,
+          web: s.web,
+        }),
+      });
+      const data = await res.json();
+      setStudioResult({ key, text: data.prompt, ai: !!data.ai });
+      flash(
+        data.ai
+          ? "Generated with AI"
+          : "Generated locally — set ANTHROPIC_API_KEY for AI",
+      );
+    } catch {
+      flash("Generation failed");
+    } finally {
+      setStudioLoading(false);
+    }
+  }
+  function openStudioProduct(p: {
+    name: string;
+    url: string;
+    prefill?: boolean;
+  }) {
+    navigator.clipboard?.writeText(studioOut);
+    const href = p.prefill
+      ? p.url + encodeURIComponent(studioOut.slice(0, 1400))
+      : p.url;
+    window.open(href, "_blank", "noopener,noreferrer");
+    setStudioMenu(false);
+    flash(`Copied your prompt — opening ${p.name}`);
+  }
   const toggleStudio = (id: string) => {
     const next = new Set(studioSelected);
     if (next.has(id)) next.delete(id);
@@ -519,12 +682,51 @@ export function CortexApp() {
       action: "web",
     },
   ];
+  const FRAMEWORKS = [
+    {
+      key: "langchain",
+      letter: "L",
+      name: "LangChain",
+      desc: "Pull your taste-tuned prompt and memories into any LangChain agent or chain, and write new memories back.",
+      code: [
+        "# pip install cortex-memory langchain",
+        "from cortex_memory import CortexMemory",
+        "",
+        'mem = CortexMemory(config="./config/config.yaml")',
+        "",
+        "# taste-retained system prompt, grounded in what you've kept",
+        'system = mem.prompt(format="role")',
+        "",
+        "# read + refine memory from inside a chain",
+        'context = mem.recall("what do I know about this?")',
+        'mem.remember("user prefers concise answers", kept=True)',
+      ].join("\n"),
+    },
+    {
+      key: "skills",
+      letter: "sh",
+      name: "skills.sh",
+      desc: "Install Cortex skills and prompts into your agents, and let them recall, correct and refine memory on the fly.",
+      code: [
+        "# add the Cortex skill to your agent",
+        "npx skills.sh add cortex-memory",
+        "",
+        "# exposes: recall · remember · correct · prompt(format)",
+        'skills run cortex-memory recall "upcoming travel"',
+        "skills run cortex-memory prompt --format json",
+      ].join("\n"),
+    },
+  ];
   function intConnect(key: string) {
     setIntOpen((o) => (o === key ? null : key));
   }
   function copySnippet(key: string) {
     navigator.clipboard?.writeText(mcpSnippet(key));
     flash("Setup copied to clipboard");
+  }
+  function copyText(text: string, label = "Setup copied to clipboard") {
+    navigator.clipboard?.writeText(text);
+    flash(label);
   }
 
   // local zkLogin-style session: an ephemeral keypair generated in-browser.
@@ -547,6 +749,38 @@ export function CortexApp() {
       localStorage.removeItem("cortex-session");
     } catch {}
     flash("Signed out.");
+  }
+
+  // When Privy is configured the account comes from a managed Sui wallet; the
+  // local ephemeral session is the fallback for the keyless mock.
+  const privyOn = !!walletState;
+  const wallet = walletState?.wallet ?? null;
+  const sess = privyOn
+    ? walletState.authenticated && walletState.address
+      ? { addr: walletState.address, via: "Privy" }
+      : null
+    : session;
+  function doSignIn() {
+    if (walletState) walletState.login();
+    else startSession("Google");
+  }
+  function doSignOut() {
+    if (walletState) walletState.logout();
+    else endSession();
+  }
+  async function storeFileLive(file: File) {
+    if (!wallet) return;
+    flash(`Storing ${file.name} on Walrus…`);
+    try {
+      const stored = await wallet.storeFile(file);
+      flash(`Stored ${file.name} on Walrus · ${stored.blobId.slice(0, 10)}…`);
+      wallet
+        .listFiles()
+        .then((files) => s.syncFiles(files))
+        .catch(() => {});
+    } catch (err) {
+      flash(`Walrus upload failed: ${(err as Error).message}`);
+    }
   }
 
   // settings: tier table rows
@@ -626,13 +860,37 @@ export function CortexApp() {
   );
 
   return (
-    <div className="app">
+    <div className={"app" + (railOpen ? "" : " rail-closed")}>
+      {!railOpen && (
+        <button
+          className="rail-open"
+          onClick={() => setRailOpen(true)}
+          aria-label="Open sidebar"
+        >
+          <svg viewBox="0 0 24 24">
+            <path d="M10 4H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3" />
+            <path d="M20 12H10" />
+            <path d="M16 8l4 4-4 4" />
+          </svg>
+        </button>
+      )}
       <aside className="rail" aria-label="Navigation">
         <div className="brand">
           <span className="mark">{MARK}</span>
           <b>
             Cortex<sup className="tm">TM</sup>
           </b>
+          <button
+            className="rail-toggle"
+            onClick={() => setRailOpen(false)}
+            aria-label="Collapse sidebar"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M14 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" />
+              <path d="M4 12h10" />
+              <path d="M8 8l-4 4 4 4" />
+            </svg>
+          </button>
         </div>
         <nav className="nav">
           {NAV.map(([v, label, icon]) => (
@@ -687,11 +945,34 @@ export function CortexApp() {
             <span className="dev-switch" />
           </button>
           <div className="you">
-            <span className="avatar">G</span>
-            <div>
-              <div className="nm">Goodness</div>
-              <div className="sub">Free · just you</div>
+            <span className="avatar">
+              {(walletState?.label?.[0] ?? "G").toUpperCase()}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="nm">{walletState?.label ?? "Guest"}</div>
+              <div className="sub">
+                {sess
+                  ? `${sess.addr.slice(0, 6)}…${sess.addr.slice(-4)}`
+                  : "Free · just you"}
+              </div>
             </div>
+            {sess ? (
+              <button
+                className="you-out"
+                onClick={doSignOut}
+                title="Sign out"
+                aria-label="Sign out"
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <path d="M16 17l5-5-5-5M21 12H9" />
+                </svg>
+              </button>
+            ) : privyOn ? (
+              <button className="you-out you-in" onClick={doSignIn}>
+                Sign in
+              </button>
+            ) : null}
           </div>
         </div>
       </aside>
@@ -708,25 +989,6 @@ export function CortexApp() {
                   Tell Cortex anything worth remembering, or ask it what you
                   already know. Your memory, gently kept.
                 </p>
-                <div className="glance">
-                  <div className="gstat">
-                    <div className="n">{live.length}</div>
-                    <div className="l">memories, all yours</div>
-                  </div>
-                  <div className="gstat accent">
-                    <div className="n">
-                      {
-                        live.filter((m) => Date.now() - m.ts < 7 * 86400000)
-                          .length
-                      }
-                    </div>
-                    <div className="l">added this week</div>
-                  </div>
-                  <div className="gstat sage">
-                    <div className="n">{live.filter((m) => m.kept).length}</div>
-                    <div className="l">you&apos;ve chosen to keep close</div>
-                  </div>
-                </div>
                 <div className="savings">
                   <div className="save-head">
                     <div className="save-icon">
@@ -774,11 +1036,247 @@ export function CortexApp() {
                     </div>
                   </div>
                 </div>
-                <div className="section-title">
-                  Recently remembered{" "}
-                  <span className="count">{live.length} in all</span>
+                <div className="glance">
+                  <div className="gstat">
+                    <div className="n">{live.length}</div>
+                    <div className="l">memories, all yours</div>
+                  </div>
+                  <div className="gstat accent">
+                    <div className="n">
+                      {
+                        live.filter((m) => Date.now() - m.ts < 7 * 86400000)
+                          .length
+                      }
+                    </div>
+                    <div className="l">added this week</div>
+                  </div>
+                  <div className="gstat sage">
+                    <div className="n">{live.filter((m) => m.kept).length}</div>
+                    <div className="l">you&apos;ve chosen to keep close</div>
+                  </div>
                 </div>
-                <div className="cards">{live.slice(0, 4).map(memCard)}</div>
+                {(() => {
+                  type RCard = {
+                    kind: string;
+                    cat: string;
+                    title: string;
+                    body: React.ReactNode;
+                    actionLabel: string;
+                    onAction: () => void;
+                    onDismiss: () => void;
+                  };
+                  const cards: RCard[] = [
+                    ...(dreams || []).map((d) => ({
+                      kind: "insight",
+                      cat: "Insight",
+                      title: d.title,
+                      body: d.body as React.ReactNode,
+                      actionLabel: "Save as memory",
+                      onAction: () => {
+                        s.remember(d.body, "normal");
+                        setDreams((cur) => cur?.filter((x) => x !== d) ?? null);
+                        flash("Saved as a memory.");
+                      },
+                      onDismiss: () =>
+                        setDreams((cur) => cur?.filter((x) => x !== d) ?? null),
+                    })),
+                    ...(notices || [])
+                      .filter((n) => !n.loading && n.kind)
+                      .map((n) => ({
+                        kind: n.kind as string,
+                        cat:
+                          n.kind === "merge"
+                            ? "Duplicate"
+                            : n.kind === "pattern"
+                              ? "Pattern"
+                              : "Tidy up",
+                        title: n.title || "",
+                        body: n.body as React.ReactNode,
+                        actionLabel:
+                          n.kind === "merge"
+                            ? "Keep the tidy version"
+                            : n.kind === "pattern"
+                              ? "Save this insight"
+                              : "Set it aside",
+                        onAction: () => {
+                          s.reflectKeep(n.kind!, n.ids || [], n.keepId, n.tag);
+                          setNotices(
+                            (cur) => cur?.filter((x) => x !== n) ?? null,
+                          );
+                          flash("Done.");
+                        },
+                        onDismiss: () =>
+                          setNotices(
+                            (cur) => cur?.filter((x) => x !== n) ?? null,
+                          ),
+                      })),
+                  ];
+                  const loading = dreaming || !!notices?.[0]?.loading;
+                  if (!cards.length && !loading) return null;
+                  const i = Math.min(reflectIdx, Math.max(0, cards.length - 1));
+                  const c = cards[i];
+                  return (
+                    <div className="rfx">
+                      <div className="rr-head">
+                        <div className="section-title" style={{ margin: 0 }}>
+                          Reflect{" "}
+                          <span className="count">
+                            catch up on what Cortex noticed
+                          </span>
+                        </div>
+                        {cards.length > 1 && (
+                          <div className="rr-nav">
+                            <button
+                              aria-label="Previous"
+                              onClick={() =>
+                                setReflectIdx(
+                                  (i - 1 + cards.length) % cards.length,
+                                )
+                              }
+                            >
+                              ‹
+                            </button>
+                            <span className="rr-count">
+                              {i + 1} of {cards.length}
+                            </span>
+                            <button
+                              aria-label="Next"
+                              onClick={() =>
+                                setReflectIdx((i + 1) % cards.length)
+                              }
+                            >
+                              ›
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {c ? (
+                        <div className="rfx-card">
+                          <div className="rfx-cat">
+                            <span className={"rfx-ic " + c.kind} />
+                            {c.cat}
+                          </div>
+                          <div className="rfx-title">{c.title}</div>
+                          <div className="rfx-body">{c.body}</div>
+                          <div className="rfx-foot">
+                            <button
+                              className="pill-btn keep"
+                              onClick={c.onAction}
+                            >
+                              {c.actionLabel}
+                            </button>
+                            <button className="pill-btn" onClick={c.onDismiss}>
+                              Dismiss
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rfx-card">
+                          <div className="rfx-cat">
+                            <span className="rfx-ic insight" />
+                            Reflecting
+                          </div>
+                          <div className="rfx-title">
+                            Taking a quiet moment…
+                          </div>
+                          <div className="rfx-body">
+                            Looking across your {live.length} memories for
+                            patterns and connections.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+                {(() => {
+                  const rr = live.slice(0, 6);
+                  if (!rr.length) return null;
+                  const i = Math.min(rrIdx, rr.length - 1);
+                  const m = rr[i]!;
+                  return (
+                    <div className="rr">
+                      <div className="rr-head">
+                        <div className="section-title" style={{ margin: 0 }}>
+                          Recently Remembered{" "}
+                          <span className="count">{live.length} in all</span>
+                        </div>
+                        <div className="rr-nav">
+                          <button
+                            aria-label="Previous"
+                            onClick={() =>
+                              setRrIdx((i - 1 + rr.length) % rr.length)
+                            }
+                          >
+                            ‹
+                          </button>
+                          <span className="rr-count">
+                            {i + 1} of {rr.length}
+                          </span>
+                          <button
+                            aria-label="Next"
+                            onClick={() => setRrIdx((i + 1) % rr.length)}
+                          >
+                            ›
+                          </button>
+                        </div>
+                      </div>
+                      <button className="rr-card" onClick={() => setDrawer(m)}>
+                        <div className="rr-text">{m.text}</div>
+                        <div className="rr-foot">
+                          <span className="rr-tags">
+                            {m.tags.join(" · ") || "note"}
+                          </span>
+                          <span>{ago(m.ts)}</span>
+                          <span className="rr-dive">Dive in →</span>
+                        </div>
+                      </button>
+                    </div>
+                  );
+                })()}
+                {(() => {
+                  const rm = live.slice(0, 5);
+                  if (!rm.length) return null;
+                  const j = Math.min(rmIdx, rm.length - 1);
+                  const mm = rm[j]!;
+                  return (
+                    <div className="rr">
+                      <div className="rr-head">
+                        <div className="section-title" style={{ margin: 0 }}>
+                          Recent Memories
+                        </div>
+                        <div className="rr-nav">
+                          <button
+                            aria-label="Previous"
+                            onClick={() =>
+                              setRmIdx((j - 1 + rm.length) % rm.length)
+                            }
+                          >
+                            ‹
+                          </button>
+                          <span className="rr-count">
+                            {j + 1} of {rm.length}
+                          </span>
+                          <button
+                            aria-label="Next"
+                            onClick={() => setRmIdx((j + 1) % rm.length)}
+                          >
+                            ›
+                          </button>
+                        </div>
+                      </div>
+                      <button className="rr-card" onClick={() => setDrawer(mm)}>
+                        <div className="rr-text">{mm.text}</div>
+                        <div className="rr-foot">
+                          <span className="rr-tags">
+                            {mm.tags.join(" · ") || "note"}
+                          </span>
+                          <span>{ago(mm.ts)}</span>
+                          <span className="rr-dive">Dive in →</span>
+                        </div>
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <div className="home-chat">
@@ -876,219 +1374,311 @@ export function CortexApp() {
             )}
           </section>
 
-          {/* MEMORIES */}
+          {/* MEMORIES + LOOKING BACK */}
           <section className={"view" + (view === "memories" ? " on" : "")}>
             <h1 className="h1">Your memories</h1>
-            <label className="search" style={{ marginTop: 24 }}>
-              <svg viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="7" />
-                <path d="M21 21l-4.3-4.3" />
-              </svg>
-              <input
-                placeholder="Search your memories…"
-                value={memQuery}
-                onChange={(e) => setMemQuery(e.target.value)}
-              />
-            </label>
-            <div className="filters">
-              {["all", ...tags].map((f) => (
-                <button
-                  key={f}
-                  className={"fchip" + (memFilter === f ? " on" : "")}
-                  onClick={() => setMemFilter(f)}
-                >
-                  {f === "all" ? "Everything" : f}
-                </button>
-              ))}
-            </div>
-            <div className="cards">
-              {memList.length ? (
-                memList.map(memCard)
-              ) : (
-                <div className="empty">
-                  <div className="et">Nothing here yet</div>
-                  <div className="es">Try a different word.</div>
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* LOOKING BACK */}
-          <section className={"view" + (view === "lookback" ? " on" : "")}>
-            <h1 className="h1">
-              Looking <span className="em">back</span>
-            </h1>
-            <div className="story">
-              {[...s.events]
-                .sort((a, b) => b.ts - a.ts)
-                .map((ev) => (
-                  <div
-                    key={ev.id}
-                    className={
-                      "snode" +
-                      (ev.warm || ev.type === "reflect" ? " warm" : "")
-                    }
-                  >
-                    <div className="when">
-                      {ev.type === "start" ? "the beginning" : ago(ev.ts)}
-                    </div>
-                    <div className="scard">
-                      <div className="st">{ev.t}</div>
-                      {ev.sub && <div className="ssub">{ev.sub}</div>}
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </section>
-
-          {/* REFLECT */}
-          <section className={"view" + (view === "reflect" ? " on" : "")}>
-            <h1 className="h1">Reflect</h1>
-            <div className="reflect-intro">
-              <div className="ri-t">Ready when you are</div>
-              <div className="ri-s">
-                A gentle pass over your memories. You&apos;ll see what Cortex
-                noticed before anything changes.
-              </div>
-              <button className="ri-go" onClick={runReflect}>
-                <svg
-                  viewBox="0 0 24 24"
-                  width="18"
-                  height="18"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" />
-                </svg>
-                Take a moment to reflect
+            <div className="filters" style={{ marginTop: 20 }}>
+              <button
+                className={"fchip" + (memTab === "cards" ? " on" : "")}
+                onClick={() => setMemTab("cards")}
+              >
+                Memories
+              </button>
+              <button
+                className={"fchip" + (memTab === "timeline" ? " on" : "")}
+                onClick={() => setMemTab("timeline")}
+              >
+                Looking back
               </button>
             </div>
-            <div
-              style={{
-                marginTop: 22,
-                display: "flex",
-                flexDirection: "column",
-                gap: 14,
-              }}
-            >
-              {notices?.[0]?.loading && (
-                <div className="empty">
-                  <div className="et">Taking a quiet moment…</div>
-                  <div className="es">
-                    Looking across your {live.length} memories.
-                  </div>
+
+            {memTab === "cards" ? (
+              <>
+                <label className="search" style={{ marginTop: 16 }}>
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="M21 21l-4.3-4.3" />
+                  </svg>
+                  <input
+                    placeholder="Search your memories…"
+                    value={memQuery}
+                    onChange={(e) => setMemQuery(e.target.value)}
+                  />
+                </label>
+                <div className="filters">
+                  {["all", ...tags].map((f) => (
+                    <button
+                      key={f}
+                      className={"fchip" + (memFilter === f ? " on" : "")}
+                      onClick={() => setMemFilter(f)}
+                    >
+                      {f === "all" ? "Everything" : f}
+                    </button>
+                  ))}
                 </div>
-              )}
-              {notices && !notices[0]?.loading && notices.length === 0 && (
-                <div className="empty">
-                  <div className="et">All tidy</div>
-                  <div className="es">Nothing to consolidate right now.</div>
-                </div>
-              )}
-              {notices &&
-                !notices[0]?.loading &&
-                notices.map((n, i) => (
-                  <div
-                    className={
-                      "notice " +
-                      (n.kind === "merge"
-                        ? "merge"
-                        : n.kind === "tidy"
-                          ? "tidy"
-                          : "")
-                    }
-                    key={i}
-                  >
-                    <div className="nicon">
-                      <svg viewBox="0 0 24 24">
-                        {n.kind === "merge" ? (
-                          <path d="M7 8l5-5 5 5M7 16l5 5 5-5" />
-                        ) : n.kind === "pattern" ? (
-                          <path d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2z" />
-                        ) : (
-                          <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M6 6l1 14a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-14" />
-                        )}
-                      </svg>
+                <div className="cards">
+                  {memList.length ? (
+                    memList.map(memCard)
+                  ) : (
+                    <div className="empty">
+                      <div className="et">Nothing here yet</div>
+                      <div className="es">Try a different word.</div>
                     </div>
-                    <div className="nbody">
-                      <div className="nt">{n.title}</div>
-                      <div className="ns">{n.body}</div>
-                      <div className="nact">
-                        <button
-                          className="pill-btn keep"
-                          onClick={() => {
-                            s.reflectKeep(
-                              n.kind!,
-                              n.ids || [],
-                              n.keepId,
-                              n.tag,
-                            );
-                            setNotices((cur) => cur!.filter((_, j) => j !== i));
-                            flash("Done.");
-                          }}
-                        >
-                          {n.kind === "merge"
-                            ? "Keep the tidy version"
-                            : n.kind === "pattern"
-                              ? "Save this insight"
-                              : "Set it aside"}
-                        </button>
-                        <button
-                          className="pill-btn"
-                          onClick={() =>
-                            setNotices((cur) => cur!.filter((_, j) => j !== i))
-                          }
-                        >
-                          Leave as is
-                        </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="story" style={{ marginTop: 8 }}>
+                {[...s.events]
+                  .sort((a, b) => b.ts - a.ts)
+                  .map((ev) => (
+                    <div
+                      key={ev.id}
+                      className={
+                        "snode" +
+                        (ev.warm || ev.type === "reflect" ? " warm" : "")
+                      }
+                    >
+                      <div className="when">
+                        {ev.type === "start" ? "the beginning" : ago(ev.ts)}
+                      </div>
+                      <div className="scard">
+                        <div className="st">{ev.t}</div>
+                        {ev.sub && <div className="ssub">{ev.sub}</div>}
                       </div>
                     </div>
-                  </div>
-                ))}
-            </div>
+                  ))}
+              </div>
+            )}
           </section>
+
           {/* STUDIO — compile memory into a prompt */}
           <section className={"view" + (view === "studio" ? " on" : "")}>
             <h1 className="h1">
               Prompt <span className="em">studio</span>
             </h1>
             <p className="lede show">
-              Turn what you know into a prompt for any AI. Pick a task, pick the
-              memories that matter, copy it anywhere.
+              Describe what you need. Cortex writes the prompt in your voice,
+              grounded in your memory.
             </p>
-            <div className="studio">
-              <div className="studio-left">
-                <div className="st-label">What do you need?</div>
-                <textarea
-                  className="st-task"
-                  rows={2}
-                  placeholder="e.g. plan my Lisbon trip using what I already know"
-                  value={studioTask}
-                  onChange={(e) => setStudioTask(e.target.value)}
-                />
-                <div className="st-label" style={{ marginTop: 18 }}>
-                  Format
-                </div>
-                <div className="st-formats">
-                  {FORMATS.map((f) => (
+            <div className="st2">
+              <div className="composer-dock st2-dock">
+                <div className="st2-composer">
+                  <textarea
+                    className="st2-task"
+                    rows={3}
+                    placeholder="What do you need a prompt for? e.g. a hero image for my notes app"
+                    value={studioTask}
+                    onChange={(e) => setStudioTask(e.target.value)}
+                  />
+                  <div className="st2-bar">
+                    <div className="st2-dd">
+                      <button
+                        className="st2-dd-btn"
+                        onClick={() =>
+                          setStudioDrop((d) =>
+                            d === "modality" ? null : "modality",
+                          )
+                        }
+                      >
+                        <span className="st2-dd-k">For</span>
+                        <span className="st2-dd-v">
+                          {
+                            MODALITIES.find((x) => x.id === studioModality)
+                              ?.name
+                          }
+                        </span>
+                        <span className="st2-dd-c">▾</span>
+                      </button>
+                      {studioDrop === "modality" && (
+                        <div className="st2-dd-pop">
+                          {MODALITIES.map((m) => (
+                            <button
+                              key={m.id}
+                              className={
+                                "st2-dd-item" +
+                                (studioModality === m.id ? " on" : "")
+                              }
+                              onClick={() => {
+                                setStudioModality(m.id);
+                                setStudioDrop(null);
+                              }}
+                            >
+                              <span className="st2-dd-name">{m.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="st2-dd">
+                      <button
+                        className="st2-dd-btn"
+                        onClick={() =>
+                          setStudioDrop((d) => (d === "style" ? null : "style"))
+                        }
+                      >
+                        <span className="st2-dd-k">Style</span>
+                        <span className="st2-dd-v">
+                          {STYLES.find((x) => x.id === studioStyle)?.name}
+                        </span>
+                        <span className="st2-dd-c">▾</span>
+                      </button>
+                      {studioDrop === "style" && (
+                        <div className="st2-dd-pop">
+                          {STYLES.map((st) => (
+                            <button
+                              key={st.id}
+                              className={
+                                "st2-dd-item" +
+                                (studioStyle === st.id ? " on" : "")
+                              }
+                              onClick={() => {
+                                setStudioStyle(st.id);
+                                setStudioDrop(null);
+                              }}
+                            >
+                              <span className="st2-dd-name">{st.name}</span>
+                              <span className="st2-dd-hint">{st.hint}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="st2-dd">
+                      <button
+                        className="st2-dd-btn"
+                        onClick={() =>
+                          setStudioDrop((d) => (d === "type" ? null : "type"))
+                        }
+                      >
+                        <span className="st2-dd-k">Type</span>
+                        <span className="st2-dd-v">
+                          {TYPES.find((x) => x.id === studioType)?.name}
+                        </span>
+                        <span className="st2-dd-c">▾</span>
+                      </button>
+                      {studioDrop === "type" && (
+                        <div className="st2-dd-pop">
+                          {TYPES.map((ty) => (
+                            <button
+                              key={ty.id}
+                              className={
+                                "st2-dd-item" +
+                                (studioType === ty.id ? " on" : "")
+                              }
+                              onClick={() => {
+                                setStudioType(ty.id);
+                                setStudioDrop(null);
+                              }}
+                            >
+                              <span className="st2-dd-name">{ty.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="st2-dd">
+                      <button
+                        className="st2-dd-btn"
+                        onClick={() =>
+                          setStudioDrop((d) => (d === "model" ? null : "model"))
+                        }
+                      >
+                        <span className="mdot" />
+                        <span className="st2-dd-v">{s.model.name}</span>
+                        <span className="st2-dd-c">▾</span>
+                      </button>
+                      {studioDrop === "model" && (
+                        <div className="st2-dd-pop wide">
+                          {MODELS.map((m) => (
+                            <button
+                              key={m.name}
+                              className={
+                                "st2-dd-item" +
+                                (s.model.name === m.name ? " on" : "")
+                              }
+                              onClick={() => {
+                                s.setModel(m.name);
+                                setStudioDrop(null);
+                              }}
+                            >
+                              <span className="st2-dd-name">
+                                {m.name}{" "}
+                                <span className="st2-dd-price">{m.price}</span>
+                              </span>
+                              <span className="st2-dd-hint">{m.desc}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <button
-                      key={f.id}
-                      className={"st-fmt" + (studioFmt === f.id ? " on" : "")}
-                      onClick={() => setStudioFmt(f.id)}
+                      className="st2-pill"
+                      onClick={() => fileRef.current?.click()}
+                      title="Attach documents"
                     >
-                      {f.name}
-                      <span> · {f.sub}</span>
+                      <svg viewBox="0 0 24 24">
+                        <path d="M21.4 11 12 20.4a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 1 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 1 1-2.6-2.6l7.8-7.8" />
+                      </svg>
+                      <span>Attach</span>
                     </button>
-                  ))}
+                    <button
+                      className={"st2-pill web" + (s.web ? " on" : "")}
+                      onClick={() => s.toggleWeb()}
+                      title="Search the web"
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+                      </svg>
+                      <span>Web</span>
+                    </button>
+                    <button
+                      className="st2-gen"
+                      onClick={generateStudio}
+                      disabled={studioLoading}
+                    >
+                      {studioLoading ? "Generating…" : "Generate"}
+                      <svg viewBox="0 0 24 24">
+                        <path d="M5 12h14M13 6l6 6-6 6" />
+                      </svg>
+                    </button>
+                  </div>
+                  {studioDrop && (
+                    <div
+                      className="st2-dd-backdrop"
+                      onClick={() => setStudioDrop(null)}
+                    />
+                  )}
                 </div>
-                <div className="st-label" style={{ marginTop: 18 }}>
-                  Memories to include{" "}
-                  <span className="st-count">{studioMems.length} selected</span>
-                </div>
-                <div className="st-mems">
+              </div>
+
+              <div className="st2-scope">
+                <span>
+                  Grounded in <b>{studioMems.length}</b> of {live.length}{" "}
+                  memories
+                </span>
+                <button
+                  className="st2-link"
+                  onClick={() => setStudioPick((p) => !p)}
+                >
+                  {studioPick ? "Hide" : "Choose"}
+                </button>
+                <button
+                  className="st2-link"
+                  onClick={() =>
+                    setStudioSel(
+                      studioMems.length === live.length
+                        ? new Set()
+                        : new Set(live.map((m) => m.id)),
+                    )
+                  }
+                >
+                  {studioMems.length === live.length ? "Clear" : "All"}
+                </button>
+              </div>
+              {studioPick && (
+                <div className="st2-mems">
                   {live.map((m) => (
                     <button
                       key={m.id}
@@ -1100,7 +1690,7 @@ export function CortexApp() {
                       <span className="st-box">
                         {studioSelected.has(m.id) ? "✓" : ""}
                       </span>
-                      <span>
+                      <span className="st-mbody">
                         <span className="st-mtext">{m.text}</span>
                         <span className="st-mmeta">
                           {m.tags[0]}
@@ -1110,39 +1700,105 @@ export function CortexApp() {
                     </button>
                   ))}
                 </div>
-              </div>
-              <div className="studio-right">
-                <div className="st-outbar">
+              )}
+
+              <div className="st2-output">
+                <div className="st2-out-top">
                   <span className="st-tok">
                     ~{Math.round(studioOut.length / 4)} tokens
                   </span>
+                </div>
+                <div
+                  className={
+                    "st2-bubble" +
+                    (CODE_TYPES.includes(studioType) ? " mono" : "") +
+                    (studioLoading ? " loading" : "")
+                  }
+                >
+                  {studioOut}
+                </div>
+                <div className="st2-actions">
+                  <div className="st2-copy">
+                    <button
+                      className="st2-copy-main"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(studioOut);
+                        flash("Prompt copied");
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <rect x="9" y="9" width="11" height="11" rx="2" />
+                        <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                      </svg>
+                      Copy content
+                    </button>
+                    <button
+                      className="st2-copy-chev"
+                      onClick={() => setStudioMenu((o) => !o)}
+                      aria-label="More options"
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </button>
+                    {studioMenu && (
+                      <div className="st2-menu">
+                        <button
+                          className="st2-menu-item"
+                          onClick={() => {
+                            navigator.clipboard?.writeText(
+                              "```\n" + studioOut + "\n```",
+                            );
+                            setStudioMenu(false);
+                            flash("Copied as Markdown");
+                          }}
+                        >
+                          <span className="st2-menu-av">md</span>
+                          <span className="st2-menu-tx">
+                            <b>Copy as Markdown</b>
+                            <span>Fenced, ready to paste into an LLM</span>
+                          </span>
+                        </button>
+                        {STUDIO_PRODUCTS[studioModality].map((p) => (
+                          <button
+                            key={p.name}
+                            className="st2-menu-item"
+                            onClick={() => openStudioProduct(p)}
+                          >
+                            <span className="st2-menu-av">{p.name[0]}</span>
+                            <span className="st2-menu-tx">
+                              <b>Open in {p.name} ↗</b>
+                              <span>Copies your prompt and opens it</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <button
-                    className="pill-btn"
+                    className="st-act"
                     onClick={() => {
-                      const f = FORMATS.find((x) => x.id === studioFmt)!;
+                      const t = TYPES.find((x) => x.id === studioType)!;
+                      const file = `${studioStyle}-prompt.${t.ext}`;
                       const a = document.createElement("a");
                       a.href = URL.createObjectURL(
                         new Blob([studioOut], { type: "text/plain" }),
                       );
-                      a.download = f.file;
+                      a.download = file;
                       a.click();
-                      flash("Downloaded " + f.file);
+                      flash("Downloaded " + file);
                     }}
                   >
                     Download
                   </button>
-                  <button
-                    className="pill-btn keep"
-                    onClick={() => {
-                      navigator.clipboard?.writeText(studioOut);
-                      flash("Prompt copied");
-                    }}
-                  >
-                    Copy
-                  </button>
                 </div>
-                <pre className="st-out">{studioOut}</pre>
               </div>
+              {studioMenu && (
+                <div
+                  className="st2-dd-backdrop"
+                  onClick={() => setStudioMenu(false)}
+                />
+              )}
             </div>
           </section>
           {/* KNOWLEDGE — sources + recommendations */}
@@ -1178,6 +1834,42 @@ export function CortexApp() {
                 )}
               </div>
             </div>
+            {walrusFiles.length > 0 && (
+              <>
+                <div className="section-title">
+                  On Walrus{" "}
+                  <span className="count">{walrusFiles.length}</span>
+                </div>
+                <div className="kb-sources">
+                  {walrusFiles.map((m) => (
+                    <div className="kb-src" key={m.id}>
+                      <div className="kb-src-icon">
+                        <svg viewBox="0 0 24 24">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <path d="M14 2v6h6" />
+                        </svg>
+                      </div>
+                      <div className="kb-src-meta">
+                        <div className="kb-src-name">{m.text}</div>
+                        <div className="kb-src-sub">
+                          {m.mime || "file"} · sealed on Walrus
+                        </div>
+                      </div>
+                      {m.url && (
+                        <a
+                          className="pill-btn"
+                          href={m.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Download
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
             <div className="section-title">
               Your sources <span className="count">{sources.length}</span>
             </div>
@@ -1247,124 +1939,150 @@ export function CortexApp() {
           {/* INTEGRATIONS — MCP clients, storage backends, sources */}
           <section className={"view" + (view === "integrations" ? " on" : "")}>
             <h1 className="h1">Integrations</h1>
-            <div className="int-featured">
-              <span className="int-tag">Cortex MCP</span>
-              <div className="int-feat-t">
-                Your AI tools forget everything between chats.
-              </div>
-              <div className="int-feat-s">
-                One setup gives Claude, Cursor and ChatGPT the same memory, kept
-                by you on Walrus and sealed so only you can open it.
-              </div>
-            </div>
-            <div className="int-layout">
-              <div className="int-main">
-                <div className="int-tabs">
-                  {(["all", "mcp", "storage", "sources"] as const).map((t) => (
-                    <button
-                      key={t}
-                      className={"int-tab" + (intTab === t ? " on" : "")}
-                      onClick={() => setIntTab(t)}
-                    >
-                      {t === "all"
-                        ? "All"
-                        : t === "mcp"
-                          ? "MCP"
+            <p className="lede show">
+              Give your AI tools one shared memory, kept by you on Walrus and
+              sealed so only you can open it. Everything runs locally until you
+              add testnet keys.
+            </p>
+            <div className="int2">
+              <div className="int2-filter">
+                {(
+                  ["all", "mcp", "frameworks", "storage", "sources"] as const
+                ).map((t) => (
+                  <button
+                    key={t}
+                    className={"int2-f" + (intTab === t ? " on" : "")}
+                    onClick={() => setIntTab(t)}
+                  >
+                    {t === "all"
+                      ? "All"
+                      : t === "mcp"
+                        ? "AI tools"
+                        : t === "frameworks"
+                          ? "Frameworks"
                           : t === "storage"
                             ? "Storage"
                             : "Sources"}
-                      <span className="int-tn">
-                        {t === "all"
-                          ? MCP_CLIENTS.length + STORAGE.length + SOURCES.length
-                          : t === "mcp"
-                            ? MCP_CLIENTS.length
-                            : t === "storage"
-                              ? STORAGE.length
-                              : SOURCES.length}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                  </button>
+                ))}
+              </div>
 
-                {(intTab === "all" || intTab === "mcp") && (
-                  <>
-                    <div className="int-grouphead">
-                      Connect an AI tool{" "}
-                      <span className="int-gh-s">over MCP</span>
-                    </div>
-                    <div className="int-cards">
-                      {MCP_CLIENTS.map((c) => (
-                        <div
-                          className={
-                            "int-card" + (intOpen === c.key ? " open" : "")
-                          }
-                          key={c.key}
-                        >
-                          <div className="int-card-top">
-                            <span className="int-av">{c.letter}</span>
-                            <div className="int-cc">
-                              <div className="int-name">{c.name}</div>
-                              <div className="int-desc">{c.desc}</div>
-                            </div>
+              {(intTab === "all" || intTab === "mcp") && (
+                <div className="int2-group">
+                  <div className="int2-glabel">AI tools</div>
+                  <div className="int2-list">
+                    {MCP_CLIENTS.map((c) => (
+                      <div className="int2-item" key={c.key}>
+                        <div className="int2-row">
+                          <span className="int2-av">{c.letter}</span>
+                          <div className="int2-meta">
+                            <div className="int2-name">{c.name}</div>
+                            <div className="int2-desc">{c.desc}</div>
                           </div>
                           <button
-                            className="int-connect"
+                            className={
+                              "int2-btn" + (intOpen === c.key ? " on" : "")
+                            }
                             onClick={() => intConnect(c.key)}
                           >
-                            {intOpen === c.key ? "Hide setup" : "Connect"}
+                            {intOpen === c.key ? "Hide" : "Connect"}
                           </button>
-                          {intOpen === c.key && (
-                            <div className="int-snip">
-                              <div className="int-snip-h">
+                        </div>
+                        {intOpen === c.key && (
+                          <div className="int2-snip">
+                            <div className="int2-snip-h">
+                              <span>
                                 {c.key === "claude-code"
                                   ? "Run this once"
                                   : "Add to your MCP config"}
-                                <button
-                                  className="int-copy"
-                                  onClick={() => copySnippet(c.key)}
-                                >
-                                  Copy
-                                </button>
-                              </div>
-                              <pre>{mcpSnippet(c.key)}</pre>
-                              <div className="int-snip-n">
-                                Runs entirely on your machine. No account, no
-                                server, nothing leaves your device.
-                              </div>
+                              </span>
+                              <button
+                                className="int2-copy"
+                                onClick={() => copySnippet(c.key)}
+                              >
+                                Copy
+                              </button>
                             </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {(intTab === "all" || intTab === "storage") && (
-                  <>
-                    <div className="int-grouphead">
-                      Where your memory lives{" "}
-                      <span className="int-gh-s">you own it</span>
-                    </div>
-                    <div className="int-cards">
-                      {STORAGE.map((c) => (
-                        <div className="int-card" key={c.key}>
-                          <div className="int-card-top">
-                            <span className="int-av store">{c.letter}</span>
-                            <div className="int-cc">
-                              <div className="int-name">
-                                {c.name}{" "}
-                                <span className="int-role">{c.role}</span>
-                              </div>
-                              <div className="int-desc">{c.desc}</div>
+                            <pre>{mcpSnippet(c.key)}</pre>
+                            <div className="int2-snip-n">
+                              Runs entirely on your machine. Nothing leaves your
+                              device.
                             </div>
                           </div>
-                          <div className="int-status">
-                            <span className="int-dot" />
-                            Running locally · add testnet keys in{" "}
-                            <code>config/config.yaml</code> to go live
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(intTab === "all" || intTab === "frameworks") && (
+                <div className="int2-group">
+                  <div className="int2-glabel">
+                    Frameworks <span>· prompts &amp; skills</span>
+                  </div>
+                  <div className="int2-list">
+                    {FRAMEWORKS.map((c) => (
+                      <div className="int2-item" key={c.key}>
+                        <div className="int2-row">
+                          <span className="int2-av">{c.letter}</span>
+                          <div className="int2-meta">
+                            <div className="int2-name">{c.name}</div>
+                            <div className="int2-desc">{c.desc}</div>
                           </div>
                           <button
-                            className="int-connect ghost"
+                            className={
+                              "int2-btn" + (intOpen === c.key ? " on" : "")
+                            }
+                            onClick={() => intConnect(c.key)}
+                          >
+                            {intOpen === c.key ? "Hide" : "Connect"}
+                          </button>
+                        </div>
+                        {intOpen === c.key && (
+                          <div className="int2-snip">
+                            <div className="int2-snip-h">
+                              <span>Pull prompts, skills and memory</span>
+                              <button
+                                className="int2-copy"
+                                onClick={() => copyText(c.code)}
+                              >
+                                Copy
+                              </button>
+                            </div>
+                            <pre>{c.code}</pre>
+                            <div className="int2-snip-n">
+                              Reads and refines the same memory, kept by you on
+                              Walrus and sealed.
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(intTab === "all" || intTab === "storage") && (
+                <div className="int2-group">
+                  <div className="int2-glabel">
+                    Storage <span>· you own it</span>
+                  </div>
+                  <div className="int2-list">
+                    {STORAGE.map((c) => (
+                      <div className="int2-item" key={c.key}>
+                        <div className="int2-row">
+                          <span className="int2-av store">{c.letter}</span>
+                          <div className="int2-meta">
+                            <div className="int2-name">
+                              {c.name}
+                              <span className="int2-role">{c.role}</span>
+                            </div>
+                            <div className="int2-desc">{c.desc}</div>
+                          </div>
+                          <span className="int2-tag">Local</span>
+                          <button
+                            className="int2-btn ghost"
                             onClick={() =>
                               flash(
                                 "Add your Sui testnet keys and a deployed allowlist in config/config.yaml, then Cortex stores live on Walrus.",
@@ -1374,28 +2092,26 @@ export function CortexApp() {
                             Configure
                           </button>
                         </div>
-                      ))}
-                    </div>
-                  </>
-                )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                {(intTab === "all" || intTab === "sources") && (
-                  <>
-                    <div className="int-grouphead">
-                      Bring things in <span className="int-gh-s">sources</span>
-                    </div>
-                    <div className="int-cards">
-                      {SOURCES.map((c) => (
-                        <div className="int-card" key={c.key}>
-                          <div className="int-card-top">
-                            <span className="int-av">{c.letter}</span>
-                            <div className="int-cc">
-                              <div className="int-name">{c.name}</div>
-                              <div className="int-desc">{c.desc}</div>
-                            </div>
+              {(intTab === "all" || intTab === "sources") && (
+                <div className="int2-group">
+                  <div className="int2-glabel">Sources</div>
+                  <div className="int2-list">
+                    {SOURCES.map((c) => (
+                      <div className="int2-item" key={c.key}>
+                        <div className="int2-row">
+                          <span className="int2-av">{c.letter}</span>
+                          <div className="int2-meta">
+                            <div className="int2-name">{c.name}</div>
+                            <div className="int2-desc">{c.desc}</div>
                           </div>
                           <button
-                            className="int-connect"
+                            className="int2-btn"
                             onClick={() => {
                               if (c.action === "add") fileRef.current?.click();
                               else if (c.action === "web") {
@@ -1417,60 +2133,11 @@ export function CortexApp() {
                                 : "Write a note"}
                           </button>
                         </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <aside className="int-side">
-                <div className="int-panel">
-                  <div className="int-panel-h">Active connections</div>
-                  <div className="int-conns">
-                    {STORAGE.map((c) => (
-                      <div className="int-conn" key={c.key}>
-                        <span className="int-av sm store">{c.letter}</span>
-                        <div className="int-conn-m">
-                          <div className="int-conn-n">{c.name}</div>
-                          <div className="int-conn-s">{c.role}</div>
-                        </div>
-                        <span className="int-pill mock">local</span>
                       </div>
                     ))}
                   </div>
-                  <div className="int-panel-n">
-                    No live testnet connection yet. Everything is kept on your
-                    machine.
-                  </div>
                 </div>
-                <div className="int-panel">
-                  <div className="int-panel-h">Recently added</div>
-                  <div className="int-recents">
-                    {live.slice(0, 4).map((m) => (
-                      <button
-                        className="int-recent"
-                        key={m.id}
-                        onClick={() => setDrawer(m)}
-                      >
-                        <svg viewBox="0 0 24 24">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                          <path d="M14 2v6h6" />
-                        </svg>
-                        <div className="int-recent-m">
-                          <div className="int-recent-t">
-                            {m.text.length > 44
-                              ? m.text.slice(0, 44) + "…"
-                              : m.text}
-                          </div>
-                          <div className="int-recent-s">
-                            {m.tags[0] || "note"} · {ago(m.ts)}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </aside>
+              )}
             </div>
           </section>
 
@@ -1482,42 +2149,39 @@ export function CortexApp() {
               <div className="set-gh">
                 <div className="set-gt">Account</div>
                 <div className="set-gs">
-                  How you sign in. Cortex uses zkLogin so your identity stays
-                  yours, with no password to leak.
+                  {privyOn
+                    ? "How you sign in. Cortex uses Privy for login and a managed Sui wallet — your identity stays yours, with no seed phrase to lose."
+                    : "How you sign in. Cortex uses zkLogin so your identity stays yours, with no password to leak."}
                 </div>
               </div>
-              {session ? (
+              {sess ? (
                 <div className="set-account">
-                  <span className="set-av">
-                    {session.via[0]?.toUpperCase()}
-                  </span>
+                  <span className="set-av">{sess.via[0]?.toUpperCase()}</span>
                   <div className="set-acc-m">
-                    <div className="set-acc-n">Signed in · {session.via}</div>
+                    <div className="set-acc-n">Signed in · {sess.via}</div>
                     <div className="set-acc-s">
-                      {session.addr.slice(0, 10)}…{session.addr.slice(-6)}
+                      {sess.addr.slice(0, 10)}…{sess.addr.slice(-6)}
                     </div>
                   </div>
-                  <button className="pill-btn" onClick={endSession}>
+                  <button className="pill-btn" onClick={doSignOut}>
                     Sign out
                   </button>
                 </div>
               ) : (
                 <div className="set-signin">
-                  <button
-                    className="pill-btn keep"
-                    onClick={() => startSession("Google")}
-                  >
+                  <button className="pill-btn keep" onClick={doSignIn}>
                     <svg viewBox="0 0 24 24">
                       <circle cx="12" cy="12" r="9" />
                       <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
                     </svg>
-                    Continue with Google (zkLogin)
+                    {privyOn
+                      ? "Sign in with Privy"
+                      : "Continue with Google (zkLogin)"}
                   </button>
                   <div className="set-note">
-                    This creates a local ephemeral session right now. To prove
-                    it on Sui testnet you add a Google OAuth client id, a salt
-                    service and a prover URL in <code>config/config.yaml</code>,
-                    then the same button derives your real zkLogin address.
+                    {privyOn
+                      ? "Privy logs you in by email or social and provisions a managed Sui wallet that owns your memory on Walrus."
+                      : "This creates a local ephemeral session right now. Add a Privy app id (NEXT_PUBLIC_PRIVY_APP_ID) to sign in with a managed Sui wallet."}
                   </div>
                 </div>
               )}
@@ -1533,18 +2197,28 @@ export function CortexApp() {
                 </div>
               </div>
               <div className="set-store">
-                {STORAGE.map((c) => (
-                  <div className="set-srow" key={c.key}>
-                    <span className="set-av store">{c.letter}</span>
-                    <div className="set-acc-m">
-                      <div className="set-acc-n">
-                        {c.name} <span className="int-role">{c.role}</span>
+                {STORAGE.map((c) => {
+                  const live =
+                    c.key === "seal"
+                      ? sealEnabled()
+                      : c.key === "sui"
+                        ? !!sess
+                        : !!wallet;
+                  return (
+                    <div className="set-srow" key={c.key}>
+                      <span className="set-av store">{c.letter}</span>
+                      <div className="set-acc-m">
+                        <div className="set-acc-n">
+                          {c.name} <span className="int-role">{c.role}</span>
+                        </div>
+                        <div className="set-acc-s">{c.desc}</div>
                       </div>
-                      <div className="set-acc-s">{c.desc}</div>
+                      <span className={"int-pill " + (live ? "live" : "mock")}>
+                        {live ? "live" : "local"}
+                      </span>
                     </div>
-                    <span className="int-pill mock">local</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <button
                 className="pill-btn"
@@ -1695,28 +2369,45 @@ export function CortexApp() {
                 </button>
               </div>
             </div>
+
+            <div className="set-group">
+              <div className="set-gh">
+                <div className="set-gt">Reset memory</div>
+                <div className="set-gs">
+                  Clear this browser&apos;s working memory and start from a blank
+                  slate. Your durable record on Walrus is not touched — this only
+                  wipes the local index.
+                </div>
+              </div>
+              <button
+                className="pill-btn danger"
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      "Clear your local memory and start fresh? This wipes the working index in this browser. Your Walrus record is kept.",
+                    )
+                  )
+                    return;
+                  s.resetMemory();
+                  setView("home");
+                  flash("Memory cleared. Starting fresh.");
+                }}
+              >
+                Reset memory
+              </button>
+            </div>
           </section>
         </div>
 
         {/* BRAIN — full-bleed memory map */}
         {view === "brain" && (
           <div className="brain-stage">
-            <div className="brain-head">
-              <h1 className="h1">
-                Your <span className="em">mind</span>
-              </h1>
-              <p className="brain-sub">
-                {live.length} memories, clustered by theme. Drag to pan, scroll
-                to zoom, click a node to open it.
-              </p>
-            </div>
             <MemoryMap onOpen={(m) => setDrawer(m)} />
           </div>
         )}
 
         {/* GLOBAL COMPOSER (hidden on full-page views) */}
-        {view !== "brain" &&
-          view !== "studio" &&
+        {view !== "studio" &&
           view !== "integrations" &&
           view !== "settings" && (
             <div className="composer-dock">
@@ -1878,15 +2569,16 @@ export function CortexApp() {
                   </button>
                 </div>
               </div>
-              <input
-                ref={fileRef}
-                type="file"
-                multiple
-                hidden
-                onChange={(e) => onFiles(e.target.files)}
-              />
             </div>
           )}
+        {/* shared file input — available on every view (Studio attach, etc.) */}
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          hidden
+          onChange={(e) => onFiles(e.target.files)}
+        />
       </main>
 
       {/* DRAWER */}

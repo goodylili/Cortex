@@ -1,6 +1,8 @@
 // Cortex memory logic — pure, deterministic, client-side. Ported to TS from the
 // verified vanilla app. The Next app uses these via the zustand store.
 
+import { LLM_MODELS } from "@/lib/llm/models";
+
 export interface Memory {
   id: string;
   text: string;
@@ -28,6 +30,10 @@ export interface Memory {
   supersedes?: string;
   rawRef?: string | null;
   content?: string;
+  // knowledge-base file backing (when this node represents a Walrus KbFile)
+  blobId?: string;
+  url?: string;
+  mime?: string;
 }
 
 export interface CortexEvent {
@@ -250,170 +256,33 @@ export function webSearch(q: string): WebResult[] {
   ];
 }
 
-export function freshMemories(): {
+// A blank starting state. Memory is built from scratch and lives in Walrus Memory
+// (memwal); the local store is only the working index. No seeded demo content.
+export function emptyState(): {
   memories: Memory[];
   events: CortexEvent[];
   cost: Cost;
 } {
-  const t = Date.now(),
-    day = 86400000;
-  const mk = (
-    text: string,
-    tags: string[],
-    a: number,
-    extra: Partial<Memory> = {},
-  ): Memory => ({
-    id: uid("mem"),
-    text,
-    tags,
-    ts: t - a,
-    createdAt: t - a,
-    source: "note",
-    ...extra,
-  });
-  const memories: Memory[] = [
-    mk(
-      "I think most clearly in the mornings, protect that time for deep work.",
-      ["habits"],
-      3 * 3600000,
-      { kept: true, importance: "high" },
-    ),
-    mk(
-      "My best deep work happens in the mornings, protect those hours.",
-      ["habits"],
-      2 * day,
-    ),
-    mk("We use pnpm on this project, not npm.", ["work"], 5 * 3600000, {
-      noticed: true,
-    }),
-    mk(
-      "Reminder: this repo is pnpm, not npm, the deploy runs on Tuesdays.",
-      ["work"],
-      22 * 3600000,
-    ),
-    mk(
-      "Flying to Lisbon on March 3rd. The hotel is near Alfama, bring an EU plug adapter.",
-      ["travel"],
-      1 * day,
-    ),
-    mk(
-      "Mum's birthday is the 14th. She loved the ceramics from the market last time.",
-      ["people"],
-      1 * day,
-      { kept: true },
-    ),
-    mk(
-      "Standup is at 10am. Coffee black, music off when I'm writing.",
-      ["habits"],
-      3 * day,
-    ),
-    mk(
-      "The auth refactor is merged. Next: rate-limit the public endpoints.",
-      ["work"],
-      4 * day,
-    ),
-    mk(
-      "That idea for a quiet, warm notes app, keep it personal, never social.",
-      ["ideas"],
-      6 * day,
-      { noticed: true },
-    ),
-    mk(
-      "Reading 'The Order of Time'. The bit about memory stitching a self together stayed with me.",
-      ["reading"],
-      6 * day,
-    ),
-  ];
-  const events: CortexEvent[] = [
-    {
-      id: uid("ev"),
-      ts: t - 6 * day,
-      type: "start",
-      t: "You started keeping memory with Cortex",
-      sub: "everything since is yours, and only yours",
-    },
-    {
-      id: uid("ev"),
-      ts: t - 3 * day,
-      type: "added",
-      t: "Learned a few preferences",
-      sub: "from a quick note about how you like to work",
-    },
-    {
-      id: uid("ev"),
-      ts: t - 1 * day,
-      type: "added",
-      t: "Kept a travel detail",
-      sub: "Lisbon, March 3rd, near Alfama",
-    },
-  ];
-  const raw = memories.reduce((s, m) => s + toks(m.text), 0);
   return {
-    memories,
-    events,
-    cost: {
-      rawIngestedTokens: raw,
-      dedupTokens: 0,
-      retrievalTokens: 0,
-      asks: 0,
-    },
+    memories: [],
+    events: [
+      {
+        id: uid("ev"),
+        ts: Date.now(),
+        type: "start",
+        t: "You started keeping memory with Cortex",
+        sub: "everything you keep is yours, and only yours",
+      },
+    ],
+    cost: { rawIngestedTokens: 0, dedupTokens: 0, retrievalTokens: 0, asks: 0 },
   };
 }
 
-export const MODELS = [
-  {
-    name: "Claude Opus 4.8",
-    prov: "Anthropic",
-    price: "$$$",
-    desc: "Deepest reasoning for hard questions",
-  },
-  {
-    name: "Claude Sonnet 4.6",
-    prov: "Anthropic",
-    price: "$$",
-    desc: "Balanced, great for everyday recall",
-  },
-  {
-    name: "Claude Haiku 4.5",
-    prov: "Anthropic",
-    price: "$",
-    desc: "Fast and light for quick answers",
-  },
-  {
-    name: "GPT-5.5",
-    prov: "OpenAI",
-    price: "$$$",
-    desc: "General-purpose flagship",
-  },
-  {
-    name: "GPT-5.4",
-    prov: "OpenAI",
-    price: "$$",
-    desc: "Quick everyday chat and tools",
-  },
-  {
-    name: "Gemini 3 Pro",
-    prov: "Google",
-    price: "$$",
-    desc: "Long-context, multimodal",
-  },
-  {
-    name: "Gemini 3 Flash",
-    prov: "Google",
-    price: "$",
-    desc: "Lightning-fast with real capability",
-  },
-  {
-    name: "Llama 4 Maverick",
-    prov: "Meta",
-    price: "$",
-    desc: "Open-weight workhorse",
-  },
-  {
-    name: "Grok 4",
-    prov: "xAI",
-    price: "$$",
-    desc: "Fast, current, conversational",
-  },
-];
+// The picker view of the canonical registry in @/lib/llm/models.
+export const MODELS = LLM_MODELS.map(({ name, prov, price, desc }) => ({
+  name,
+  prov,
+  price,
+  desc,
+}));
 export type Model = (typeof MODELS)[number];
