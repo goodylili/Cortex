@@ -9,6 +9,7 @@ export * from "../../sui/app/clients";
 export * from "../../sui/app/manifest";
 export * from "./extractor";
 export * from "./agent";
+export * from "./agents";
 export * from "./sync";
 export * from "./watcher";
 export * from "./demo";
