@@ -11,10 +11,14 @@ import {
   useSignRawHash,
 } from "@privy-io/react-auth/extended-chains";
 import { PrivySuiSigner, type SignRawHash } from "@/lib/cortex/walrus/signer";
-import { ensureAccount } from "@/lib/cortex/walrus/account";
+import { ensureAccount, getAccountId } from "@/lib/cortex/walrus/account";
 import { contractsEnabled } from "@/lib/cortex/walrus/env";
 import { storeFile, type StoredFile } from "@/lib/cortex/walrus/files";
 import { listKbFiles, type KbFileInfo } from "@/lib/cortex/walrus/kb";
+import {
+  saveHistory as walrusSaveHistory,
+  loadHistory as walrusLoadHistory,
+} from "@/lib/cortex/walrus/sessions";
 import {
   ensureMemory,
   loadMemoryCreds,
@@ -37,6 +41,8 @@ export interface CortexWallet {
   listFiles: () => Promise<KbFileInfo[]>;
   remember: (text: string) => Promise<{ blobId: string } | null>;
   recall: (query: string) => Promise<RecalledMemory[]>;
+  saveHistory: (chat: unknown) => Promise<void>;
+  loadHistory: () => Promise<unknown | null>;
 }
 
 export interface CortexWalletState {
@@ -145,6 +151,22 @@ export function useCortexWallet(): CortexWalletState {
       recall: async (query: string) => {
         await ensureMemory(userKey, signer);
         return recallLive(userKey, NAMESPACE, query);
+      },
+      saveHistory: async (chat: unknown) => {
+        if (!contractsEnabled()) return;
+        const accountId = await ensureAccount({
+          signer,
+          memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? ZERO_ID,
+          displayName: "Cortex",
+          handle: `cortex_${address.slice(2, 10)}`,
+        });
+        await walrusSaveHistory(signer, accountId, chat);
+      },
+      loadHistory: async () => {
+        if (!contractsEnabled()) return null;
+        const accountId = await getAccountId(address);
+        if (!accountId) return null;
+        return walrusLoadHistory(signer, accountId);
       },
     };
   }, [signer, user]);
