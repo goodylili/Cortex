@@ -5,10 +5,10 @@
 
 "use client";
 
-import { SuiJsonRpcClient, getJsonRpcFullnodeUrl } from "@mysten/sui/jsonRpc";
 import { blobIdFromInt } from "@mysten/walrus";
 import { CORTEX_ENV } from "./env";
 import { fileUrl } from "./files";
+import { ownedObjects } from "./graphql";
 
 export interface KbFileInfo {
   id: string;
@@ -19,49 +19,32 @@ export interface KbFileInfo {
   url: string;
 }
 
-interface KbObject {
-  objectId?: string;
-  content?: {
-    fields?: {
-      name?: string;
-      mime?: string;
-      walrus?: { fields?: { blob_id?: string | number; size?: string | number } };
-    };
-  };
-}
-
-let reader: SuiJsonRpcClient | undefined;
-function readClient(): SuiJsonRpcClient {
-  if (!reader) {
-    reader = new SuiJsonRpcClient({
-      url: getJsonRpcFullnodeUrl(CORTEX_ENV.network),
-      network: CORTEX_ENV.network,
-    });
-  }
-  return reader;
+// GraphQL inlines nested Move structs as plain JSON objects (no `.fields`).
+interface KbJson {
+  name?: string;
+  mime?: string;
+  walrus?: { blob_id?: string | number; size?: string | number };
 }
 
 export async function listKbFiles(owner: string): Promise<KbFileInfo[]> {
   if (!CORTEX_ENV.packageId) return [];
-  const res = (await readClient().getOwnedObjects({
+  const owned = await ownedObjects(
     owner,
-    filter: { StructType: `${CORTEX_ENV.packageId}::walrus::KbFile` },
-    options: { showContent: true },
-  })) as { data?: { data?: KbObject }[] };
+    `${CORTEX_ENV.packageId}::walrus::KbFile`,
+  );
 
   const files: KbFileInfo[] = [];
-  for (const item of res.data ?? []) {
-    const data = item.data;
-    const fields = data?.content?.fields;
-    const blobInt = fields?.walrus?.fields?.blob_id;
-    if (!data?.objectId || !fields || blobInt === undefined) continue;
+  for (const { id, json } of owned) {
+    const fields = json as KbJson;
+    const blobInt = fields.walrus?.blob_id;
+    if (blobInt === undefined) continue;
     const blobId = blobIdFromInt(String(blobInt));
     files.push({
-      id: data.objectId,
+      id,
       name: String(fields.name ?? "file"),
       mime: String(fields.mime ?? ""),
       blobId,
-      size: Number(fields.walrus?.fields?.size ?? 0),
+      size: Number(fields.walrus?.size ?? 0),
       url: fileUrl(blobId),
     });
   }

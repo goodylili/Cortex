@@ -10,6 +10,10 @@ const DEFAULT_RPC: Record<CortexNetwork, string> = {
   testnet: "https://fullnode.testnet.sui.io:443",
   mainnet: "https://fullnode.mainnet.sui.io:443",
 };
+const DEFAULT_GRAPHQL: Record<CortexNetwork, string> = {
+  testnet: "https://graphql.testnet.sui.io/graphql",
+  mainnet: "https://graphql.mainnet.sui.io/graphql",
+};
 const DEFAULT_WALRUS_EPOCHS = 5;
 const DEFAULT_SEAL_THRESHOLD = 1;
 const DEFAULT_MEMWAL_SERVER = "https://relayer.memwal.ai";
@@ -26,6 +30,7 @@ export interface CortexEnv {
   privyAppId: string;
   network: CortexNetwork;
   suiRpc: string;
+  suiGraphql: string;
   packageId: string;
   registryId: string;
   walrusEpochs: number;
@@ -57,6 +62,7 @@ export const CORTEX_ENV: CortexEnv = {
   privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "",
   network,
   suiRpc: process.env.NEXT_PUBLIC_SUI_RPC ?? DEFAULT_RPC[network],
+  suiGraphql: process.env.NEXT_PUBLIC_SUI_GRAPHQL ?? DEFAULT_GRAPHQL[network],
   packageId: process.env.NEXT_PUBLIC_CORTEX_PACKAGE_ID ?? "",
   registryId: process.env.NEXT_PUBLIC_CORTEX_REGISTRY_ID ?? "",
   walrusEpochs: parseIntOr(

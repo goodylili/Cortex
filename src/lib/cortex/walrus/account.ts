@@ -5,11 +5,11 @@
 
 "use client";
 
-import { SuiJsonRpcClient, getJsonRpcFullnodeUrl } from "@mysten/sui/jsonRpc";
 import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { CORTEX_ENV } from "./env";
 import { getSuiClient } from "./clients";
+import { ownedObjects } from "./graphql";
 import { digestOf, type PrivySuiSigner } from "./signer";
 
 const REGISTER_LOOKUP_RETRIES = 6;
@@ -19,29 +19,14 @@ function accountType(): string {
   return `${CORTEX_ENV.packageId}::account::Account`;
 }
 
-let reader: SuiJsonRpcClient | undefined;
-function readClient(): SuiJsonRpcClient {
-  if (!reader) {
-    reader = new SuiJsonRpcClient({
-      url: getJsonRpcFullnodeUrl(CORTEX_ENV.network),
-      network: CORTEX_ENV.network,
-    });
-  }
-  return reader;
-}
-
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // Read the caller's Account object id straight from chain (null if none yet).
 export async function getAccountId(owner: string): Promise<string | null> {
-  const owned = (await readClient().getOwnedObjects({
-    owner,
-    filter: { StructType: accountType() },
-    options: { showType: true },
-  })) as { data?: { data?: { objectId?: string } }[] };
-  return owned.data?.[0]?.data?.objectId ?? null;
+  const owned = await ownedObjects(owner, accountType());
+  return owned[0]?.id ?? null;
 }
 
 export async function registerAccount(opts: {

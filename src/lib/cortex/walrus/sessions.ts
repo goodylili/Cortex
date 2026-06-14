@@ -7,11 +7,11 @@
 
 "use client";
 
-import { SuiJsonRpcClient, getJsonRpcFullnodeUrl } from "@mysten/sui/jsonRpc";
 import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { CORTEX_ENV } from "./env";
 import { getSuiClient, getWalrusClient } from "./clients";
+import { objectJson } from "./graphql";
 import type { PrivySuiSigner } from "./signer";
 
 const SETTING_KEY = "chat:current";
@@ -81,26 +81,16 @@ export async function saveHistory(
   return blobId;
 }
 
-interface SettingsEntry {
-  fields?: { key?: string; value?: string };
-}
-interface AccountContent {
-  content?: { fields?: { settings?: { fields?: { contents?: SettingsEntry[] } } } };
+interface SettingsJson {
+  settings?: { contents?: { key?: string; value?: string }[] };
 }
 
-// Read the recorded blob id from the Account's on-chain settings.
+// Read the recorded blob id from the Account's on-chain settings (VecMap inlines
+// in GraphQL JSON as { contents: [{ key, value }] }).
 async function currentBlobId(accountId: string): Promise<string | null> {
-  const client = new SuiJsonRpcClient({
-    url: getJsonRpcFullnodeUrl(CORTEX_ENV.network),
-    network: CORTEX_ENV.network,
-  });
-  const obj = (await client.getObject({
-    id: accountId,
-    options: { showContent: true },
-  })) as { data?: AccountContent };
-  const contents = obj.data?.content?.fields?.settings?.fields?.contents ?? [];
-  for (const entry of contents) {
-    if (entry.fields?.key === SETTING_KEY) return entry.fields.value ?? null;
+  const json = (await objectJson(accountId)) as SettingsJson | null;
+  for (const entry of json?.settings?.contents ?? []) {
+    if (entry.key === SETTING_KEY) return entry.value ?? null;
   }
   return null;
 }
