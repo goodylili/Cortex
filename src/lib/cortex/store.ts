@@ -11,7 +11,7 @@ import {
   extract,
   retrieve,
   webSearch,
-  freshMemories,
+  emptyState,
   ago,
   MODELS,
 } from "./logic";
@@ -86,6 +86,15 @@ interface State {
   live: () => Memory[];
   remember: (text: string, importance: Importance) => void;
   ingestText: (text: string, source: string) => number;
+  syncFiles: (
+    files: {
+      id: string;
+      name: string;
+      mime: string;
+      blobId: string;
+      url: string;
+    }[],
+  ) => void;
   setMode: (m: Mode) => void;
   setImportance: (i: Importance) => void;
   setModel: (name: string) => void;
@@ -112,6 +121,7 @@ interface State {
   runSweep: () => SweepSummary;
   setConfig: (c: Partial<MemoryConfig>) => void;
   resetConfig: () => void;
+  resetMemory: () => void;
 }
 
 function persist(s: {
@@ -174,7 +184,7 @@ export const useCortex = create<State>((set, get) => ({
       if (raw) data = JSON.parse(raw);
     } catch {}
     if (!data || !data.memories?.length) {
-      data = freshMemories();
+      data = emptyState();
     }
     if (!data.cost)
       data.cost = {
@@ -303,6 +313,32 @@ export const useCortex = create<State>((set, get) => ({
     return parts.length;
   },
 
+  // Mirror on-chain KbFiles as "file" memory nodes so they show in the Knowledge
+  // view and the brain map. Replaces the previous kb_* set each call.
+  syncFiles: (files) =>
+    set((s) => {
+      const KB = "kb_";
+      const now = Date.now();
+      const nodes: Memory[] = files.map((f) => ({
+        id: KB + f.id,
+        text: f.name,
+        tags: ["file"],
+        ts: now,
+        createdAt: now,
+        source: f.name,
+        kept: true,
+        blobId: f.blobId,
+        url: f.url,
+        mime: f.mime,
+      }));
+      const memories = [
+        ...nodes,
+        ...s.memories.filter((m) => !m.id.startsWith(KB)),
+      ];
+      persist({ memories, events: s.events, cost: s.cost, config: s.config });
+      return { memories };
+    }),
+
   setMode: (mode) => set({ mode }),
   setImportance: (importance) => set({ importance }),
   setModel: (name) =>
@@ -348,9 +384,10 @@ export const useCortex = create<State>((set, get) => ({
       cites.length && live.length > cites.length
         ? `sent ${cites.length} of ${live.length} memories`
         : "";
-    let full: string;
+    // Deterministic answer used when no model key is configured or the call fails.
+    let fallback: string;
     if (!sources.length) {
-      full =
+      fallback =
         "I don't have a memory or source that touches on that yet. Keep a note about it, or turn on web search, and I'll be able to answer.";
     } else {
       const parts: string[] = [];
@@ -363,7 +400,7 @@ export const useCortex = create<State>((set, get) => ({
         parts.push(
           `on the web, ${web[0]!.title.toLowerCase()} adds context [${cites.length + 1}]`,
         );
-      full = parts.join(". ") + ".";
+      fallback = parts.join(". ") + ".";
     }
     const msg: ChatMsg = {
       q,
@@ -389,31 +426,54 @@ export const useCortex = create<State>((set, get) => ({
       events: get().events,
       cost: get().cost,
     });
-    // stream
-    const words = full.split(" ");
-    let i = 0;
-    const tick = setInterval(() => {
-      if (i >= words.length) {
-        clearInterval(tick);
+
+    const stream = (text: string) => {
+      const words = text.split(" ");
+      let i = 0;
+      const tick = setInterval(() => {
+        if (i >= words.length) {
+          clearInterval(tick);
+          set((s) => {
+            const chat = [...s.chat];
+            const last = chat[chat.length - 1];
+            if (last) {
+              last.a = text;
+              last.streaming = false;
+            }
+            return { chat };
+          });
+          return;
+        }
+        const tokWord = words[i++];
         set((s) => {
           const chat = [...s.chat];
           const last = chat[chat.length - 1];
-          if (last) {
-            last.a = full;
-            last.streaming = false;
-          }
+          if (last) last.a = (last.a ? last.a + " " : "") + tokWord;
           return { chat };
         });
-        return;
-      }
-      const tokWord = words[i++];
-      set((s) => {
-        const chat = [...s.chat];
-        const last = chat[chat.length - 1];
-        if (last) last.a = (last.a ? last.a + " " : "") + tokWord;
-        return { chat };
-      });
-    }, 30);
+      }, 30);
+    };
+
+    // Answer with the selected model, grounded in the retrieved memories.
+    fetch("/api/ask", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        question: q,
+        memories: cites.map((c) => ({
+          text: c.text,
+          label: c.tags[0] || "note",
+          when: ago(c.ts),
+        })),
+        web: get().web,
+        model: get().model.name,
+      }),
+    })
+      .then((r) => r.json())
+      .then((d) =>
+        stream(typeof d.answer === "string" && d.answer ? d.answer : fallback),
+      )
+      .catch(() => stream(fallback));
   },
   appendChatToken: () => {},
 
@@ -626,5 +686,20 @@ export const useCortex = create<State>((set, get) => ({
         config: DEFAULT_CONFIG,
       });
       return { config: DEFAULT_CONFIG };
+    }),
+  // Wipe the local working index back to a blank slate. The durable record on
+  // Walrus Memory is untouched; this only clears what this browser mirrors.
+  resetMemory: () =>
+    set((s) => {
+      const fresh = emptyState();
+      const next = {
+        memories: fresh.memories,
+        events: fresh.events,
+        cost: fresh.cost,
+        config: s.config,
+        lastSweep: 0,
+      };
+      persist(next);
+      return { ...next, chat: [] };
     }),
 }));

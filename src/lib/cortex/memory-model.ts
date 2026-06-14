@@ -13,6 +13,11 @@ export type Facet =
   | "work"
   | "finance"
   | "relationships"
+  | "studying"
+  | "creative"
+  | "home"
+  | "travel"
+  | "hobbies"
   | "casual"
   | "ephemeral_task";
 export type Trust = "stated" | "inferred" | "system";
@@ -55,6 +60,11 @@ export const FACET_MIN: Record<Facet, Tier> = {
   work: 2,
   finance: 2,
   relationships: 2,
+  studying: 2,
+  creative: 2,
+  home: 2,
+  travel: 1,
+  hobbies: 1,
   casual: 0,
   ephemeral_task: 0,
 };
@@ -72,6 +82,11 @@ export const FACETS: Facet[] = [
   "work",
   "finance",
   "relationships",
+  "studying",
+  "creative",
+  "home",
+  "travel",
+  "hobbies",
   "casual",
   "ephemeral_task",
 ];
@@ -115,6 +130,19 @@ const FACET_FROM_TAG: Record<string, Facet> = {
   money: "finance",
   people: "relationships",
   work: "work",
+  studying: "studying",
+  study: "studying",
+  reading: "studying",
+  learning: "studying",
+  ideas: "creative",
+  creative: "creative",
+  writing: "creative",
+  music: "creative",
+  art: "creative",
+  travel: "travel",
+  home: "home",
+  hobby: "hobbies",
+  hobbies: "hobbies",
 };
 const IDENTITY_RE =
   /\b(my name is|i am|i'm|i live|i was born|allergic|allergy|i prefer|i always|i never)\b/i;
@@ -126,6 +154,16 @@ const CORRECTION_RE =
   /\b(no,? actually|not |i told you|that'?s wrong|correction|it'?s actually|i meant)\b/i;
 const TRANSIENT_RE =
   /\b(today|right now|currently|for now|this morning|tired|just |temporarily)\b/i;
+const STUDY_RE =
+  /\b(study|studying|studied|exam|course|class|homework|assignment|degree|university|college|school|lecture|revision|thesis|certification|learning)\b/i;
+const TRAVEL_RE =
+  /\b(flight|flying|trip|travel|hotel|vacation|holiday|airport|visa|itinerary|booking)\b/i;
+const HOBBY_RE =
+  /\b(hobby|hobbies|guitar|piano|painting|gardening|chess|gaming|knitting|photography|hiking|cycling|climbing|baking)\b/i;
+const CREATIVE_RE =
+  /\b(idea for|design|sketch|song|novel|screenplay|prototype|side project|art project|composing)\b/i;
+const HOME_RE =
+  /\b(apartment|rent|mortgage|landlord|furniture|move (in|out)|household|my flat|the house)\b/i;
 
 export function facetOf(text: string, tags: string[]): Facet {
   if (HEALTH_RE.test(text)) return "health";
@@ -134,6 +172,11 @@ export function facetOf(text: string, tags: string[]): Facet {
     const f = FACET_FROM_TAG[t];
     if (f) return f;
   }
+  if (STUDY_RE.test(text)) return "studying";
+  if (TRAVEL_RE.test(text)) return "travel";
+  if (HOBBY_RE.test(text)) return "hobbies";
+  if (CREATIVE_RE.test(text)) return "creative";
+  if (HOME_RE.test(text)) return "home";
   if (TRANSIENT_RE.test(text) && tags.includes("note")) return "ephemeral_task";
   return "casual";
 }

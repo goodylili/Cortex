@@ -1,0 +1,113 @@
+// Server-side multi-provider completion. Dispatches to Anthropic, OpenAI, xAI, or
+// Gemini based on the model's provider. Keys are read from server env (never
+// NEXT_PUBLIC). Returns ok:false (with a reason) instead of throwing so callers can
+// fall back gracefully when a key is missing or a provider errors.
+
+import type { ModelSpec, Provider } from "./models";
+
+const DEFAULT_MAX_TOKENS = 1200;
+const ANTHROPIC_VERSION = "2023-06-01";
+
+export interface CompleteArgs {
+  model: ModelSpec;
+  system: string;
+  user: string;
+  maxTokens?: number;
+}
+
+export interface CompleteResult {
+  text: string;
+  ok: boolean;
+  reason?: string;
+}
+
+interface OpenAiStyle {
+  base: string;
+  key: string | undefined;
+  tokenParam: "max_tokens" | "max_completion_tokens";
+}
+
+function openAiStyle(provider: Provider): OpenAiStyle {
+  switch (provider) {
+    case "openai":
+      return {
+        base: "https://api.openai.com/v1",
+        key: process.env.OPENAI_API_KEY,
+        tokenParam: "max_completion_tokens",
+      };
+    case "xai":
+      return {
+        base: "https://api.x.ai/v1",
+        key: process.env.XAI_API_KEY,
+        tokenParam: "max_tokens",
+      };
+    default:
+      return {
+        base: "https://generativelanguage.googleapis.com/v1beta/openai",
+        key: process.env.GEMINI_API_KEY,
+        tokenParam: "max_tokens",
+      };
+  }
+}
+
+async function callAnthropic(args: CompleteArgs): Promise<CompleteResult> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return { text: "", ok: false, reason: "no-key" };
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": ANTHROPIC_VERSION,
+    },
+    body: JSON.stringify({
+      model: args.model.apiId,
+      max_tokens: args.maxTokens ?? DEFAULT_MAX_TOKENS,
+      system: args.system,
+      messages: [{ role: "user", content: args.user }],
+    }),
+  });
+  if (!res.ok) return { text: "", ok: false, reason: `status ${res.status}` };
+  const data = await res.json();
+  const text: string = data?.content?.[0]?.text ?? "";
+  return text.trim()
+    ? { text: text.trim(), ok: true }
+    : { text: "", ok: false, reason: "empty" };
+}
+
+async function callOpenAiStyle(args: CompleteArgs): Promise<CompleteResult> {
+  const style = openAiStyle(args.model.provider);
+  if (!style.key) return { text: "", ok: false, reason: "no-key" };
+  const body: Record<string, unknown> = {
+    model: args.model.apiId,
+    messages: [
+      { role: "system", content: args.system },
+      { role: "user", content: args.user },
+    ],
+  };
+  body[style.tokenParam] = args.maxTokens ?? DEFAULT_MAX_TOKENS;
+  const res = await fetch(`${style.base}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${style.key}`,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) return { text: "", ok: false, reason: `status ${res.status}` };
+  const data = await res.json();
+  const text: string = data?.choices?.[0]?.message?.content ?? "";
+  return text.trim()
+    ? { text: text.trim(), ok: true }
+    : { text: "", ok: false, reason: "empty" };
+}
+
+export async function complete(args: CompleteArgs): Promise<CompleteResult> {
+  try {
+    return args.model.provider === "anthropic"
+      ? await callAnthropic(args)
+      : await callOpenAiStyle(args);
+  } catch (err) {
+    return { text: "", ok: false, reason: `fetch-failed: ${(err as Error).message}` };
+  }
+}

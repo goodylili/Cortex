@@ -1,6 +1,6 @@
 import "./cortex.css";
-import { CortexApp } from "@/components/cortex/cortex-app";
+import { CortexClient } from "@/components/cortex/cortex-client";
 
 export default function Page() {
-  return <CortexApp />;
+  return <CortexClient />;
 }
