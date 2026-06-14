@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// Cortex MCP server — the all-inclusive connector. Exposes the full Cortex memory
-// plane (recall, remember, ingest, list, timeline, tags, digest, connections,
-// extraction, head, dream, verify) plus outbound bridges (web_fetch, service_notify,
-// service_export) so any MCP host (Claude Desktop, Code, Cursor) or external service
-// reaches Cortex's durable memory. Also publishes MCP Resources and Prompts.
-// Optional dep: @modelcontextprotocol/sdk. Runs on mock unless config is fully wired.
+// Cortex MCP server — the all-inclusive connector and multi-agent hub. Exposes the
+// full Cortex memory plane (recall, remember, ingest, list, timeline, tags, digest,
+// connections, extraction, head, forget, verify-stamp, dream, verify), the agent
+// collaboration layer (roster, durable task board, message bus, run-step) so MCP
+// hosts and external agents communicate through shared Walrus memory, and outbound
+// bridges (web_fetch, service_notify, service_export). Also publishes MCP Resources
+// and Prompts. Optional dep: @modelcontextprotocol/sdk. Mock unless config is wired.
 
 import {
   loadConfig,
@@ -18,6 +19,16 @@ import {
   getExtraction,
   seedDemo,
   importExternal,
+  AGENTS,
+  createTask,
+  listTasks,
+  getTask,
+  observeTask,
+  handoffTask,
+  completeTask,
+  postMessage,
+  listMessages,
+  runAndRecordStep,
 } from "../src/core/index";
 
 const DEFAULT_PERIOD = { from: "0000", to: "9999" };
@@ -120,6 +131,30 @@ async function main() {
     },
   );
 
+  server.tool(
+    "memory_forget",
+    "De-index a memory (tombstone). The raw record stays on Walrus; recall stops surfacing it.",
+    { memoryId: z.string(), reason: z.string().optional() },
+    async ({ memoryId, reason }: any) => {
+      await c.memwal.tombstone(
+        cfg.namespace,
+        memoryId,
+        reason ?? "forgotten via mcp",
+      );
+      return text(`forgot ${memoryId}`);
+    },
+  );
+  server.tool(
+    "memory_verify_stamp",
+    "Stamp a memory as verified at a given time (defaults to now).",
+    { memoryId: z.string(), at: z.string().optional() },
+    async ({ memoryId, at }: any) => {
+      const when = at ?? new Date().toISOString();
+      await c.memwal.stampVerified(cfg.namespace, memoryId, when);
+      return text(`verified ${memoryId} @ ${when}`);
+    },
+  );
+
   // ---- memory: read views over the Cortex facade ----
   server.tool(
     "memory_list",
@@ -171,6 +206,99 @@ async function main() {
       const head = await cortex.head();
       return json({ namespace: cfg.namespace, head, live });
     },
+  );
+
+  // ---- multi-agent hub: the team, the durable task board, and the message bus ----
+  // Tasks and messages persist as event-sourced MemWal records in dedicated
+  // sub-namespaces, so every MCP host and external agent collaborates over the same
+  // Walrus-backed state.
+  server.tool(
+    "agent_list",
+    "List the specialist agents (id, name, role, blurb) that share this memory.",
+    {},
+    async () =>
+      json(
+        AGENTS.map((a) => ({
+          id: a.id,
+          name: a.name,
+          role: a.role,
+          blurb: a.blurb,
+        })),
+      ),
+  );
+  server.tool(
+    "task_create",
+    "Open a task and assign it to an agent. Returns the durable task record.",
+    {
+      goal: z.string(),
+      assignTo: z.string(),
+      createdBy: z.string().optional(),
+    },
+    async ({ goal, assignTo, createdBy }: any) =>
+      json(await createTask(c, cfg, { goal, assignTo, createdBy })),
+  );
+  server.tool(
+    "task_list",
+    "List the team's tasks (latest revision of each), newest first.",
+    {},
+    async () => json(await listTasks(c, cfg)),
+  );
+  server.tool(
+    "task_get",
+    "Fetch one task by id, including its observations and outputs.",
+    { taskId: z.string() },
+    async ({ taskId }: any) => json(await getTask(c, cfg, taskId)),
+  );
+  server.tool(
+    "task_observe",
+    "Append an observation to a task as a given agent (records what was found/done).",
+    { taskId: z.string(), agentId: z.string(), text: z.string() },
+    async ({ taskId, agentId, text: body }: any) =>
+      json(await observeTask(c, cfg, { taskId, agentId, text: body })),
+  );
+  server.tool(
+    "task_handoff",
+    "Reassign a task to another agent so they continue it. Posts a handoff to the bus.",
+    { taskId: z.string(), toAgentId: z.string() },
+    async ({ taskId, toAgentId }: any) =>
+      json(await handoffTask(c, cfg, { taskId, toAgentId })),
+  );
+  server.tool(
+    "task_complete",
+    "Mark a task done, rolling its latest observation into the task's outputs.",
+    { taskId: z.string() },
+    async ({ taskId }: any) => json(await completeTask(c, cfg, taskId)),
+  );
+  server.tool(
+    "agent_run_step",
+    "Run one collaborative step: the assigned (or named) agent recalls shared memory, reasons, and records an observation + a bus message.",
+    {
+      taskId: z.string(),
+      agentId: z.string().optional(),
+      recallLimit: z.number().optional(),
+    },
+    async ({ taskId, agentId, recallLimit }: any) =>
+      json(await runAndRecordStep(c, cfg, { taskId, agentId, recallLimit })),
+  );
+  server.tool(
+    "agent_message_post",
+    "Post a message to the durable agent bus (from/to may be an agent id, 'user', or 'team').",
+    {
+      from: z.string(),
+      to: z.string(),
+      taskId: z.string(),
+      kind: z.enum(["handoff", "note", "result"]),
+      content: z.string(),
+    },
+    async ({ from, to, taskId, kind, content }: any) =>
+      json(await postMessage(c, cfg, { from, to, taskId, kind, content })),
+  );
+  server.tool(
+    "agent_message_list",
+    "Read the agent message bus, newest first. Optionally filter by taskId.",
+    { taskId: z.string().optional(), limit: z.number().optional() },
+    async ({ taskId, limit }: any) =>
+      json(await listMessages(c, cfg, { taskId, limit })),
   );
 
   // ---- outbound connectors: bridge Cortex to other services ----
@@ -278,6 +406,26 @@ async function main() {
     },
     async (uri: any) => resource(uri.href, await cortex.digest()),
   );
+  server.registerResource(
+    "agents",
+    "cortex://agents",
+    {
+      title: "Cortex agent team",
+      description: "The specialist agents that share this memory.",
+      mimeType: RESOURCE_MIME,
+    },
+    async (uri: any) => resource(uri.href, AGENTS),
+  );
+  server.registerResource(
+    "tasks",
+    "cortex://tasks",
+    {
+      title: "Cortex task board",
+      description: "The team's durable tasks (latest revision of each).",
+      mimeType: RESOURCE_MIME,
+    },
+    async (uri: any) => resource(uri.href, await listTasks(c, cfg)),
+  );
 
   // ---- prompts ----
   server.registerPrompt(
@@ -330,10 +478,13 @@ async function main() {
   await server.connect(new StdioServerTransport());
   console.error(
     `cortex-mcp connected (${live ? "live" : "mock"})\n` +
-      `  tools: memory_recall, memory_remember, memory_ingest, dream_run, verify_memory, ` +
-      `memory_list, memory_timeline, memory_tags, memory_digest, memory_connections, ` +
-      `memory_extraction, memory_head, web_fetch, service_notify, service_export\n` +
-      `  resources: cortex://memory, cortex://timeline, cortex://digest\n` +
+      `  memory: memory_recall, memory_remember, memory_ingest, memory_forget, ` +
+      `memory_verify_stamp, memory_list, memory_timeline, memory_tags, memory_digest, ` +
+      `memory_connections, memory_extraction, memory_head, dream_run, verify_memory\n` +
+      `  agents: agent_list, task_create, task_list, task_get, task_observe, task_handoff, ` +
+      `task_complete, agent_run_step, agent_message_post, agent_message_list\n` +
+      `  connectors: web_fetch, service_notify, service_export\n` +
+      `  resources: cortex://memory, cortex://timeline, cortex://digest, cortex://agents, cortex://tasks\n` +
       `  prompts: summarize_memory, daily_digest`,
   );
 }
