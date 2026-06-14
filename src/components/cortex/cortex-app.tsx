@@ -33,7 +33,20 @@ import {
 } from "@/lib/cortex/memory-model";
 import type { CortexWalletState } from "@/lib/cortex/use-wallet";
 import { sealEnabled } from "@/lib/cortex/walrus/env";
+import {
+  AGENTS,
+  agentById,
+  type AgentDef,
+  type TaskStatus,
+} from "@/lib/cortex/agents";
 import { CaptureModal } from "./capture";
+
+const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
+  open: "Open",
+  in_progress: "Working",
+  blocked: "Blocked",
+  done: "Done",
+};
 
 const MARK = (
   <svg viewBox="0 0 120 120" fill="currentColor">
@@ -61,6 +74,7 @@ type View =
   | "memories"
   | "reflect"
   | "brain"
+  | "agents"
   | "studio"
   | "knowledge"
   | "integrations"
@@ -136,6 +150,10 @@ export function CortexApp({
   const [memQuery, setMemQuery] = useState("");
   const [memTab, setMemTab] = useState<"cards" | "timeline">("cards");
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [agentGoal, setAgentGoal] = useState("");
+  const [agentAssignee, setAgentAssignee] = useState<string>(AGENTS[0]!.id);
+  const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [rrIdx, setRrIdx] = useState(0);
   const [rmIdx, setRmIdx] = useState(0);
   const [reflectIdx, setReflectIdx] = useState(0);
@@ -264,6 +282,17 @@ export function CortexApp({
           s.setDocuments(d as Parameters<typeof s.setDocuments>[0]);
       })
       .catch(() => {});
+    void w
+      .loadAgents()
+      .then((a) => {
+        if (a?.tasks?.length)
+          s.setTasks(a.tasks as Parameters<typeof s.setTasks>[0]);
+        if (a?.messages?.length)
+          s.setAgentMessages(
+            a.messages as Parameters<typeof s.setAgentMessages>[0],
+          );
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletState?.wallet]);
   // Debounced background sync of the active session + timeline + documents to
@@ -283,10 +312,12 @@ export function CortexApp({
       }
       if (s.events.length) void w.saveTimeline(s.events).catch(() => {});
       if (s.documents.length) void w.saveDocuments(s.documents).catch(() => {});
+      if (s.tasks.length || s.agentMessages.length)
+        void w.saveAgents(s.tasks, s.agentMessages).catch(() => {});
     }, 6000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walletState?.wallet, s.chat, s.events, s.documents]);
+  }, [walletState?.wallet, s.chat, s.events, s.documents, s.tasks, s.agentMessages]);
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (
@@ -479,6 +510,18 @@ export function CortexApp({
         <path
           key="b"
           d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"
+        />
+      </>,
+    ],
+    [
+      "agents",
+      "Agents",
+      <>
+        <circle key="a" cx="9" cy="7" r="3" />
+        <circle key="b" cx="17" cy="9" r="2.4" />
+        <path
+          key="c"
+          d="M3 20a6 6 0 0 1 12 0M14.5 14.5a4.5 4.5 0 0 1 6.5 4.1"
         />
       </>,
     ],
@@ -813,6 +856,28 @@ export function CortexApp({
   // local ephemeral session is the fallback for the keyless mock.
   const privyOn = !!walletState;
   const wallet = walletState?.wallet ?? null;
+
+  async function runStep(taskId: string) {
+    setRunningTaskId(taskId);
+    try {
+      await s.runAgentStep(taskId);
+    } finally {
+      setRunningTaskId(null);
+    }
+  }
+  async function createAndRun() {
+    const goal = agentGoal.trim();
+    if (!goal) return;
+    const id = s.createTask(goal, agentAssignee);
+    setAgentGoal("");
+    setOpenTaskId(id);
+    if (id) await runStep(id);
+  }
+  function saveFinding(taskId: string, obsId: string) {
+    const text = s.saveObservationAsMemory(taskId, obsId);
+    if (text && wallet) void wallet.remember(text).catch(() => {});
+    flash(text ? "Saved to shared memory." : "Nothing to save.");
+  }
   const sess = privyOn
     ? walletState.authenticated && walletState.address
       ? { addr: walletState.address, via: "Privy" }
@@ -1539,6 +1604,279 @@ export function CortexApp({
                     </div>
                   ))}
               </div>
+            )}
+          </section>
+
+          {/* AGENTS — a team of specialists over one shared, durable memory */}
+          <section className={"view" + (view === "agents" ? " on" : "")}>
+            <div className="rr-head">
+              <h1 className="h1">
+                Agent <span className="em">team</span>
+              </h1>
+            </div>
+            <p className="lede show">
+              Four specialists share one durable memory on Walrus. Assign a goal,
+              watch them work, hand a task off so another continues it, and keep
+              the best findings. Tasks and the message bus persist to
+              Walrus + Sui, so the team picks up exactly where it left off.
+            </p>
+
+            <div className="cards" style={{ marginTop: 16 }}>
+              {AGENTS.map((a: AgentDef) => (
+                <div
+                  key={a.id}
+                  className="scard"
+                  style={{ borderLeft: `3px solid ${a.accent}` }}
+                >
+                  <div
+                    className="st"
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        background: a.accent,
+                        flex: "0 0 auto",
+                      }}
+                    />
+                    {a.name}
+                    <span
+                      style={{
+                        textTransform: "capitalize",
+                        color: "var(--muted)",
+                        fontWeight: 400,
+                      }}
+                    >
+                      · {a.role}
+                    </span>
+                  </div>
+                  <div className="ssub">{a.blurb}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="scard" style={{ marginTop: 20 }}>
+              <div className="filters" style={{ marginBottom: 10 }}>
+                {AGENTS.map((a) => (
+                  <button
+                    key={a.id}
+                    className={"fchip" + (agentAssignee === a.id ? " on" : "")}
+                    onClick={() => setAgentAssignee(a.id)}
+                  >
+                    {a.name}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                className="st2-task"
+                rows={2}
+                placeholder={`Give ${agentById(agentAssignee)?.name ?? "the team"} a goal — e.g. "find what I've kept about Walrus and summarize it"`}
+                value={agentGoal}
+                onChange={(e) => setAgentGoal(e.target.value)}
+              />
+              <div style={{ marginTop: 10 }}>
+                <button
+                  className="pill-btn keep"
+                  onClick={() => void createAndRun()}
+                  disabled={!agentGoal.trim() || runningTaskId !== null}
+                >
+                  Assign &amp; run
+                </button>
+              </div>
+            </div>
+
+            {s.tasks.length ? (
+              <div className="story" style={{ marginTop: 20 }}>
+                {s.tasks.map((t) => {
+                  const owner = agentById(t.assignedTo);
+                  const open = openTaskId === t.id;
+                  const running = runningTaskId === t.id;
+                  return (
+                    <div key={t.id} className="snode">
+                      <div className="when">{ago(t.updatedAt)}</div>
+                      <div
+                        className="scard"
+                        style={
+                          owner
+                            ? { borderLeft: `3px solid ${owner.accent}` }
+                            : undefined
+                        }
+                      >
+                        <div
+                          className="st"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <span
+                            className="fchip on"
+                            style={{ cursor: "default" }}
+                          >
+                            {TASK_STATUS_LABEL[t.status]}
+                          </span>
+                          {owner && (
+                            <span style={{ color: owner.accent }}>
+                              {owner.name}
+                            </span>
+                          )}
+                          <span style={{ fontWeight: 400 }}>{t.goal}</span>
+                        </div>
+                        <div className="ssub">
+                          {t.observations.length}{" "}
+                          {t.observations.length === 1 ? "step" : "steps"} ·
+                          created {ago(t.createdAt)}
+                        </div>
+
+                        <div
+                          className="filters"
+                          style={{ marginTop: 10, gap: 6 }}
+                        >
+                          <button
+                            className="pill-btn keep"
+                            onClick={() => void runStep(t.id)}
+                            disabled={running || runningTaskId !== null}
+                          >
+                            {running ? "Working…" : "Run step"}
+                          </button>
+                          <button
+                            className="fchip"
+                            onClick={() =>
+                              setOpenTaskId(open ? null : t.id)
+                            }
+                          >
+                            {open ? "Hide" : "Details"}
+                          </button>
+                          {t.status !== "done" && (
+                            <button
+                              className="fchip"
+                              onClick={() => s.completeTask(t.id)}
+                            >
+                              Mark done
+                            </button>
+                          )}
+                        </div>
+
+                        {open && (
+                          <div style={{ marginTop: 12 }}>
+                            <div
+                              className="ssub"
+                              style={{ marginBottom: 6 }}
+                            >
+                              Hand off to continue:
+                            </div>
+                            <div
+                              className="filters"
+                              style={{ gap: 6, marginBottom: 12 }}
+                            >
+                              {AGENTS.filter(
+                                (a) => a.id !== t.assignedTo,
+                              ).map((a) => (
+                                <button
+                                  key={a.id}
+                                  className="fchip"
+                                  onClick={() => s.handoffTask(t.id, a.id)}
+                                >
+                                  → {a.name}
+                                </button>
+                              ))}
+                            </div>
+                            {t.observations.length ? (
+                              t.observations.map((o) => {
+                                const by = agentById(o.agentId);
+                                return (
+                                  <div
+                                    key={o.id}
+                                    className="scard"
+                                    style={{ marginBottom: 8 }}
+                                  >
+                                    <div
+                                      className="ssub"
+                                      style={{
+                                        color: by?.accent,
+                                        marginBottom: 4,
+                                      }}
+                                    >
+                                      {by?.name ?? "Agent"} · {ago(o.ts)}
+                                    </div>
+                                    <div style={{ whiteSpace: "pre-wrap" }}>
+                                      {o.text}
+                                    </div>
+                                    <div style={{ marginTop: 8 }}>
+                                      <button
+                                        className="fchip"
+                                        onClick={() => saveFinding(t.id, o.id)}
+                                      >
+                                        Save to memory
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <div className="ssub">
+                                No steps yet — run one to begin.
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="empty" style={{ marginTop: 20 }}>
+                <div className="et">No tasks yet</div>
+                <div className="es">
+                  Assign a goal above and an agent will start working it.
+                </div>
+              </div>
+            )}
+
+            {s.agentMessages.length > 0 && (
+              <>
+                <h2
+                  style={{
+                    marginTop: 28,
+                    fontSize: 18,
+                    fontWeight: 600,
+                  }}
+                >
+                  Message bus
+                </h2>
+                <p className="ssub" style={{ marginBottom: 10 }}>
+                  Every handoff and result is persisted to Walrus + Sui.
+                </p>
+                <div className="story">
+                  {s.agentMessages.slice(0, 30).map((m) => {
+                    const from = agentById(m.from);
+                    const to = agentById(m.to);
+                    return (
+                      <div key={m.id} className="snode">
+                        <div className="when">{ago(m.ts)}</div>
+                        <div className="scard">
+                          <div className="ssub" style={{ marginBottom: 4 }}>
+                            <span style={{ color: from?.accent }}>
+                              {from?.name ?? (m.from === "user" ? "You" : m.from)}
+                            </span>{" "}
+                            →{" "}
+                            <span style={{ color: to?.accent }}>
+                              {to?.name ?? (m.to === "team" ? "Team" : m.to)}
+                            </span>{" "}
+                            · {m.kind}
+                          </div>
+                          <div>{m.content}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </section>
 
