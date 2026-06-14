@@ -4,6 +4,7 @@ use std::string::String;
 
 use sui::{
     clock::Clock,
+    dynamic_field as df,
     event,
     table::{Self, Table},
     vec_map::{Self, VecMap},
@@ -16,6 +17,15 @@ const EAlreadyRegistered: u64 = 1;
 const EHandleTaken: u64 = 2;
 const ENotRegistered: u64 = 3;
 const EUnknownSetting: u64 = 4;
+const ENotOwner: u64 = 5;
+const ESelfDelegate: u64 = 6;
+const ENoAccess: u64 = 7;
+const EBadIdentity: u64 = 8;
+
+// Admin delegates (e.g. an MCP service wallet the owner authorizes to read their
+// account-scoped memory) live in a dynamic field rather than an Account field, so
+// the package stays upgrade-compatible with already-deployed Account objects.
+public struct AdminDelegatesKey has copy, drop, store {}
 
 public struct Profile has store, copy, drop {
     display_name: String,
@@ -63,6 +73,8 @@ public struct AgentLinked has copy, drop { account_id: ID, agent_id: ID, timesta
 public struct AgentUnlinked has copy, drop { account_id: ID, agent_id: ID, timestamp_ms: u64 }
 public struct KbFileLinked has copy, drop { account_id: ID, kb_file_id: ID, timestamp_ms: u64 }
 public struct KbFileUnlinked has copy, drop { account_id: ID, kb_file_id: ID, timestamp_ms: u64 }
+public struct AdminGranted has copy, drop { account_id: ID, delegate: address, timestamp_ms: u64 }
+public struct AdminRevoked has copy, drop { account_id: ID, delegate: address, timestamp_ms: u64 }
 
 fun init(ctx: &mut TxContext) {
     let registry = Registry {
@@ -158,6 +170,61 @@ public fun link_memwal(account: &mut Account, memwal_account_id: ID, clock: &Clo
     event::emit(MemwalLinked { account_id: object::id(account), memwal_account_id, timestamp_ms: now_ms });
 }
 
+// === Admin delegation ===
+// The owner authorizes another address (e.g. an MCP service wallet) as an admin
+// delegate that may read/decrypt the account's memory through seal_approve. The set
+// is held in a dynamic field, keeping the package upgrade-compatible.
+
+fun ensure_delegates(account: &mut Account) {
+    if (!df::exists_with_type<AdminDelegatesKey, sui::vec_set::VecSet<address>>(&account.id, AdminDelegatesKey {})) {
+        df::add(&mut account.id, AdminDelegatesKey {}, vec_set::empty<address>());
+    };
+}
+
+public fun grant_admin(account: &mut Account, delegate: address, clock: &Clock, ctx: &TxContext) {
+    assert!(ctx.sender() == account.owner, ENotOwner);
+    assert!(delegate != account.owner, ESelfDelegate);
+    let account_id = object::id(account);
+    let now_ms = clock.timestamp_ms();
+    ensure_delegates(account);
+    let set: &mut VecSet<address> = df::borrow_mut(&mut account.id, AdminDelegatesKey {});
+    if (util::set_insert(set, delegate)) {
+        account.updated_at_ms = now_ms;
+        event::emit(AdminGranted { account_id, delegate, timestamp_ms: now_ms });
+    };
+}
+
+public fun revoke_admin(account: &mut Account, delegate: address, clock: &Clock, ctx: &TxContext) {
+    assert!(ctx.sender() == account.owner, ENotOwner);
+    let account_id = object::id(account);
+    let now_ms = clock.timestamp_ms();
+    ensure_delegates(account);
+    let set: &mut VecSet<address> = df::borrow_mut(&mut account.id, AdminDelegatesKey {});
+    if (util::set_remove(set, delegate)) {
+        account.updated_at_ms = now_ms;
+        event::emit(AdminRevoked { account_id, delegate, timestamp_ms: now_ms });
+    };
+}
+
+public fun is_delegate(account: &Account, delegate: address): bool {
+    if (!df::exists_with_type<AdminDelegatesKey, sui::vec_set::VecSet<address>>(&account.id, AdminDelegatesKey {})) return false;
+    let set: &VecSet<address> = df::borrow(&account.id, AdminDelegatesKey {});
+    set.contains(&delegate)
+}
+
+public fun can_access(account: &Account, caller: address): bool {
+    caller == account.owner || is_delegate(account, caller)
+}
+
+// Seal policy: the owner or any admin delegate may unseal account-scoped identities
+// (those prefixed with this account's id). Mirrors walrus::seal_approve for KbFiles.
+entry fun seal_approve(id: vector<u8>, account: &Account, ctx: &TxContext) {
+    let caller = ctx.sender();
+    assert!(can_access(account, caller), ENoAccess);
+    let prefix = util::id_bytes(object::id(account));
+    assert!(util::bytes_start_with(&id, &prefix), EBadIdentity);
+}
+
 public(package) fun link_agent(account: &mut Account, agent_id: ID, now_ms: u64) {
     if (util::set_insert(&mut account.agents, agent_id)) {
         account.updated_at_ms = now_ms;
@@ -212,4 +279,14 @@ public fun handle_taken(registry: &Registry, handle: String): bool { registry.ha
 public fun account_of(registry: &Registry, owner: address): ID {
     assert!(registry.accounts.contains(owner), ENotRegistered);
     *registry.accounts.borrow(owner)
+}
+
+#[test_only]
+public fun init_for_testing(ctx: &mut TxContext) {
+    init(ctx);
+}
+
+#[test_only]
+public fun seal_approve_for_testing(id: vector<u8>, account: &Account, ctx: &TxContext) {
+    seal_approve(id, account, ctx);
 }
