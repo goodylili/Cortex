@@ -34,6 +34,9 @@ export interface Memory {
   blobId?: string;
   url?: string;
   mime?: string;
+  // source provenance (when this memory was distilled from a document)
+  docId?: string;
+  origin?: string; // url or filename the memory came from
 }
 
 export interface CortexEvent {

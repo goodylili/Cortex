@@ -33,6 +33,7 @@ import {
 } from "@/lib/cortex/memory-model";
 import type { CortexWalletState } from "@/lib/cortex/use-wallet";
 import { sealEnabled } from "@/lib/cortex/walrus/env";
+import { CaptureModal } from "./capture";
 
 const MARK = (
   <svg viewBox="0 0 120 120" fill="currentColor">
@@ -134,6 +135,7 @@ export function CortexApp({
   const [memFilter, setMemFilter] = useState("all");
   const [memQuery, setMemQuery] = useState("");
   const [memTab, setMemTab] = useState<"cards" | "timeline">("cards");
+  const [captureOpen, setCaptureOpen] = useState(false);
   const [rrIdx, setRrIdx] = useState(0);
   const [rmIdx, setRmIdx] = useState(0);
   const [reflectIdx, setReflectIdx] = useState(0);
@@ -1376,7 +1378,15 @@ export function CortexApp({
 
           {/* MEMORIES + LOOKING BACK */}
           <section className={"view" + (view === "memories" ? " on" : "")}>
-            <h1 className="h1">Your memories</h1>
+            <div className="rr-head">
+              <h1 className="h1">Your memories</h1>
+              <button
+                className="pill-btn keep"
+                onClick={() => setCaptureOpen(true)}
+              >
+                + Build memory
+              </button>
+            </div>
             <div className="filters" style={{ marginTop: 20 }}>
               <button
                 className={"fchip" + (memTab === "cards" ? " on" : "")}
@@ -2580,6 +2590,14 @@ export function CortexApp({
           onChange={(e) => onFiles(e.target.files)}
         />
       </main>
+
+      {captureOpen && (
+        <CaptureModal
+          wallet={wallet}
+          flash={flash}
+          onClose={() => setCaptureOpen(false)}
+        />
+      )}
 
       {/* DRAWER */}
       <div
