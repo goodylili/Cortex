@@ -353,6 +353,13 @@ body.mode-ask .remember-only{display:none!important}
 .pill-btn.danger:hover{background:rgba(192,57,43,.08);border-color:rgba(192,57,43,.5)}
 .pill-btn:disabled{opacity:.45;pointer-events:none}
 
+/* Multi-session switcher */
+.sessbar{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.sess-select{font-size:13.5px;padding:7px 12px;border-radius:7px;border:1px solid var(--line2);background:var(--surface);color:var(--ink);max-width:280px}
+.sess-new{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:7px 12px;border-radius:7px;border:1px solid var(--line2);color:var(--ink)}
+.sess-new:hover{background:var(--surface2)}
+.sess-new svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
+
 /* Capture modal — build memory from note / link / file */
 .cap-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(3px);display:grid;place-items:center;z-index:40;padding:24px}
 .cap{display:grid;grid-template-columns:300px 1fr;gap:0;width:min(900px,100%);height:min(560px,86vh);background:var(--paper);border:1px solid var(--line2);border-radius:14px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.3)}
