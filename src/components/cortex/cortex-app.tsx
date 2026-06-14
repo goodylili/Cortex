@@ -231,6 +231,27 @@ export function CortexApp({
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletState?.wallet]);
+  // Restore durable session history from Walrus/Sui when signed in and local is empty.
+  useEffect(() => {
+    const w = walletState?.wallet;
+    if (!w || s.chat.length) return;
+    w.loadHistory()
+      .then((h) => {
+        if (Array.isArray(h) && h.length) s.setChat(h as typeof s.chat);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletState?.wallet]);
+  // Debounced background sync of the session to Walrus + Sui pointer (local stays
+  // instant; the chain copy catches up a few seconds after the conversation settles).
+  useEffect(() => {
+    const w = walletState?.wallet;
+    if (!w || !s.chat.length || s.chat.some((m) => m.streaming)) return;
+    const t = setTimeout(() => {
+      void w.saveHistory(s.chat).catch(() => {});
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [walletState?.wallet, s.chat]);
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (

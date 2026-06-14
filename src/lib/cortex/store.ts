@@ -80,6 +80,7 @@ interface Persisted {
   config?: Partial<MemoryConfig>;
   lastSweep?: number;
   documents?: CortexDocument[];
+  chat?: ChatMsg[];
 }
 
 interface State {
@@ -145,6 +146,7 @@ interface State {
   setConfig: (c: Partial<MemoryConfig>) => void;
   resetConfig: () => void;
   resetMemory: () => void;
+  setChat: (chat: ChatMsg[]) => void;
 }
 
 function persist(s: {
@@ -154,6 +156,7 @@ function persist(s: {
   config?: MemoryConfig;
   lastSweep?: number;
   documents?: CortexDocument[];
+  chat?: ChatMsg[];
 }) {
   try {
     const cur = (() => {
@@ -166,6 +169,7 @@ function persist(s: {
     const config = s.config ? serializeConfig(s.config) : cur.config;
     const lastSweep = s.lastSweep ?? cur.lastSweep;
     const documents = s.documents ?? cur.documents ?? [];
+    const chat = s.chat ?? cur.chat ?? [];
     localStorage.setItem(
       KEY,
       JSON.stringify({
@@ -175,6 +179,7 @@ function persist(s: {
         config,
         lastSweep,
         documents,
+        chat,
       }),
     );
   } catch {}
@@ -242,7 +247,16 @@ export const useCortex = create<State>((set, get) => ({
       }
     }
     const documents = data.documents ?? [];
-    persist({ memories, events, cost: data.cost, config, lastSweep, documents });
+    const chat = data.chat ?? [];
+    persist({
+      memories,
+      events,
+      cost: data.cost,
+      config,
+      lastSweep,
+      documents,
+      chat,
+    });
     set({
       memories,
       events,
@@ -250,6 +264,7 @@ export const useCortex = create<State>((set, get) => ({
       config,
       lastSweep,
       documents,
+      chat,
       ready: true,
     });
   },
@@ -531,6 +546,7 @@ export const useCortex = create<State>((set, get) => ({
       memories: get().memories,
       events: get().events,
       cost: get().cost,
+      chat: get().chat,
     });
 
     const stream = (text: string) => {
@@ -547,6 +563,13 @@ export const useCortex = create<State>((set, get) => ({
               last.streaming = false;
             }
             return { chat };
+          });
+          // history survives reloads (local cache); chain sync happens in the app
+          persist({
+            memories: get().memories,
+            events: get().events,
+            cost: get().cost,
+            chat: get().chat,
           });
           return;
         }
@@ -795,6 +818,17 @@ export const useCortex = create<State>((set, get) => ({
     }),
   // Wipe the local working index back to a blank slate. The durable record on
   // Walrus Memory is untouched; this only clears what this browser mirrors.
+  // Restore a session (e.g. from the durable Walrus/Sui copy) into the local view.
+  setChat: (chat) =>
+    set(() => {
+      persist({
+        memories: get().memories,
+        events: get().events,
+        cost: get().cost,
+        chat,
+      });
+      return { chat };
+    }),
   resetMemory: () =>
     set((s) => {
       const fresh = emptyState();
