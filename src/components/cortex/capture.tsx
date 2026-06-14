@@ -178,7 +178,7 @@ export function CaptureModal({
                 type="file"
                 multiple
                 hidden
-                accept="image/*,audio/*,video/*,text/*,.txt,.md,.markdown,.csv,.json,.log,.html,.htm,.rtf,.tsv,.yaml,.yml"
+                accept="image/*,audio/*,video/*,text/*,.txt,.md,.markdown,.csv,.json,.log,.html,.htm,.rtf,.tsv,.yaml,.yml,.pdf,.docx,.xlsx,.xls"
                 onChange={(e) => void addFiles(e.target.files)}
               />
               <button
