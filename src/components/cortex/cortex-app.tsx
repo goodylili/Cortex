@@ -231,27 +231,62 @@ export function CortexApp({
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletState?.wallet]);
-  // Restore durable session history from Walrus/Sui when signed in and local is empty.
+  // Restore durable state (sessions index, timeline, documents) from Walrus/Sui on
+  // sign-in. Local cache stays instant; this fills in cross-device history.
   useEffect(() => {
     const w = walletState?.wallet;
-    if (!w || s.chat.length) return;
-    w.loadHistory()
-      .then((h) => {
-        if (Array.isArray(h) && h.length) s.setChat(h as typeof s.chat);
+    if (!w) return;
+    void w
+      .listSessions()
+      .then((sessions) => {
+        if (sessions.length) s.setSessions(sessions);
+        const active = sessions[0];
+        if (active?.blobId && !s.chat.length) {
+          return w.loadSession(active.blobId).then((chat) => {
+            if (Array.isArray(chat) && chat.length) {
+              s.setChat(chat as Parameters<typeof s.setChat>[0]);
+            }
+          });
+        }
+      })
+      .catch(() => {});
+    void w
+      .loadTimeline()
+      .then((t) => {
+        if (Array.isArray(t) && t.length)
+          s.setEvents(t as Parameters<typeof s.setEvents>[0]);
+      })
+      .catch(() => {});
+    void w
+      .loadDocuments()
+      .then((d) => {
+        if (Array.isArray(d) && d.length)
+          s.setDocuments(d as Parameters<typeof s.setDocuments>[0]);
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletState?.wallet]);
-  // Debounced background sync of the session to Walrus + Sui pointer (local stays
-  // instant; the chain copy catches up a few seconds after the conversation settles).
+  // Debounced background sync of the active session + timeline + documents to
+  // Walrus + Sui (local stays instant; the chain copy catches up after a settle).
   useEffect(() => {
     const w = walletState?.wallet;
-    if (!w || !s.chat.length || s.chat.some((m) => m.streaming)) return;
+    if (!w) return;
     const t = setTimeout(() => {
-      void w.saveHistory(s.chat).catch(() => {});
+      const active = s.sessions.find((x) => x.id === s.activeId);
+      if (active && s.chat.length && !s.chat.some((m) => m.streaming)) {
+        void w
+          .saveSession(
+            { id: active.id, title: active.title, updatedAt: active.updatedAt },
+            s.chat,
+          )
+          .catch(() => {});
+      }
+      if (s.events.length) void w.saveTimeline(s.events).catch(() => {});
+      if (s.documents.length) void w.saveDocuments(s.documents).catch(() => {});
     }, 6000);
     return () => clearTimeout(t);
-  }, [walletState?.wallet, s.chat]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletState?.wallet, s.chat, s.events, s.documents]);
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (
@@ -1004,6 +1039,30 @@ export function CortexApp({
         <div className="wrap">
           {/* HOME */}
           <section className={"view" + (view === "home" ? " on" : "")}>
+            <div className="sessbar">
+              <select
+                className="sess-select"
+                value={s.activeId}
+                onChange={(e) => s.switchSession(e.target.value)}
+                aria-label="Conversation"
+              >
+                {s.sessions.map((se) => (
+                  <option key={se.id} value={se.id}>
+                    {se.title || "New chat"}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="sess-new"
+                onClick={() => s.newSession()}
+                title="New conversation"
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                New chat
+              </button>
+            </div>
             {!hasChat ? (
               <div className="home-intro">
                 <div className="eyebrow">Welcome back</div>

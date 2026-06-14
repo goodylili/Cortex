@@ -16,8 +16,14 @@ import { contractsEnabled } from "@/lib/cortex/walrus/env";
 import { storeFile, type StoredFile } from "@/lib/cortex/walrus/files";
 import { listKbFiles, type KbFileInfo } from "@/lib/cortex/walrus/kb";
 import {
-  saveHistory as walrusSaveHistory,
-  loadHistory as walrusLoadHistory,
+  saveSession as walrusSaveSession,
+  listSessions as walrusListSessions,
+  loadSession as walrusLoadSession,
+  saveState,
+  loadState,
+  TIMELINE_KEY,
+  DOCUMENTS_KEY,
+  type SessionMeta,
 } from "@/lib/cortex/walrus/sessions";
 import {
   ensureMemory,
@@ -41,8 +47,13 @@ export interface CortexWallet {
   listFiles: () => Promise<KbFileInfo[]>;
   remember: (text: string) => Promise<{ blobId: string } | null>;
   recall: (query: string) => Promise<RecalledMemory[]>;
-  saveHistory: (chat: unknown) => Promise<void>;
-  loadHistory: () => Promise<unknown | null>;
+  saveSession: (meta: SessionMeta, chat: unknown) => Promise<SessionMeta[]>;
+  listSessions: () => Promise<SessionMeta[]>;
+  loadSession: (blobId: string) => Promise<unknown | null>;
+  saveTimeline: (events: unknown) => Promise<void>;
+  loadTimeline: () => Promise<unknown | null>;
+  saveDocuments: (documents: unknown) => Promise<void>;
+  loadDocuments: () => Promise<unknown | null>;
 }
 
 export interface CortexWalletState {
@@ -152,7 +163,23 @@ export function useCortexWallet(): CortexWalletState {
         await ensureMemory(userKey, signer);
         return recallLive(userKey, NAMESPACE, query);
       },
-      saveHistory: async (chat: unknown) => {
+      saveSession: async (meta: SessionMeta, chat: unknown) => {
+        if (!contractsEnabled()) return [];
+        const accountId = await ensureAccount({
+          signer,
+          memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? ZERO_ID,
+          displayName: "Cortex",
+          handle: `cortex_${address.slice(2, 10)}`,
+        });
+        return walrusSaveSession(signer, accountId, meta, chat);
+      },
+      listSessions: async () => {
+        if (!contractsEnabled()) return [];
+        const accountId = await getAccountId(address);
+        return accountId ? walrusListSessions(accountId) : [];
+      },
+      loadSession: (blobId: string) => walrusLoadSession(signer, blobId),
+      saveTimeline: async (events: unknown) => {
         if (!contractsEnabled()) return;
         const accountId = await ensureAccount({
           signer,
@@ -160,13 +187,27 @@ export function useCortexWallet(): CortexWalletState {
           displayName: "Cortex",
           handle: `cortex_${address.slice(2, 10)}`,
         });
-        await walrusSaveHistory(signer, accountId, chat);
+        await saveState(signer, accountId, TIMELINE_KEY, events);
       },
-      loadHistory: async () => {
+      loadTimeline: async () => {
         if (!contractsEnabled()) return null;
         const accountId = await getAccountId(address);
-        if (!accountId) return null;
-        return walrusLoadHistory(signer, accountId);
+        return accountId ? loadState(signer, accountId, TIMELINE_KEY) : null;
+      },
+      saveDocuments: async (documents: unknown) => {
+        if (!contractsEnabled()) return;
+        const accountId = await ensureAccount({
+          signer,
+          memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? ZERO_ID,
+          displayName: "Cortex",
+          handle: `cortex_${address.slice(2, 10)}`,
+        });
+        await saveState(signer, accountId, DOCUMENTS_KEY, documents);
+      },
+      loadDocuments: async () => {
+        if (!contractsEnabled()) return null;
+        const accountId = await getAccountId(address);
+        return accountId ? loadState(signer, accountId, DOCUMENTS_KEY) : null;
       },
     };
   }, [signer, user]);

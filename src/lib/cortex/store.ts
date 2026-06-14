@@ -33,6 +33,7 @@ import {
   isRetrievable,
   type SweepSummary,
 } from "./memory-model";
+import type { SessionMeta } from "./walrus/sessions";
 
 const KEY = "cortex.db.v3";
 
@@ -81,6 +82,9 @@ interface Persisted {
   lastSweep?: number;
   documents?: CortexDocument[];
   chat?: ChatMsg[];
+  sessions?: SessionMeta[];
+  activeId?: string;
+  chatsById?: Record<string, ChatMsg[]>;
 }
 
 interface State {
@@ -90,6 +94,8 @@ interface State {
   config: MemoryConfig;
   lastSweep: number;
   documents: CortexDocument[];
+  sessions: SessionMeta[];
+  activeId: string;
   // ephemeral UI
   mode: Mode;
   importance: Importance;
@@ -147,6 +153,12 @@ interface State {
   resetConfig: () => void;
   resetMemory: () => void;
   setChat: (chat: ChatMsg[]) => void;
+  setEvents: (events: CortexEvent[]) => void;
+  setDocuments: (documents: CortexDocument[]) => void;
+  newSession: () => void;
+  switchSession: (id: string) => void;
+  renameSession: (id: string, title: string) => void;
+  setSessions: (sessions: SessionMeta[]) => void;
 }
 
 function persist(s: {
@@ -157,6 +169,8 @@ function persist(s: {
   lastSweep?: number;
   documents?: CortexDocument[];
   chat?: ChatMsg[];
+  sessions?: SessionMeta[];
+  activeId?: string;
 }) {
   try {
     const cur = (() => {
@@ -169,7 +183,12 @@ function persist(s: {
     const config = s.config ? serializeConfig(s.config) : cur.config;
     const lastSweep = s.lastSweep ?? cur.lastSweep;
     const documents = s.documents ?? cur.documents ?? [];
-    const chat = s.chat ?? cur.chat ?? [];
+    const sessions = s.sessions ?? cur.sessions ?? [];
+    const activeId = s.activeId ?? cur.activeId ?? "";
+    // The active session's messages live under its id; a single chat passed in is
+    // committed to the active bucket so existing call sites keep working.
+    const chatsById: Record<string, ChatMsg[]> = { ...(cur.chatsById ?? {}) };
+    if (s.chat !== undefined && activeId) chatsById[activeId] = s.chat;
     localStorage.setItem(
       KEY,
       JSON.stringify({
@@ -179,7 +198,9 @@ function persist(s: {
         config,
         lastSweep,
         documents,
-        chat,
+        sessions,
+        activeId,
+        chatsById,
       }),
     );
   } catch {}
@@ -201,6 +222,8 @@ export const useCortex = create<State>((set, get) => ({
   config: DEFAULT_CONFIG,
   lastSweep: 0,
   documents: [],
+  sessions: [],
+  activeId: "",
   mode: "remember",
   importance: "normal",
   model: MODELS[1]!,
@@ -247,7 +270,18 @@ export const useCortex = create<State>((set, get) => ({
       }
     }
     const documents = data.documents ?? [];
-    const chat = data.chat ?? [];
+    // Multi-session: sessions index + per-id chats. Migrate a legacy single chat.
+    let sessions: SessionMeta[] = data.sessions ?? [];
+    let activeId = data.activeId ?? "";
+    const chatsById: Record<string, ChatMsg[]> = data.chatsById ?? {};
+    if (!sessions.length) {
+      const id = uid("ses");
+      sessions = [{ id, title: "New chat", updatedAt: now }];
+      activeId = id;
+      if (data.chat?.length) chatsById[id] = data.chat;
+    }
+    if (!sessions.some((x) => x.id === activeId)) activeId = sessions[0]!.id;
+    const chat = chatsById[activeId] ?? [];
     persist({
       memories,
       events,
@@ -256,6 +290,8 @@ export const useCortex = create<State>((set, get) => ({
       lastSweep,
       documents,
       chat,
+      sessions,
+      activeId,
     });
     set({
       memories,
@@ -265,6 +301,8 @@ export const useCortex = create<State>((set, get) => ({
       lastSweep,
       documents,
       chat,
+      sessions,
+      activeId,
       ready: true,
     });
   },
@@ -533,20 +571,35 @@ export const useCortex = create<State>((set, get) => ({
       docs: get().docs,
       streaming: true,
     };
-    set((s) => ({
-      chat: [...s.chat, msg],
-      docs: [],
-      cost: {
-        ...s.cost,
-        retrievalTokens: s.cost.retrievalTokens + savedTok,
-        asks: s.cost.asks + 1,
-      },
-    }));
+    set((s) => {
+      const sessions = s.sessions.map((se) =>
+        se.id === s.activeId
+          ? {
+              ...se,
+              title:
+                se.title === "New chat" ? q.slice(0, 40) || "New chat" : se.title,
+              updatedAt: Date.now(),
+            }
+          : se,
+      );
+      return {
+        chat: [...s.chat, msg],
+        docs: [],
+        sessions,
+        cost: {
+          ...s.cost,
+          retrievalTokens: s.cost.retrievalTokens + savedTok,
+          asks: s.cost.asks + 1,
+        },
+      };
+    });
     persist({
       memories: get().memories,
       events: get().events,
       cost: get().cost,
       chat: get().chat,
+      sessions: get().sessions,
+      activeId: get().activeId,
     });
 
     const stream = (text: string) => {
@@ -570,6 +623,8 @@ export const useCortex = create<State>((set, get) => ({
             events: get().events,
             cost: get().cost,
             chat: get().chat,
+            sessions: get().sessions,
+            activeId: get().activeId,
           });
           return;
         }
@@ -828,6 +883,79 @@ export const useCortex = create<State>((set, get) => ({
         chat,
       });
       return { chat };
+    }),
+  // Restore the durable timeline / documents into the local view.
+  setEvents: (events) =>
+    set((s) => {
+      persist({ memories: s.memories, events, cost: s.cost });
+      return { events };
+    }),
+  setDocuments: (documents) =>
+    set((s) => {
+      persist({ memories: s.memories, events: s.events, cost: s.cost, documents });
+      return { documents };
+    }),
+  setSessions: (sessions) =>
+    set((s) => {
+      persist({ memories: s.memories, events: s.events, cost: s.cost, sessions });
+      return { sessions };
+    }),
+  newSession: () =>
+    set((s) => {
+      const id = uid("ses");
+      persist({
+        memories: s.memories,
+        events: s.events,
+        cost: s.cost,
+        chat: s.chat,
+      });
+      const sessions = [
+        { id, title: "New chat", updatedAt: Date.now() },
+        ...s.sessions,
+      ];
+      persist({
+        memories: s.memories,
+        events: s.events,
+        cost: s.cost,
+        sessions,
+        activeId: id,
+        chat: [],
+      });
+      return { sessions, activeId: id, chat: [] };
+    }),
+  switchSession: (id) =>
+    set((s) => {
+      if (id === s.activeId) return {};
+      persist({
+        memories: s.memories,
+        events: s.events,
+        cost: s.cost,
+        chat: s.chat,
+      });
+      const stored = (() => {
+        try {
+          return JSON.parse(localStorage.getItem(KEY) || "{}");
+        } catch {
+          return {};
+        }
+      })();
+      const chat: ChatMsg[] = stored.chatsById?.[id] ?? [];
+      persist({
+        memories: s.memories,
+        events: s.events,
+        cost: s.cost,
+        activeId: id,
+        chat,
+      });
+      return { activeId: id, chat };
+    }),
+  renameSession: (id, title) =>
+    set((s) => {
+      const sessions = s.sessions.map((se) =>
+        se.id === id ? { ...se, title: title || se.title } : se,
+      );
+      persist({ memories: s.memories, events: s.events, cost: s.cost, sessions });
+      return { sessions };
     }),
   resetMemory: () =>
     set((s) => {
