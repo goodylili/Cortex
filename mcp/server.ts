@@ -64,8 +64,22 @@ async function main() {
     ],
   });
 
+  // The server's own wallet (admin identity): the delegate keypair that signs Sui
+  // transactions and pays for Walrus writes.
+  const delegateAddress = async (): Promise<string | null> => {
+    if (!cfg.delegateKey) return null;
+    try {
+      const ed: any = await importExternal("@mysten/sui/keypairs/ed25519");
+      return ed.Ed25519Keypair.fromSecretKey(cfg.delegateKey)
+        .getPublicKey()
+        .toSuiAddress();
+    } catch {
+      return null;
+    }
+  };
+
   if (!live) await seedDemo(c, cfg);
-  const server = new McpServer({ name: "cortex-memory", version: "0.2.0" });
+  const server = new McpServer({ name: "cortex-memory", version: "0.3.0" });
 
   // ---- memory: write / consolidate / verify ----
   server.tool(
@@ -375,6 +389,80 @@ async function main() {
     },
   );
 
+  // ---- low-level execution: the MCP wallet acts directly on Walrus + Sui + MemWal ----
+  // These run under the server's own admin wallet (cfg.delegateKey), so an external
+  // agent can store blobs, record on-chain pointers, and read raw state directly.
+  server.tool(
+    "wallet_info",
+    "The MCP server's own Sui wallet (admin identity), network, and live status.",
+    {},
+    async () =>
+      json({
+        namespace: cfg.namespace,
+        live,
+        hasWallet: !!cfg.delegateKey,
+        address: await delegateAddress(),
+        network: cfg.sui.network,
+        suiRpc: cfg.sui.rpc,
+        walrusAggregator: cfg.walrus.aggregator,
+      }),
+  );
+  server.tool(
+    "walrus_put_blob",
+    "Store raw bytes on Walrus using the server wallet. data is utf8 by default; set encoding=base64 for binary. Returns the blob id.",
+    { data: z.string(), encoding: z.enum(["utf8", "base64"]).optional() },
+    async ({ data, encoding }: any) => {
+      const bytes =
+        encoding === "base64"
+          ? new Uint8Array(Buffer.from(data, "base64"))
+          : new TextEncoder().encode(data);
+      const blobId = await c.walrus.putBlob(bytes);
+      return json({ blobId, bytes: bytes.length });
+    },
+  );
+  server.tool(
+    "walrus_get_blob",
+    "Fetch a raw Walrus blob by id. Returns base64 by default; set encoding=utf8 for text.",
+    { blobId: z.string(), encoding: z.enum(["utf8", "base64"]).optional() },
+    async ({ blobId, encoding }: any) => {
+      const bytes = await c.walrus.getBlob(blobId);
+      const out =
+        encoding === "utf8"
+          ? new TextDecoder().decode(bytes)
+          : Buffer.from(bytes).toString("base64");
+      return json({
+        blobId,
+        encoding: encoding ?? "base64",
+        bytes: bytes.length,
+        data: out,
+      });
+    },
+  );
+  server.tool(
+    "sui_record_pointer",
+    "Record a namespace → manifest blob pointer on Sui, signed by the server wallet. Returns the transaction digest.",
+    { namespace: z.string().optional(), manifestBlobId: z.string() },
+    async ({ namespace, manifestBlobId }: any) => {
+      const ns = namespace ?? cfg.namespace;
+      const digest = await c.sui.recordManifest(ns, manifestBlobId);
+      return json({ namespace: ns, manifestBlobId, digest });
+    },
+  );
+  server.tool(
+    "sui_read_pointer",
+    "Read the on-chain manifest pointer for a namespace.",
+    { namespace: z.string().optional() },
+    async ({ namespace }: any) =>
+      json(await c.sui.readManifestPointer(namespace ?? cfg.namespace)),
+  );
+  server.tool(
+    "memwal_restore",
+    "Restore the full namespace head + memories (including tombstoned) straight from MemWal.",
+    { namespace: z.string().optional() },
+    async ({ namespace }: any) =>
+      json(await c.memwal.restore(namespace ?? cfg.namespace)),
+  );
+
   // ---- resources: browse Cortex memory as MCP resources ----
   server.registerResource(
     "memory",
@@ -483,6 +571,8 @@ async function main() {
       `memory_connections, memory_extraction, memory_head, dream_run, verify_memory\n` +
       `  agents: agent_list, task_create, task_list, task_get, task_observe, task_handoff, ` +
       `task_complete, agent_run_step, agent_message_post, agent_message_list\n` +
+      `  execution: wallet_info, walrus_put_blob, walrus_get_blob, sui_record_pointer, ` +
+      `sui_read_pointer, memwal_restore\n` +
       `  connectors: web_fetch, service_notify, service_export\n` +
       `  resources: cortex://memory, cortex://timeline, cortex://digest, cortex://agents, cortex://tasks\n` +
       `  prompts: summarize_memory, daily_digest`,
