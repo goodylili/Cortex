@@ -6,14 +6,18 @@
 "use client";
 
 const TEXT_LIKE = /\.(txt|md|markdown|csv|json|log|html?|rtf|tsv|ya?ml)$/i;
+const DOC_LIKE = /\.(pdf|docx|xlsx|xls)$/i;
+const DOC_MIME =
+  /(application\/pdf|wordprocessingml|spreadsheetml|ms-excel|msword)/;
 const BASE64_CHUNK = 0x8000;
 
-export type FileKind = "image" | "audio" | "video" | "text" | "unknown";
+export type FileKind = "image" | "audio" | "video" | "document" | "text" | "unknown";
 
 export function kindOf(file: File): FileKind {
   if (file.type.startsWith("image/")) return "image";
   if (file.type.startsWith("audio/")) return "audio";
   if (file.type.startsWith("video/")) return "video";
+  if (DOC_LIKE.test(file.name) || DOC_MIME.test(file.type)) return "document";
   if (TEXT_LIKE.test(file.name) || file.type.startsWith("text/")) return "text";
   return "unknown";
 }
@@ -70,6 +74,10 @@ export async function extractContent(file: File): Promise<string> {
       return transcribeAudio(file);
     case "text":
       return file.text();
+    case "document": {
+      const { extractDoc } = await import("./extract-doc");
+      return extractDoc(file);
+    }
     case "video": {
       const { extractVideo } = await import("./extract-video");
       return extractVideo(file);
