@@ -10,6 +10,8 @@ export function Providers({ children }: { children: ReactNode }) {
     <PrivyProvider
       appId={CORTEX_ENV.privyAppId}
       config={{
+        // No "wallet": Privy only connects external EVM/Solana wallets, never Sui,
+        // and the managed embedded wallet already IS the user's Sui wallet.
         loginMethods: [
           "email",
           "sms",
@@ -25,10 +27,9 @@ export function Providers({ children }: { children: ReactNode }) {
           "line",
           "twitch",
           "telegram",
-          "wallet",
           "passkey",
         ],
-        appearance: { theme: "light", walletChainType: "ethereum-and-solana" },
+        appearance: { theme: "light" },
         embeddedWallets: {
           ethereum: { createOnLogin: "off" },
           solana: { createOnLogin: "off" },
