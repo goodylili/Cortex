@@ -15,6 +15,8 @@
     "mcp": "tsx mcp/server.ts"
   },
   "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "@mysten-incubation/memwal": "^0.0.7",
     "@mysten/seal": "^1.1.3",
     "@mysten/sui": "^2.17.0",

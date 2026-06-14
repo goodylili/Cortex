@@ -8,11 +8,17 @@ import type { ModelSpec, Provider } from "./models";
 const DEFAULT_MAX_TOKENS = 1200;
 const ANTHROPIC_VERSION = "2023-06-01";
 
+export interface ImageInput {
+  dataBase64: string;
+  mime: string;
+}
+
 export interface CompleteArgs {
   model: ModelSpec;
   system: string;
   user: string;
   maxTokens?: number;
+  images?: ImageInput[];
 }
 
 export interface CompleteResult {
@@ -64,7 +70,24 @@ async function callAnthropic(args: CompleteArgs): Promise<CompleteResult> {
       model: args.model.apiId,
       max_tokens: args.maxTokens ?? DEFAULT_MAX_TOKENS,
       system: args.system,
-      messages: [{ role: "user", content: args.user }],
+      messages: [
+        {
+          role: "user",
+          content: args.images?.length
+            ? [
+                { type: "text", text: args.user },
+                ...args.images.map((img) => ({
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: img.mime,
+                    data: img.dataBase64,
+                  },
+                })),
+              ]
+            : args.user,
+        },
+      ],
     }),
   });
   if (!res.ok) return { text: "", ok: false, reason: `status ${res.status}` };
@@ -78,11 +101,20 @@ async function callAnthropic(args: CompleteArgs): Promise<CompleteResult> {
 async function callOpenAiStyle(args: CompleteArgs): Promise<CompleteResult> {
   const style = openAiStyle(args.model.provider);
   if (!style.key) return { text: "", ok: false, reason: "no-key" };
+  const userContent = args.images?.length
+    ? [
+        { type: "text", text: args.user },
+        ...args.images.map((img) => ({
+          type: "image_url",
+          image_url: { url: `data:${img.mime};base64,${img.dataBase64}` },
+        })),
+      ]
+    : args.user;
   const body: Record<string, unknown> = {
     model: args.model.apiId,
     messages: [
       { role: "system", content: args.system },
-      { role: "user", content: args.user },
+      { role: "user", content: userContent },
     ],
   };
   body[style.tokenParam] = args.maxTokens ?? DEFAULT_MAX_TOKENS;
@@ -100,6 +132,19 @@ async function callOpenAiStyle(args: CompleteArgs): Promise<CompleteResult> {
   return text.trim()
     ? { text: text.trim(), ok: true }
     : { text: "", ok: false, reason: "empty" };
+}
+
+export function hasProviderKey(provider: Provider): boolean {
+  switch (provider) {
+    case "anthropic":
+      return !!process.env.ANTHROPIC_API_KEY;
+    case "openai":
+      return !!process.env.OPENAI_API_KEY;
+    case "xai":
+      return !!process.env.XAI_API_KEY;
+    case "google":
+      return !!process.env.GEMINI_API_KEY;
+  }
 }
 
 export async function complete(args: CompleteArgs): Promise<CompleteResult> {
