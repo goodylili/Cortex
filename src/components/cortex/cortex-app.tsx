@@ -2436,6 +2436,56 @@ export function CortexApp({
               {(intTab === "all" || intTab === "mcp") && (
                 <div className="int2-group">
                   <div className="int2-glabel">AI tools</div>
+                  <div className="scard" style={{ marginBottom: 16 }}>
+                    <div className="int2-name">What your MCP can do</div>
+                    <div
+                      className="ssub"
+                      style={{ marginTop: 4, marginBottom: 6 }}
+                    >
+                      One server exposes your whole memory plane to any MCP host —
+                      read and write memory, drive the agent team, and (once you
+                      authorize it) read your details, memory and context.
+                    </div>
+                    {(
+                      [
+                        [
+                          "Memory",
+                          "recall · remember · ingest · forget · consolidate · verify",
+                        ],
+                        [
+                          "Agents",
+                          "a researcher / curator / planner / critic team — task board + message bus",
+                        ],
+                        [
+                          "Your data",
+                          "profile · memory · context, read by an MCP you authorize",
+                        ],
+                        [
+                          "Execution",
+                          "store & read Walrus blobs · record Sui pointers · restore MemWal",
+                        ],
+                        [
+                          "Connectors",
+                          "fetch the web into memory · push events to webhooks",
+                        ],
+                      ] as const
+                    ).map(([k, v]) => (
+                      <div
+                        key={k}
+                        style={{
+                          display: "flex",
+                          gap: 10,
+                          padding: "6px 0",
+                          borderTop: "1px solid var(--line, rgba(0,0,0,0.08))",
+                        }}
+                      >
+                        <span style={{ minWidth: 92, fontWeight: 600 }}>
+                          {k}
+                        </span>
+                        <span className="ssub">{v}</span>
+                      </div>
+                    ))}
+                  </div>
                   <div className="int2-list">
                     {MCP_CLIENTS.map((c) => (
                       <div className="int2-item" key={c.key}>
