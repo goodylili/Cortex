@@ -11,7 +11,12 @@ import {
   useSignRawHash,
 } from "@privy-io/react-auth/extended-chains";
 import { PrivySuiSigner, type SignRawHash } from "@/lib/cortex/walrus/signer";
-import { ensureAccount, getAccountId } from "@/lib/cortex/walrus/account";
+import {
+  ensureAccount,
+  getAccountId,
+  grantAdmin as accountGrantAdmin,
+  revokeAdmin as accountRevokeAdmin,
+} from "@/lib/cortex/walrus/account";
 import { contractsEnabled } from "@/lib/cortex/walrus/env";
 import { storeFile, type StoredFile } from "@/lib/cortex/walrus/files";
 import { listKbFiles, type KbFileInfo } from "@/lib/cortex/walrus/kb";
@@ -66,6 +71,8 @@ export interface CortexWallet {
     tasks: AgentTask[] | null;
     messages: AgentMessage[] | null;
   } | null>;
+  grantAdmin: (delegate: string) => Promise<void>;
+  revokeAdmin: (delegate: string) => Promise<void>;
 }
 
 export interface CortexWalletState {
@@ -243,6 +250,26 @@ export function useCortexWallet(): CortexWalletState {
           loadBus(signer, accountId),
         ]);
         return { tasks, messages };
+      },
+      grantAdmin: async (delegate: string) => {
+        if (!contractsEnabled()) return;
+        const accountId = await ensureAccount({
+          signer,
+          memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? ZERO_ID,
+          displayName: "Cortex",
+          handle: `cortex_${address.slice(2, 10)}`,
+        });
+        await accountGrantAdmin({ signer, accountId, delegate });
+      },
+      revokeAdmin: async (delegate: string) => {
+        if (!contractsEnabled()) return;
+        const accountId = await ensureAccount({
+          signer,
+          memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? ZERO_ID,
+          displayName: "Cortex",
+          handle: `cortex_${address.slice(2, 10)}`,
+        });
+        await accountRevokeAdmin({ signer, accountId, delegate });
       },
     };
   }, [signer, user]);

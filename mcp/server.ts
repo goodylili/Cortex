@@ -405,6 +405,8 @@ async function main() {
         network: cfg.sui.network,
         suiRpc: cfg.sui.rpc,
         walrusAggregator: cfg.walrus.aggregator,
+        accessRegistry: cfg.accessRegistryId,
+        executorCap: cfg.executorCapId,
       }),
   );
   server.tool(
