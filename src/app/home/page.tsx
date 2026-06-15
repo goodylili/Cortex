@@ -48,6 +48,21 @@ const PILLARS = [
   },
 ];
 
+const CAPABILITIES = [
+  {
+    title: "Works with your tools",
+    body: "Connect Cortex to the AI tools you already use, and they share the same memory. What you tell one, the others know.",
+  },
+  {
+    title: "A few quiet helpers",
+    body: "A small set of helpers research, tidy and plan for you, double-check each other's work, and hand things off as they go.",
+  },
+  {
+    title: "Yours, and private",
+    body: "Anything sensitive is locked before it leaves your device. Only you can open it, and you choose what to share.",
+  },
+];
+
 const FAQ = [
   {
     q: "What is Cortex?",
@@ -219,6 +234,33 @@ export default function Home() {
                 </h3>
                 <p className="mt-3 text-[15px] leading-[1.6] tracking-[0.01em] text-[#bdbdbd]">
                   {p.body}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ───────── Capabilities ───────── */}
+      <section className="py-[60px]">
+        <div className="mx-auto max-w-[1200px] px-6">
+          <p className="mb-10 text-center text-[12px] font-medium uppercase tracking-[0.2em] text-[#9a9a9a]">
+            Quietly working for you
+          </p>
+          <div className="grid gap-5 md:grid-cols-3">
+            {CAPABILITIES.map((c) => (
+              <div
+                key={c.title}
+                className="rounded-[24px] border border-white/10 p-6 transition-colors duration-200 hover:border-white/25"
+              >
+                <h3
+                  className="text-[24px] font-medium tracking-[-0.01em]"
+                  style={{ fontFamily: serif }}
+                >
+                  {c.title}
+                </h3>
+                <p className="mt-3 text-[15px] leading-[1.6] tracking-[0.01em] text-[#bdbdbd]">
+                  {c.body}
                 </p>
               </div>
             ))}
