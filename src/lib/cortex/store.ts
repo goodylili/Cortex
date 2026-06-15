@@ -47,9 +47,22 @@ import {
   setStatus as taskSetStatus,
   handoff as taskHandoff,
 } from "./agents";
+import {
+  type LoopRun,
+  type LoopSpec,
+  newRun,
+  newIteration,
+  recordIteration,
+  setRunStatus,
+  budgetExceeded,
+  allGatesPassed,
+  skeletonSpec,
+} from "./loops";
 
 const KEY = "cortex.db.v3";
 const STEP_MEMORY_LIMIT = 6;
+const ITERATION_DELAY_MS = 1200;
+const CRITIC_AGENT_ID = "agent_critic";
 
 export interface ChatSource {
   type: "memory" | "web";
@@ -101,6 +114,7 @@ interface Persisted {
   chatsById?: Record<string, ChatMsg[]>;
   tasks?: AgentTask[];
   agentMessages?: AgentMessage[];
+  loops?: LoopRun[];
 }
 
 interface State {
@@ -114,6 +128,7 @@ interface State {
   activeId: string;
   tasks: AgentTask[];
   agentMessages: AgentMessage[];
+  loops: LoopRun[];
   // ephemeral UI
   mode: Mode;
   importance: Importance;
@@ -185,6 +200,11 @@ interface State {
   saveObservationAsMemory: (taskId: string, obsId: string) => string | null;
   setTasks: (tasks: AgentTask[]) => void;
   setAgentMessages: (messages: AgentMessage[]) => void;
+  // agentic loops
+  generateLoop: (task: string, assignTo: string) => Promise<string>;
+  startLoop: (loopId: string) => void;
+  stopLoop: (loopId: string) => void;
+  setLoops: (loops: LoopRun[]) => void;
 }
 
 function persist(s: {
@@ -199,6 +219,7 @@ function persist(s: {
   activeId?: string;
   tasks?: AgentTask[];
   agentMessages?: AgentMessage[];
+  loops?: LoopRun[];
 }) {
   try {
     const cur = (() => {
@@ -215,6 +236,7 @@ function persist(s: {
     const activeId = s.activeId ?? cur.activeId ?? "";
     const tasks = s.tasks ?? cur.tasks ?? [];
     const agentMessages = s.agentMessages ?? cur.agentMessages ?? [];
+    const loops = s.loops ?? cur.loops ?? [];
     // The active session's messages live under its id; a single chat passed in is
     // committed to the active bucket so existing call sites keep working.
     const chatsById: Record<string, ChatMsg[]> = { ...(cur.chatsById ?? {}) };
@@ -233,6 +255,7 @@ function persist(s: {
         chatsById,
         tasks,
         agentMessages,
+        loops,
       }),
     );
   } catch {}
@@ -258,6 +281,7 @@ export const useCortex = create<State>((set, get) => ({
   activeId: "",
   tasks: [],
   agentMessages: [],
+  loops: [],
   mode: "remember",
   importance: "normal",
   model: MODELS[1]!,
@@ -318,6 +342,9 @@ export const useCortex = create<State>((set, get) => ({
     const chat = chatsById[activeId] ?? [];
     const tasks = data.tasks ?? [];
     const agentMessages = data.agentMessages ?? [];
+    const loops = (data.loops ?? []).map((r) =>
+      r.status === "running" ? setRunStatus(r, "paused", now) : r,
+    );
     persist({
       memories,
       events,
@@ -330,6 +357,7 @@ export const useCortex = create<State>((set, get) => ({
       activeId,
       tasks,
       agentMessages,
+      loops,
     });
     set({
       memories,
@@ -343,6 +371,7 @@ export const useCortex = create<State>((set, get) => ({
       activeId,
       tasks,
       agentMessages,
+      loops,
       ready: true,
     });
   },
@@ -1222,6 +1251,204 @@ export const useCortex = create<State>((set, get) => ({
       });
       return { agentMessages };
     }),
+  // ---- agentic loops ----
+  // A loop spec is generated from the agent's memory (same generator as Studio),
+  // then run as a self-correcting cycle: each iteration runs the assigned agent
+  // (sense→decide→act), then a verification gate decides done. Reviewer gates run
+  // in-browser via the critic; command/invariant gates escalate to a human/executor.
+  generateLoop: async (task, assignTo) => {
+    const goal = task.trim();
+    if (!goal) return "";
+    const agent = agentById(assignTo) ?? AGENTS[0]!;
+    const now = Date.now();
+    const cfg = get().config;
+    const live = get()
+      .live()
+      .filter((m) => isRetrievable(m, now, cfg));
+    const cites = retrieve(goal, live).slice(0, STEP_MEMORY_LIMIT);
+    let spec: LoopSpec;
+    try {
+      const res = await fetch("/api/loop-spec", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          task: goal,
+          agentId: agent.id,
+          memories: cites.map((c) => ({
+            text: c.text,
+            label: c.tags[0] || "note",
+            when: ago(c.ts),
+          })),
+          model: get().model.name,
+        }),
+      });
+      const data = (await res.json()) as { spec?: LoopSpec };
+      spec = data.spec ?? skeletonSpec({ goal, agentId: agent.id }, Date.now());
+    } catch {
+      spec = skeletonSpec({ goal, agentId: agent.id }, Date.now());
+    }
+    const run = newRun(spec, Date.now());
+    set((s) => {
+      const loops = [run, ...s.loops];
+      const events = logEvent(
+        s.events,
+        "agent",
+        `Drafted a loop for ${agent.name}`,
+        goal.length > 60 ? goal.slice(0, 60) + "…" : goal,
+      );
+      persist({ memories: s.memories, events, cost: s.cost, loops });
+      return { loops, events };
+    });
+    return run.spec.id;
+  },
+  startLoop: (loopId) => {
+    set((s) => {
+      const at = Date.now();
+      const loops = s.loops.map((r) =>
+        r.spec.id === loopId
+          ? { ...setRunStatus(r, "running", at), startedAt: r.startedAt ?? at }
+          : r,
+      );
+      persist({ memories: s.memories, events: s.events, cost: s.cost, loops });
+      return { loops };
+    });
+    const finish = (status: LoopRun["status"]) =>
+      set((s) => {
+        const loops = s.loops.map((r) =>
+          r.spec.id === loopId ? setRunStatus(r, status, Date.now()) : r,
+        );
+        persist({ memories: s.memories, events: s.events, cost: s.cost, loops });
+        return { loops };
+      });
+    const askAgent = async (
+      agentId: string,
+      goal: string,
+      observations: string[],
+      cites: Memory[],
+    ): Promise<string> => {
+      try {
+        const res = await fetch("/api/agent", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            agentId,
+            goal,
+            observations,
+            memories: cites.map((c) => ({
+              text: c.text,
+              label: c.tags[0] || "note",
+              when: ago(c.ts),
+            })),
+            model: get().model.name,
+          }),
+        });
+        const d = (await res.json()) as { observation?: string };
+        return typeof d.observation === "string" ? d.observation : "";
+      } catch {
+        return "";
+      }
+    };
+    const drive = async () => {
+      for (;;) {
+        const run = get().loops.find((r) => r.spec.id === loopId);
+        if (!run || run.status !== "running") return;
+        if (budgetExceeded(run, Date.now())) {
+          finish("gave_up");
+          return;
+        }
+        const agent = agentById(run.spec.agentId) ?? AGENTS[0]!;
+        const now = Date.now();
+        const cfg = get().config;
+        const live = get()
+          .live()
+          .filter((m) => isRetrievable(m, now, cfg));
+        const cites = retrieve(run.spec.goal, live).slice(0, STEP_MEMORY_LIMIT);
+        const priorObs = run.iterations.map((it) => it.acted);
+        const acted = await askAgent(
+          agent.id,
+          run.spec.goal,
+          priorObs,
+          cites,
+        );
+        const reviewer = run.spec.gates.find((g) => g.kind === "reviewer");
+        const command = run.spec.gates.find((g) => g.kind !== "reviewer");
+        let verdict: "pass" | "fail" | "pending" = "pending";
+        let gate: string | undefined;
+        let feedback = "";
+        if (reviewer) {
+          const judgment = await askAgent(
+            CRITIC_AGENT_ID,
+            `Judge strictly whether this goal is met. Goal: "${run.spec.goal}". Latest work: ${acted || "(none)"}. Begin your reply with PASS or FAIL, then one sentence of evidence.`,
+            [],
+            cites,
+          );
+          feedback = judgment;
+          verdict = /^\s*pass\b/i.test(judgment) ? "pass" : "fail";
+          gate = reviewer.name;
+        } else if (command) {
+          verdict = "pending";
+          gate = command.name;
+          feedback = `Gate "${command.check}" needs a server/MCP executor to run; escalating to you.`;
+        }
+        const it = newIteration(
+          {
+            n: run.iterations.length + 1,
+            sensed: `goal + ${cites.length} memories`,
+            decided: `${agent.name} chose the next action`,
+            acted,
+            feedback,
+            verdict,
+            gate,
+            tokens: toks(acted) + toks(feedback),
+          },
+          Date.now(),
+        );
+        set((s) => {
+          const loops = s.loops.map((r) =>
+            r.spec.id === loopId ? recordIteration(r, it, Date.now()) : r,
+          );
+          persist({
+            memories: s.memories,
+            events: s.events,
+            cost: s.cost,
+            loops,
+          });
+          return { loops };
+        });
+        const updated = get().loops.find((r) => r.spec.id === loopId);
+        if (!updated || updated.status !== "running") return;
+        if (verdict === "pending") {
+          finish("waiting_human");
+          return;
+        }
+        if (verdict === "pass" && allGatesPassed(updated)) {
+          finish("waiting_human");
+          return;
+        }
+        if (budgetExceeded(updated, Date.now())) {
+          finish("gave_up");
+          return;
+        }
+        await new Promise((r) => setTimeout(r, ITERATION_DELAY_MS));
+      }
+    };
+    void drive();
+  },
+  stopLoop: (loopId) =>
+    set((s) => {
+      const loops = s.loops.map((r) =>
+        r.spec.id === loopId && r.status === "running"
+          ? setRunStatus(r, "paused", Date.now())
+          : r,
+      );
+      persist({ memories: s.memories, events: s.events, cost: s.cost, loops });
+      return { loops };
+    }),
+  setLoops: (loops) =>
+    set((s) => {
+      persist({ memories: s.memories, events: s.events, cost: s.cost, loops });
+      return { loops };
+    }),
   resetMemory: () =>
     set((s) => {
       const fresh = emptyState();
@@ -1233,6 +1460,7 @@ export const useCortex = create<State>((set, get) => ({
         lastSweep: 0,
         tasks: [],
         agentMessages: [],
+        loops: [],
       };
       persist(next);
       return { ...next, chat: [] };

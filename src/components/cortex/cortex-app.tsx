@@ -43,6 +43,8 @@ import {
   type AgentDef,
   type TaskStatus,
 } from "@/lib/cortex/agents";
+import type { LoopStatus } from "@/lib/cortex/loops";
+import { useDictation, useReadAloud } from "@/lib/cortex/use-voice";
 import { CaptureModal } from "./capture";
 
 const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
@@ -50,6 +52,15 @@ const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   in_progress: "Working",
   blocked: "Blocked",
   done: "Done",
+};
+
+const LOOP_STATUS_LABEL: Record<LoopStatus, string> = {
+  draft: "Draft",
+  running: "Running",
+  paused: "Paused",
+  waiting_human: "Needs you",
+  done: "Done",
+  gave_up: "Gave up",
 };
 
 const MARK = (
@@ -158,6 +169,10 @@ export function CortexApp({
   const [agentAssignee, setAgentAssignee] = useState<string>(AGENTS[0]!.id);
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const [loopBusy, setLoopBusy] = useState(false);
+  const [openLoopId, setOpenLoopId] = useState<string | null>(null);
+  const dictation = useDictation();
+  const readAloud = useReadAloud();
   const [rrIdx, setRrIdx] = useState(0);
   const [rmIdx, setRmIdx] = useState(0);
   const [reflectIdx, setReflectIdx] = useState(0);
@@ -303,6 +318,13 @@ export function CortexApp({
           );
       })
       .catch(() => {});
+    void w
+      .loadLoops()
+      .then((loops) => {
+        if (Array.isArray(loops) && loops.length)
+          s.setLoops(loops as Parameters<typeof s.setLoops>[0]);
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletState?.wallet]);
   // Debounced background sync of the active session + timeline + documents to
@@ -324,10 +346,19 @@ export function CortexApp({
       if (s.documents.length) void w.saveDocuments(s.documents).catch(() => {});
       if (s.tasks.length || s.agentMessages.length)
         void w.saveAgents(s.tasks, s.agentMessages).catch(() => {});
+      if (s.loops.length) void w.saveLoops(s.loops).catch(() => {});
     }, 6000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walletState?.wallet, s.chat, s.events, s.documents, s.tasks, s.agentMessages]);
+  }, [
+    walletState?.wallet,
+    s.chat,
+    s.events,
+    s.documents,
+    s.tasks,
+    s.agentMessages,
+    s.loops,
+  ]);
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (
@@ -959,10 +990,59 @@ export function CortexApp({
     setOpenTaskId(id);
     if (id) await runStep(id);
   }
+  async function makeLoopFromStudio() {
+    const goal = studioTask.trim();
+    if (!goal || loopBusy) return;
+    setLoopBusy(true);
+    flash("Reading memory to write the loop…");
+    try {
+      const id = await s.generateLoop(goal, AGENTS[0]!.id);
+      if (id) {
+        setOpenLoopId(id);
+        s.startLoop(id);
+        setView("agents");
+        flash("Loop running on the Agents page.");
+      }
+    } finally {
+      setLoopBusy(false);
+    }
+  }
+  async function createAndLoop() {
+    const goal = agentGoal.trim();
+    if (!goal || loopBusy) return;
+    setLoopBusy(true);
+    flash("Reading memory to write the loop…");
+    try {
+      const id = await s.generateLoop(goal, agentAssignee);
+      setAgentGoal("");
+      if (id) {
+        setOpenLoopId(id);
+        s.startLoop(id);
+        flash("Loop running — it will correct itself toward the goal.");
+      }
+    } finally {
+      setLoopBusy(false);
+    }
+  }
   function saveFinding(taskId: string, obsId: string) {
     const text = s.saveObservationAsMemory(taskId, obsId);
     if (text && wallet) void wallet.remember(text).catch(() => {});
     flash(text ? "Saved to shared memory." : "Nothing to save.");
+  }
+  async function toggleDictation() {
+    if (dictation.recording) {
+      const text = await dictation.stop();
+      if (text) {
+        setInput((v) => (v ? v + " " : "") + text);
+        grow(ta.current);
+      } else flash("Couldn't transcribe — set OPENAI_API_KEY for voice.");
+    } else {
+      try {
+        await dictation.start();
+      } catch (e) {
+        flash((e as Error).message || "Microphone unavailable");
+      }
+    }
   }
   const sess = privyOn
     ? walletState.authenticated && walletState.address
@@ -1588,6 +1668,21 @@ export function CortexApp({
                             </svg>
                             Remember this
                           </button>
+                          {readAloud.supported && m.a && (
+                            <button
+                              className="ans-save"
+                              onClick={() =>
+                                readAloud.speaking
+                                  ? readAloud.stop()
+                                  : readAloud.speak(m.a)
+                              }
+                            >
+                              <svg viewBox="0 0 24 24">
+                                <path d="M11 5 6 9H3v6h3l5 4zM16 9a4 4 0 0 1 0 6M19 7a8 8 0 0 1 0 10" />
+                              </svg>
+                              {readAloud.speaking ? "Stop" : "Read aloud"}
+                            </button>
+                          )}
                           <span className="src">
                             {m.model}
                             {m.savedNote && (
@@ -1762,16 +1857,183 @@ export function CortexApp({
                 value={agentGoal}
                 onChange={(e) => setAgentGoal(e.target.value)}
               />
-              <div style={{ marginTop: 10 }}>
+              <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button
                   className="pill-btn keep"
                   onClick={() => void createAndRun()}
                   disabled={!agentGoal.trim() || runningTaskId !== null}
                 >
-                  Assign &amp; run
+                  Assign &amp; run once
+                </button>
+                <button
+                  className="pill-btn"
+                  onClick={() => void createAndLoop()}
+                  disabled={!agentGoal.trim() || loopBusy}
+                  title="Cortex reads this agent's memory to write a loop spec, then runs it until the goal is met"
+                >
+                  {loopBusy ? "Writing the loop…" : "Run as a loop"}
                 </button>
               </div>
             </div>
+
+            {s.loops.length > 0 && (
+              <>
+                <h2 style={{ marginTop: 28, fontSize: 18, fontWeight: 600 }}>
+                  Loops
+                </h2>
+                <p className="ssub" style={{ marginBottom: 10 }}>
+                  Self-correcting runs. The spec is generated from memory; each
+                  iteration senses, acts, and verifies until a gate passes or the
+                  budget runs out.
+                </p>
+                <div className="story">
+                  {s.loops.map((r) => {
+                    const owner = agentById(r.spec.agentId);
+                    const open = openLoopId === r.spec.id;
+                    return (
+                      <div key={r.spec.id} className="snode">
+                        <div className="when">{ago(r.updatedAt)}</div>
+                        <div
+                          className="scard"
+                          style={
+                            owner
+                              ? { borderLeft: `3px solid ${owner.accent}` }
+                              : undefined
+                          }
+                        >
+                          <div
+                            className="st"
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <span
+                              className="fchip on"
+                              style={{ cursor: "default" }}
+                            >
+                              {LOOP_STATUS_LABEL[r.status]}
+                            </span>
+                            {owner && (
+                              <span style={{ color: owner.accent }}>
+                                {owner.name}
+                              </span>
+                            )}
+                            <span style={{ fontWeight: 400 }}>{r.spec.goal}</span>
+                          </div>
+                          <div className="ssub">
+                            iteration {r.iterations.length}/
+                            {r.spec.budget.maxIterations} ·{" "}
+                            {fmtTokens(r.tokensUsed)}/
+                            {fmtTokens(r.spec.budget.maxTokens)} tokens ·{" "}
+                            {r.spec.loopType}
+                          </div>
+                          {r.status === "waiting_human" && (
+                            <div
+                              className="ssub"
+                              style={{ marginTop: 6, color: "var(--accent,#b45309)" }}
+                            >
+                              Waiting on you · {r.spec.humanGate}
+                            </div>
+                          )}
+                          <div
+                            className="filters"
+                            style={{ marginTop: 10, gap: 6 }}
+                          >
+                            {r.status === "running" ? (
+                              <button
+                                className="pill-btn"
+                                onClick={() => s.stopLoop(r.spec.id)}
+                              >
+                                Stop
+                              </button>
+                            ) : (
+                              r.status !== "done" && (
+                                <button
+                                  className="pill-btn keep"
+                                  onClick={() => s.startLoop(r.spec.id)}
+                                >
+                                  {r.iterations.length ? "Resume" : "Start"}
+                                </button>
+                              )
+                            )}
+                            <button
+                              className="fchip"
+                              onClick={() =>
+                                setOpenLoopId(open ? null : r.spec.id)
+                              }
+                            >
+                              {open ? "Hide" : "Trace"}
+                            </button>
+                          </div>
+
+                          {open && (
+                            <div style={{ marginTop: 12 }}>
+                              <div className="ssub" style={{ marginBottom: 6 }}>
+                                Gates:{" "}
+                                {r.spec.gates
+                                  .map((g) => `${g.name} (${g.kind})`)
+                                  .join(", ") || "none"}{" "}
+                                · Guardrails: {r.spec.guardrails.join("; ")}
+                              </div>
+                              {r.iterations.length ? (
+                                r.iterations
+                                  .slice()
+                                  .reverse()
+                                  .map((it) => (
+                                    <div
+                                      key={it.n}
+                                      className="scard"
+                                      style={{ marginBottom: 8 }}
+                                    >
+                                      <div
+                                        className="ssub"
+                                        style={{ marginBottom: 4 }}
+                                      >
+                                        #{it.n} · {it.gate ?? "no gate"} ·{" "}
+                                        <span
+                                          style={{
+                                            color:
+                                              it.verdict === "pass"
+                                                ? "#10b981"
+                                                : it.verdict === "fail"
+                                                  ? "#ef4444"
+                                                  : "var(--muted)",
+                                          }}
+                                        >
+                                          {it.verdict}
+                                        </span>{" "}
+                                        · {ago(it.ts)}
+                                      </div>
+                                      <div style={{ whiteSpace: "pre-wrap" }}>
+                                        {it.acted}
+                                      </div>
+                                      {it.feedback && (
+                                        <div
+                                          className="ssub"
+                                          style={{ marginTop: 6 }}
+                                        >
+                                          ↳ {it.feedback}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))
+                              ) : (
+                                <div className="ssub">
+                                  No iterations yet — start the loop.
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
 
             {s.tasks.length ? (
               <div className="story" style={{ marginTop: 20 }}>
@@ -2146,6 +2408,14 @@ export function CortexApp({
                         <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
                       </svg>
                       <span>Web</span>
+                    </button>
+                    <button
+                      className="st2-gen"
+                      onClick={() => void makeLoopFromStudio()}
+                      disabled={studioLoading || loopBusy || !studioTask.trim()}
+                      title="Generate a self-correcting loop spec from this task + your memory, and run it"
+                    >
+                      {loopBusy ? "Writing the loop…" : "Make a loop"}
                     </button>
                     <button
                       className="st2-gen"
@@ -3341,6 +3611,31 @@ export function CortexApp({
                     </svg>{" "}
                     Web
                   </button>
+                  {dictation.supported && (
+                    <button
+                      className={
+                        "cap-tool" +
+                        (dictation.recording ? " on" : "")
+                      }
+                      onClick={() => void toggleDictation()}
+                      disabled={dictation.busy}
+                      title={
+                        dictation.recording
+                          ? "Stop and transcribe"
+                          : "Speak your prompt"
+                      }
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <rect x="9" y="3" width="6" height="11" rx="3" />
+                        <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+                      </svg>{" "}
+                      {dictation.busy
+                        ? "…"
+                        : dictation.recording
+                          ? "Listening"
+                          : "Speak"}
+                    </button>
+                  )}
                   <div className="importance remember-only">
                     {(["low", "normal", "high"] as const).map((lv) => (
                       <button
