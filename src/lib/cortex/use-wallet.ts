@@ -50,8 +50,11 @@ import {
   loadWorkspaceTasks,
   saveWorkspaceBus,
   loadWorkspaceBus,
+  saveWorkspaceLoops,
+  loadWorkspaceLoops,
 } from "@/lib/cortex/walrus/workspace";
 import type { AgentTask, AgentMessage } from "@/lib/cortex/agents";
+import type { LoopRun } from "@/lib/cortex/loops";
 
 const WORKSPACE_KEY = "agents:workspace";
 import {
@@ -97,6 +100,8 @@ export interface CortexWallet {
   revokeMcpAccess: () => Promise<void>;
   listDelegates: () => Promise<{ publicKey: string; isThisDevice: boolean }[]>;
   revokeDelegate: (publicKey: string) => Promise<boolean>;
+  saveLoops: (loops: LoopRun[]) => Promise<void>;
+  loadLoops: () => Promise<LoopRun[] | null>;
 }
 
 export interface CortexWalletState {
@@ -302,6 +307,27 @@ export function useCortexWallet(): CortexWalletState {
           loadBus(signer, accountId),
         ]);
         return { tasks, messages };
+      },
+      // Loops are durable only when Seal + the Workspace are configured (they share
+      // the same shared, owner-or-delegate board so the MCP can run them too).
+      saveLoops: async (loops: LoopRun[]) => {
+        if (!contractsEnabled() || !sealEnabled()) return;
+        const accountId = await ensureAccount({
+          signer,
+          memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? ZERO_ID,
+          displayName: "Cortex",
+          handle: `cortex_${address.slice(2, 10)}`,
+        });
+        const workspaceId = await ensureWorkspaceId(accountId);
+        await saveWorkspaceLoops(signer, workspaceId, loops);
+      },
+      loadLoops: async () => {
+        if (!contractsEnabled() || !sealEnabled()) return null;
+        const accountId = await getAccountId(address);
+        if (!accountId) return null;
+        const workspaceId = await loadSettingValue(accountId, WORKSPACE_KEY);
+        if (!workspaceId) return null;
+        return loadWorkspaceLoops(signer, workspaceId);
       },
       grantAdmin: async (delegate: string) => {
         if (!contractsEnabled()) return;
