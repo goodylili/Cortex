@@ -70,6 +70,27 @@ fun owner_sets_tasks() {
 }
 
 #[test]
+fun owner_sets_loops() {
+    let mut scenario = ts::begin(OWNER);
+    setup(&mut scenario);
+
+    ts::next_tx(&mut scenario, OWNER);
+    {
+        let mut ws = ts::take_shared<Workspace>(&scenario);
+        let clk = clock::create_for_testing(ts::ctx(&mut scenario));
+
+        assert!(ws.loops_blob() == string::utf8(b""), 0);
+        workspace::owner_set_loops(&mut ws, string::utf8(b"loops-blob-1"), &clk, ts::ctx(&mut scenario));
+        assert!(ws.loops_blob() == string::utf8(b"loops-blob-1"), 1);
+
+        clock::destroy_for_testing(clk);
+        ts::return_shared(ws);
+    };
+
+    ts::end(scenario);
+}
+
+#[test]
 fun delegate_can_access_and_seal_approve() {
     let mut scenario = ts::begin(OWNER);
     setup(&mut scenario);

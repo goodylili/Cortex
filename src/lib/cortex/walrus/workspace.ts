@@ -13,6 +13,7 @@
 import { SessionKey } from "@mysten/seal";
 import { Transaction } from "@mysten/sui/transactions";
 import { fromHex, SUI_CLOCK_OBJECT_ID, toHex } from "@mysten/sui/utils";
+import type { LoopRun } from "@/lib/cortex/loops";
 import type { AgentMessage, AgentTask } from "../agents";
 import { getSealClient, getSuiClient, getWalrusClient } from "./clients";
 import { CORTEX_ENV } from "./env";
@@ -22,6 +23,7 @@ import type { PrivySuiSigner } from "./signer";
 const WORKSPACE_MODULE = "workspace";
 const TASKS_SCOPE = "tasks";
 const BUS_SCOPE = "bus";
+const LOOPS_SCOPE = "loops";
 const SUI_OBJECT_ID_BYTES = 32;
 const SESSION_TTL_MIN = 10;
 const SHARED_OWNER_KIND = "Shared";
@@ -214,6 +216,21 @@ export async function loadWorkspaceTasks(
   workspaceId: string,
 ): Promise<AgentTask[] | null> {
   return loadBlob<AgentTask>(signer, workspaceId, "tasks_blob", TASKS_SCOPE);
+}
+
+export async function saveWorkspaceLoops(
+  signer: PrivySuiSigner,
+  workspaceId: string,
+  runs: LoopRun[],
+): Promise<void> {
+  await setBlob(signer, workspaceId, "owner_set_loops", LOOPS_SCOPE, runs);
+}
+
+export async function loadWorkspaceLoops(
+  signer: PrivySuiSigner,
+  workspaceId: string,
+): Promise<LoopRun[] | null> {
+  return loadBlob<LoopRun>(signer, workspaceId, "loops_blob", LOOPS_SCOPE);
 }
 
 export async function saveWorkspaceBus(
