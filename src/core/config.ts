@@ -22,6 +22,7 @@ export interface Config {
   webhookUrl: string;
   accessRegistryId: string;
   executorCapId: string;
+  workspaceId: string;
 }
 
 const DEFAULTS: Config = {
@@ -44,6 +45,7 @@ const DEFAULTS: Config = {
   webhookUrl: "",
   accessRegistryId: "",
   executorCapId: "",
+  workspaceId: "",
 };
 
 function deepMerge<T>(base: T, over: Partial<T> | undefined): T {
@@ -81,6 +83,8 @@ export function loadConfig(
     cfg.models.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
   if (process.env.CORTEX_WEBHOOK_URL)
     cfg.webhookUrl = process.env.CORTEX_WEBHOOK_URL;
+  if (process.env.CORTEX_WORKSPACE_ID)
+    cfg.workspaceId = process.env.CORTEX_WORKSPACE_ID;
   if (process.env.CORTEX_ACCESS_REGISTRY)
     cfg.accessRegistryId = process.env.CORTEX_ACCESS_REGISTRY;
   if (process.env.CORTEX_EXECUTOR_CAP)

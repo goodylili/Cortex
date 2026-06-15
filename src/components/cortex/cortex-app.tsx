@@ -357,8 +357,10 @@ export function CortexApp({
     if (!w || !mcpAuthReady) return;
     setMcpAuthBusy(true);
     try {
-      await w.grantAdmin(CORTEX_ENV.mcpAddress);
-      flash("Authorized your MCP — it can now access your memory and context.");
+      await w.authorizeMcpAccess();
+      flash(
+        "Authorized your MCP — it can now access your profile, memory and shared agent workspace.",
+      );
     } catch (err) {
       flash(err instanceof Error ? err.message : String(err));
     } finally {
@@ -371,7 +373,7 @@ export function CortexApp({
     if (!w || !mcpAuthReady) return;
     setMcpAuthBusy(true);
     try {
-      await w.revokeAdmin(CORTEX_ENV.mcpAddress);
+      await w.revokeMcpAccess();
       flash("Revoked MCP access.");
     } catch (err) {
       flash(err instanceof Error ? err.message : String(err));
@@ -2533,9 +2535,9 @@ export function CortexApp({
                   <div className="scard" style={{ marginTop: 16 }}>
                     <div className="int2-name">Authorize MCP</div>
                     <div className="ssub" style={{ marginTop: 4 }}>
-                      Grants the MCP wallet admin-delegate rights on your
-                      on-chain Account so it can read your details, memory and
-                      context on your behalf; you can revoke anytime.
+                      One click grants your MCP everything it needs: your
+                      profile, your memory, and your shared agent workspace
+                      (board + bus). You can revoke anytime.
                     </div>
                     <div
                       className="ssub"
@@ -2846,8 +2848,8 @@ export function CortexApp({
               <div className="scard">
                 <div className="int2-name">MCP access</div>
                 <div className="ssub" style={{ marginTop: 4 }}>
-                  An authorized MCP can read your details, memory and context on
-                  your behalf; you can revoke anytime.
+                  An authorized MCP gets your profile, your memory, and your
+                  shared agent workspace (board + bus). You can revoke anytime.
                 </div>
                 <div
                   className="ssub"

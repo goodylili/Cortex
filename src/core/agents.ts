@@ -1,13 +1,19 @@
 // The collaboration layer for the MCP hub. A small team of specialist agents work
 // over the same Walrus-backed memory plane the rest of Cortex uses. Their shared
-// task board and message bus are themselves durable memories: each lives in a
-// dedicated MemWal sub-namespace as an event-sourced JSON record, so any MCP host
-// or external agent reads and extends the exact same state. Mirrors the browser
-// roster in src/lib/cortex/agents.ts (separate runtime, same ids and prompts).
+// task board and message bus live in one on-chain Workspace object — a single
+// Seal-encrypted blob per scope — so the MCP hub and the browser app read and
+// extend the exact same state. Mirrors the browser roster in
+// src/lib/cortex/agents.ts (separate runtime, same ids and prompts).
 
 import { randomUUID } from "node:crypto";
 import type { Config } from "./config";
 import type { Clients } from "../../sui/app/clients";
+import {
+  readWorkspaceBus,
+  readWorkspaceTasks,
+  writeWorkspaceBus,
+  writeWorkspaceTasks,
+} from "./workspace";
 
 export type AgentRole = "researcher" | "curator" | "planner" | "critic";
 export type TaskStatus = "open" | "in_progress" | "blocked" | "done";
@@ -69,15 +75,11 @@ export interface AgentObservation {
   id: string;
   agentId: string;
   text: string;
-  ts: string;
+  ts: number;
   memoryRefs?: string[];
 }
 
-const TASK_KIND = "cortex.agent.task.v1";
-const MESSAGE_KIND = "cortex.agent.message.v1";
-
 export interface AgentTaskRecord {
-  kind: typeof TASK_KIND;
   id: string;
   goal: string;
   status: TaskStatus;
@@ -85,91 +87,44 @@ export interface AgentTaskRecord {
   createdBy: string;
   observations: AgentObservation[];
   outputs: string[];
-  createdAt: string;
-  updatedAt: string;
-  rev: number;
+  createdAt: number;
+  updatedAt: number;
+  rev?: number;
 }
 
 export interface AgentMessageRecord {
-  kind: typeof MESSAGE_KIND;
   id: string;
   from: string;
   to: string;
   taskId: string;
-  messageKind: AgentMessageKind;
+  kind: AgentMessageKind;
   content: string;
-  ts: string;
+  ts: number;
 }
 
-const TASKS_SUFFIX = ":agents:tasks";
-const BUS_SUFFIX = ":agents:bus";
 const DEFAULT_RECALL_LIMIT = 6;
 const STEP_MAX_TOKENS = 700;
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 
-export function tasksNamespace(cfg: Config): string {
-  return cfg.namespace + TASKS_SUFFIX;
-}
-
-export function busNamespace(cfg: Config): string {
-  return cfg.namespace + BUS_SUFFIX;
-}
-
 function rid(prefix: string): string {
   return prefix + "_" + randomUUID().slice(0, 8);
 }
 
-function now(): string {
-  return new Date().toISOString();
+function requireWorkspace(cfg: Config): string {
+  if (!cfg.workspaceId)
+    throw new Error(
+      "agent task board needs CORTEX_WORKSPACE_ID (the user's Workspace object id)",
+    );
+  return cfg.workspaceId;
 }
 
-function parseTask(text: string): AgentTaskRecord | null {
-  try {
-    const r = JSON.parse(text) as AgentTaskRecord;
-    return r && r.kind === TASK_KIND ? r : null;
-  } catch {
-    return null;
-  }
-}
-
-function parseMessage(text: string): AgentMessageRecord | null {
-  try {
-    const r = JSON.parse(text) as AgentMessageRecord;
-    return r && r.kind === MESSAGE_KIND ? r : null;
-  } catch {
-    return null;
-  }
-}
-
-async function persistTask(
-  c: Clients,
-  cfg: Config,
-  task: AgentTaskRecord,
-): Promise<AgentTaskRecord> {
-  await c.memwal.remember(tasksNamespace(cfg), JSON.stringify(task), {
-    agent: task.assignedTo,
-    via: "remember",
-    tags: ["agent-task", task.id, task.status],
-  });
-  return task;
-}
-
-// Event-sourced read: the namespace holds every snapshot ever written; fold to the
-// latest revision per task id.
 export async function listTasks(
   c: Clients,
   cfg: Config,
 ): Promise<AgentTaskRecord[]> {
-  const { memories } = await c.memwal.restore(tasksNamespace(cfg));
-  const latest = new Map<string, AgentTaskRecord>();
-  for (const m of memories) {
-    const task = parseTask(m.text);
-    if (!task) continue;
-    const prior = latest.get(task.id);
-    if (!prior || task.rev >= prior.rev) latest.set(task.id, task);
-  }
-  return [...latest.values()].sort((a, b) => b.rev - a.rev);
+  const workspaceId = requireWorkspace(cfg);
+  return (await readWorkspaceTasks(c, cfg, workspaceId)) ?? [];
 }
 
 export async function getTask(
@@ -186,6 +141,7 @@ export async function createTask(
   cfg: Config,
   args: { goal: string; assignTo: string; createdBy?: string },
 ): Promise<AgentTaskRecord> {
+  const workspaceId = requireWorkspace(cfg);
   const goal = args.goal.trim();
   if (!goal) throw new Error("createTask: goal must not be empty");
   const agent = agentById(args.assignTo);
@@ -193,9 +149,8 @@ export async function createTask(
     throw new Error(
       `createTask: unknown agent "${args.assignTo}". Known: ${AGENTS.map((a) => a.id).join(", ")}`,
     );
-  const at = now();
+  const at = Date.now();
   const task: AgentTaskRecord = {
-    kind: TASK_KIND,
     id: rid("task"),
     goal,
     status: "open",
@@ -205,9 +160,9 @@ export async function createTask(
     outputs: [],
     createdAt: at,
     updatedAt: at,
-    rev: Date.now(),
   };
-  await persistTask(c, cfg, task);
+  const tasks = (await readWorkspaceTasks(c, cfg, workspaceId)) ?? [];
+  await writeWorkspaceTasks(c, cfg, workspaceId, [...tasks, task]);
   await postMessage(c, cfg, {
     from: task.createdBy,
     to: agent.id,
@@ -224,10 +179,14 @@ async function mutateTask(
   taskId: string,
   fn: (task: AgentTaskRecord) => AgentTaskRecord,
 ): Promise<AgentTaskRecord> {
-  const task = await getTask(c, cfg, taskId);
-  if (!task) throw new Error(`task "${taskId}" not found`);
-  const next: AgentTaskRecord = { ...fn(task), updatedAt: now(), rev: Date.now() };
-  return persistTask(c, cfg, next);
+  const workspaceId = requireWorkspace(cfg);
+  const tasks = (await readWorkspaceTasks(c, cfg, workspaceId)) ?? [];
+  const target = tasks.find((t) => t.id === taskId);
+  if (!target) throw new Error(`task "${taskId}" not found`);
+  const updated: AgentTaskRecord = { ...fn(target), updatedAt: Date.now() };
+  const next = tasks.map((t) => (t.id === taskId ? updated : t));
+  await writeWorkspaceTasks(c, cfg, workspaceId, next);
+  return updated;
 }
 
 export async function observeTask(
@@ -239,7 +198,7 @@ export async function observeTask(
     id: rid("obs"),
     agentId: args.agentId,
     text: args.text,
-    ts: now(),
+    ts: Date.now(),
     ...(args.memoryRefs && args.memoryRefs.length
       ? { memoryRefs: args.memoryRefs }
       : {}),
@@ -311,21 +270,18 @@ export async function postMessage(
     content: string;
   },
 ): Promise<AgentMessageRecord> {
+  const workspaceId = requireWorkspace(cfg);
   const msg: AgentMessageRecord = {
-    kind: MESSAGE_KIND,
     id: rid("amsg"),
     from: args.from,
     to: args.to,
     taskId: args.taskId,
-    messageKind: args.kind,
+    kind: args.kind,
     content: args.content,
-    ts: now(),
+    ts: Date.now(),
   };
-  await c.memwal.remember(busNamespace(cfg), JSON.stringify(msg), {
-    agent: args.from,
-    via: "remember",
-    tags: ["agent-message", args.taskId, args.kind],
-  });
+  const bus = (await readWorkspaceBus(c, cfg, workspaceId)) ?? [];
+  await writeWorkspaceBus(c, cfg, workspaceId, [...bus, msg]);
   return msg;
 }
 
@@ -334,14 +290,13 @@ export async function listMessages(
   cfg: Config,
   args?: { taskId?: string; limit?: number },
 ): Promise<AgentMessageRecord[]> {
-  const { memories } = await c.memwal.restore(busNamespace(cfg));
+  const workspaceId = requireWorkspace(cfg);
+  const bus = (await readWorkspaceBus(c, cfg, workspaceId)) ?? [];
   const msgs: AgentMessageRecord[] = [];
-  for (const m of memories) {
-    const parsed = parseMessage(m.text);
-    if (parsed && (!args?.taskId || parsed.taskId === args.taskId))
-      msgs.push(parsed);
+  for (const m of bus) {
+    if (!args?.taskId || m.taskId === args.taskId) msgs.push(m);
   }
-  msgs.sort((a, b) => b.ts.localeCompare(a.ts));
+  msgs.sort((a, b) => b.ts - a.ts);
   return args?.limit ? msgs.slice(0, args.limit) : msgs;
 }
 
