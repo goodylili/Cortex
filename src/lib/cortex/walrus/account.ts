@@ -55,6 +55,52 @@ export async function registerAccount(opts: {
   return { digest: digestOf(exec) };
 }
 
+// Grant an address admin (delegate) read access over the caller's Account. The
+// delegate is recorded on chain (account::grant_admin), which lets the holder
+// derive a Seal key for the Account's encrypted artifacts.
+export async function grantAdmin(opts: {
+  signer: PrivySuiSigner;
+  accountId: string;
+  delegate: string;
+}): Promise<{ digest: string }> {
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${CORTEX_ENV.packageId}::account::grant_admin`,
+    arguments: [
+      tx.object(opts.accountId),
+      tx.pure.address(opts.delegate),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
+  });
+  const exec = await opts.signer.signAndExecuteTransaction({
+    transaction: tx,
+    client: getSuiClient(),
+  });
+  return { digest: digestOf(exec) };
+}
+
+// Revoke a previously granted admin delegate from the caller's Account.
+export async function revokeAdmin(opts: {
+  signer: PrivySuiSigner;
+  accountId: string;
+  delegate: string;
+}): Promise<{ digest: string }> {
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${CORTEX_ENV.packageId}::account::revoke_admin`,
+    arguments: [
+      tx.object(opts.accountId),
+      tx.pure.address(opts.delegate),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
+  });
+  const exec = await opts.signer.signAndExecuteTransaction({
+    transaction: tx,
+    client: getSuiClient(),
+  });
+  return { digest: digestOf(exec) };
+}
+
 // Discover the caller's Account, registering one on chain if absent. Returns the
 // on-chain Account object id.
 export async function ensureAccount(opts: {

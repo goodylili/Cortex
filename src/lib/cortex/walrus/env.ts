@@ -33,6 +33,8 @@ export interface CortexEnv {
   suiGraphql: string;
   packageId: string;
   registryId: string;
+  accessRegistryId: string;
+  executorCapId: string;
   walrusEpochs: number;
   walrusUploadRelay: string;
   walrusAggregator: string;
@@ -65,6 +67,8 @@ export const CORTEX_ENV: CortexEnv = {
   suiGraphql: process.env.NEXT_PUBLIC_SUI_GRAPHQL ?? DEFAULT_GRAPHQL[network],
   packageId: process.env.NEXT_PUBLIC_CORTEX_PACKAGE_ID ?? "",
   registryId: process.env.NEXT_PUBLIC_CORTEX_REGISTRY_ID ?? "",
+  accessRegistryId: process.env.NEXT_PUBLIC_CORTEX_ACCESS_REGISTRY ?? "",
+  executorCapId: process.env.NEXT_PUBLIC_CORTEX_EXECUTOR_CAP ?? "",
   walrusEpochs: parseIntOr(
     process.env.NEXT_PUBLIC_WALRUS_EPOCHS,
     DEFAULT_WALRUS_EPOCHS,
