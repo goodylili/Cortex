@@ -2,10 +2,12 @@ module cortex::agents;
 
 use std::string::String;
 use sui::{clock::Clock, event, vec_map::{Self, VecMap}, vec_set::{Self, VecSet}};
-use cortex::{account::{Self, Account}, util};
+use cortex::{account::{Self, Account}, seal::SealRef, util, walrus::WalrusRef};
 
 const EWrongAccount: u64 = 1;
 const EUnknownConfig: u64 = 2;
+const ENoAccess: u64 = 3;
+const EBadIdentity: u64 = 4;
 
 const STATUS_ACTIVE: u8 = 0;
 const STATUS_PAUSED: u8 = 1;
@@ -17,15 +19,20 @@ public enum AgentStatus has copy, drop, store {
     Archived,
 }
 
+// An agent's prompt and description are private usage details, so they are never
+// stored on chain in plaintext (everything on Sui is world-readable). They live as
+// a Seal-encrypted Walrus blob; only its reference (`details` + `details_seal`) is
+// public here, and only the owner can decrypt it (see `seal_approve`). The routing
+// metadata (name, namespace, model) stays public for listing and dispatch.
 public struct Agent has key {
     id: UID,
     account_id: ID,
     owner: address,
     name: String,
-    description: String,
     namespace: String,
     model: String,
-    system_prompt: String,
+    details: WalrusRef,
+    details_seal: SealRef,
     config: VecMap<String, String>,
     kb_access: VecSet<ID>,
     status: AgentStatus,
@@ -43,7 +50,7 @@ public struct AgentCreated has copy, drop {
 }
 
 public struct AgentRenamed has copy, drop { agent_id: ID, name: String, timestamp_ms: u64 }
-public struct AgentDescribed has copy, drop { agent_id: ID, timestamp_ms: u64 }
+public struct AgentDetailsUpdated has copy, drop { agent_id: ID, timestamp_ms: u64 }
 public struct NamespaceSet has copy, drop { agent_id: ID, namespace: String, timestamp_ms: u64 }
 public struct AgentConfigured has copy, drop { agent_id: ID, timestamp_ms: u64 }
 public struct ConfigSet has copy, drop { agent_id: ID, key: String, timestamp_ms: u64 }
@@ -56,10 +63,10 @@ public struct AgentDeleted has copy, drop { account_id: ID, agent_id: ID, timest
 public fun create_agent(
     account: &mut Account,
     name: String,
-    description: String,
     namespace: String,
     model: String,
-    system_prompt: String,
+    details: WalrusRef,
+    details_seal: SealRef,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
@@ -72,10 +79,10 @@ public fun create_agent(
         account_id,
         owner,
         name,
-        description,
         namespace,
         model,
-        system_prompt,
+        details,
+        details_seal,
         config: vec_map::empty(),
         kb_access: vec_set::empty(),
         status: AgentStatus::Active,
@@ -96,11 +103,13 @@ public fun rename(agent: &mut Agent, name: String, clock: &Clock) {
     event::emit(AgentRenamed { agent_id: object::id(agent), name, timestamp_ms: now_ms });
 }
 
-public fun set_description(agent: &mut Agent, description: String, clock: &Clock) {
+// Replace the encrypted details blob (prompt/description) with a new one.
+public fun set_details(agent: &mut Agent, details: WalrusRef, details_seal: SealRef, clock: &Clock) {
     let now_ms = clock.timestamp_ms();
-    agent.description = description;
+    agent.details = details;
+    agent.details_seal = details_seal;
     agent.updated_at_ms = now_ms;
-    event::emit(AgentDescribed { agent_id: object::id(agent), timestamp_ms: now_ms });
+    event::emit(AgentDetailsUpdated { agent_id: object::id(agent), timestamp_ms: now_ms });
 }
 
 public fun set_namespace(agent: &mut Agent, namespace: String, clock: &Clock) {
@@ -110,10 +119,17 @@ public fun set_namespace(agent: &mut Agent, namespace: String, clock: &Clock) {
     event::emit(NamespaceSet { agent_id: object::id(agent), namespace, timestamp_ms: now_ms });
 }
 
-public fun configure(agent: &mut Agent, model: String, system_prompt: String, clock: &Clock) {
+public fun configure(
+    agent: &mut Agent,
+    model: String,
+    details: WalrusRef,
+    details_seal: SealRef,
+    clock: &Clock,
+) {
     let now_ms = clock.timestamp_ms();
     agent.model = model;
-    agent.system_prompt = system_prompt;
+    agent.details = details;
+    agent.details_seal = details_seal;
     agent.updated_at_ms = now_ms;
     event::emit(AgentConfigured { agent_id: object::id(agent), timestamp_ms: now_ms });
 }
@@ -166,6 +182,14 @@ public fun delete_agent(account: &mut Account, agent: Agent, clock: &Clock) {
     event::emit(AgentDeleted { account_id, agent_id, timestamp_ms: now_ms });
 }
 
+// Owner-only Seal policy: only the agent's owner can decrypt its private details
+// blob. Identities are prefixed with the agent id. No delegates — private to the user.
+entry fun seal_approve(id: vector<u8>, agent: &Agent, ctx: &TxContext) {
+    assert!(ctx.sender() == agent.owner, ENoAccess);
+    let prefix = util::id_bytes(object::id(agent));
+    assert!(util::bytes_start_with(&id, &prefix), EBadIdentity);
+}
+
 fun set_status(agent: &mut Agent, status: AgentStatus, clock: &Clock) {
     let now_ms = clock.timestamp_ms();
     agent.status = status;
@@ -184,10 +208,10 @@ fun code_of(status: AgentStatus): u8 {
 public fun agent_account(agent: &Agent): ID { agent.account_id }
 public fun agent_owner(agent: &Agent): address { agent.owner }
 public fun agent_name(agent: &Agent): String { agent.name }
-public fun agent_description(agent: &Agent): String { agent.description }
 public fun agent_namespace(agent: &Agent): String { agent.namespace }
 public fun agent_model(agent: &Agent): String { agent.model }
-public fun agent_system_prompt(agent: &Agent): String { agent.system_prompt }
+public fun agent_details(agent: &Agent): WalrusRef { agent.details }
+public fun agent_details_seal(agent: &Agent): SealRef { agent.details_seal }
 public fun agent_created_at_ms(agent: &Agent): u64 { agent.created_at_ms }
 public fun agent_updated_at_ms(agent: &Agent): u64 { agent.updated_at_ms }
 
@@ -199,3 +223,8 @@ public fun is_active(agent: &Agent): bool {
 public fun config(agent: &Agent, key: String): Option<String> { agent.config.try_get(&key) }
 public fun kb_access(agent: &Agent): VecSet<ID> { agent.kb_access }
 public fun has_kb_access(agent: &Agent, kb_file_id: ID): bool { agent.kb_access.contains(&kb_file_id) }
+
+#[test_only]
+public fun seal_approve_for_testing(id: vector<u8>, agent: &Agent, ctx: &TxContext) {
+    seal_approve(id, agent, ctx);
+}
