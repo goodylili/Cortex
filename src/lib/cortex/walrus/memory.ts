@@ -158,3 +158,45 @@ export async function provisionMemory(opts: {
   saveMemoryCreds(opts.userKey, creds);
   return creds;
 }
+
+const MCP_DELEGATE_LABEL = "Cortex MCP";
+
+// Authorize the Cortex MCP's MemWal delegate key on this user's account so the MCP
+// can recall/remember the user's memory in the SAME namespaces the app uses. MemWal
+// Seal-encrypts per namespace and gates access by the account's delegate-key list,
+// so authorizing the MCP's public delegate key (set via env, e.g.
+// NEXT_PUBLIC_CORTEX_MCP_MEMWAL_PUBKEY) lets the MCP read/write that memory without
+// making anything public. The MCP's private delegate key never leaves the server —
+// only its public key is passed here. Returns false (no-op) when memwal isn't
+// configured or the user has no MemWal account yet.
+export async function authorizeMemoryDelegate(opts: {
+  userKey: string;
+  signer: PrivySuiSigner;
+  delegatePublicKey: string;
+  label?: string;
+}): Promise<boolean> {
+  if (!CORTEX_ENV.memwal.packageId || !CORTEX_ENV.memwal.registryId) {
+    return false;
+  }
+  if (!opts.delegatePublicKey) {
+    throw new Error(
+      "authorizeMemoryDelegate requires a non-empty delegatePublicKey (the MCP's public delegate key, e.g. NEXT_PUBLIC_CORTEX_MCP_MEMWAL_PUBKEY)",
+    );
+  }
+  const ready = await ensureMemory(opts.userKey, opts.signer);
+  if (!ready) return false;
+  const creds = loadMemoryCreds(opts.userKey);
+  if (!creds) return false;
+
+  const { addDelegateKey } = await import("@mysten-incubation/memwal/account");
+  await addDelegateKey({
+    packageId: CORTEX_ENV.memwal.packageId,
+    accountId: creds.accountId,
+    publicKey: opts.delegatePublicKey,
+    label: opts.label ?? MCP_DELEGATE_LABEL,
+    walletSigner: toWalletSigner(opts.signer),
+    suiClient: getSuiClient(),
+    suiNetwork: CORTEX_ENV.network,
+  });
+  return true;
+}

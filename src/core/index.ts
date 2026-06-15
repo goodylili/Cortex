@@ -10,6 +10,7 @@ export * from "../../sui/app/manifest";
 export * from "./extractor";
 export * from "./agent";
 export * from "./agents";
+export * from "./workspace";
 export * from "./sync";
 export * from "./user-access";
 export * from "./watcher";

@@ -9,7 +9,12 @@ export interface Config {
   namespace: string;
   sui: { rpc: string; network: string };
   walrus: { publisher: string; aggregator: string; epochs: number };
-  seal: { policyPackage: string; policyObject: string };
+  seal: {
+    policyPackage: string;
+    policyObject: string;
+    serverIds: string[];
+    threshold: number;
+  };
   memwal: { url: string; apiKey: string };
   delegateKey: string;
   models: { chat: string; extract: string; anthropicApiKey: string };
@@ -27,7 +32,7 @@ const DEFAULTS: Config = {
     aggregator: "https://aggregator.walrus-testnet.walrus.space",
     epochs: 5,
   },
-  seal: { policyPackage: "", policyObject: "" },
+  seal: { policyPackage: "", policyObject: "", serverIds: [], threshold: 1 },
   memwal: { url: "", apiKey: "" },
   delegateKey: "",
   models: {
@@ -80,6 +85,14 @@ export function loadConfig(
     cfg.accessRegistryId = process.env.CORTEX_ACCESS_REGISTRY;
   if (process.env.CORTEX_EXECUTOR_CAP)
     cfg.executorCapId = process.env.CORTEX_EXECUTOR_CAP;
+  if (process.env.SEAL_SERVER_IDS)
+    cfg.seal.serverIds = process.env.SEAL_SERVER_IDS.split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  if (process.env.SEAL_THRESHOLD) {
+    const parsed = Number.parseInt(process.env.SEAL_THRESHOLD, 10);
+    if (Number.isFinite(parsed) && parsed > 0) cfg.seal.threshold = parsed;
+  }
   return cfg;
 }
 
