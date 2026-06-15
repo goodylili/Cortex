@@ -2798,6 +2798,102 @@ export function CortexApp({
 
             <div className="set-group">
               <div className="set-gh">
+                <div className="set-gt">Privacy &amp; Access</div>
+                <div className="set-gs">
+                  How your data is protected and who can reach it. Sensitive data
+                  is encrypted client-side before it ever touches Walrus — only
+                  your wallet can decrypt it.
+                </div>
+              </div>
+
+              <div className="scard" style={{ marginBottom: 16 }}>
+                <div className="int2-name">Encryption mode</div>
+                <div className="ssub" style={{ marginTop: 4 }}>
+                  {sealEnabled()
+                    ? "Owner-only Seal encryption (threshold key servers)"
+                    : "Wallet-derived AES-GCM (owner-only)"}
+                </div>
+              </div>
+
+              <div className="scard" style={{ marginBottom: 16 }}>
+                <div className="int2-name">What&apos;s public vs owner-only</div>
+                {(
+                  [
+                    ["Public", "your profile (name, handle, bio)"],
+                    [
+                      "Owner-only",
+                      "chats, memory, timeline, documents, agent tasks — encrypted; only pointers on Sui",
+                    ],
+                    ["Owner-only", "agent prompts & descriptions"],
+                    ["Never on chain", "the MCP service key (server-side only)"],
+                  ] as const
+                ).map(([k, v], i) => (
+                  <div
+                    key={k + i}
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      padding: "6px 0",
+                      borderTop: "1px solid var(--line, rgba(0,0,0,0.08))",
+                    }}
+                  >
+                    <span style={{ minWidth: 92, fontWeight: 600 }}>{k}</span>
+                    <span className="ssub">{v}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="scard">
+                <div className="int2-name">MCP access</div>
+                <div className="ssub" style={{ marginTop: 4 }}>
+                  An authorized MCP can read your details, memory and context on
+                  your behalf; you can revoke anytime.
+                </div>
+                <div
+                  className="ssub"
+                  style={{ marginTop: 10, fontFamily: "var(--mono,monospace)" }}
+                >
+                  {CORTEX_ENV.mcpAddress
+                    ? CORTEX_ENV.mcpAddress.slice(0, 10) +
+                      "…" +
+                      CORTEX_ENV.mcpAddress.slice(-6)
+                    : "No MCP wallet configured"}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    marginTop: 12,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <button
+                    className="pill-btn keep"
+                    disabled={!mcpAuthReady || mcpAuthBusy}
+                    onClick={authorizeMcp}
+                  >
+                    {mcpAuthBusy ? "Authorizing…" : "Authorize MCP"}
+                  </button>
+                  <button
+                    className="pill-btn"
+                    disabled={!mcpAuthReady || mcpAuthBusy}
+                    onClick={revokeMcp}
+                  >
+                    Revoke
+                  </button>
+                </div>
+                {!mcpAuthReady && (
+                  <div className="ssub" style={{ marginTop: 10 }}>
+                    {!walletState?.wallet
+                      ? "Sign in to authorize your MCP."
+                      : "Set NEXT_PUBLIC_CORTEX_MCP_ADDRESS and deploy the contracts to enable."}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="set-group">
+              <div className="set-gh">
                 <div className="set-gt">Memory model</div>
                 <div className="set-gs">
                   How Cortex forgets and remembers. It mirrors human memory: it
