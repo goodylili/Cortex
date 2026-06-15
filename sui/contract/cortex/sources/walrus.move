@@ -2,7 +2,12 @@ module cortex::walrus;
 
 use std::string::String;
 use sui::{clock::Clock, event, vec_set::{Self, VecSet}};
-use cortex::{account::{Self, Account}, seal::SealRef, util};
+use cortex::{
+    access::{Self, AccessRegistry, ExecutorCap},
+    account::{Self, Account},
+    seal::SealRef,
+    util,
+};
 
 const EEmptyBlob: u64 = 1;
 const EUnknownEncoding: u64 = 2;
@@ -131,6 +136,57 @@ public fun revoke_access(kb: &mut KbFile, delegate: address, clock: &Clock, ctx:
         kb.updated_at_ms = now_ms;
         event::emit(KbAccessRevoked { kb_file_id: object::id(kb), delegate, timestamp_ms: now_ms });
     };
+}
+
+// === Executor-gated engine operations ===
+// The off-chain engine (the MCP service wallet, holding an ExecutorCap) manages
+// access and storage lifetime on a user's shared KbFiles without being the owner.
+// Each is gated by access::assert_executor, so a revoked engine cap is rejected.
+
+public fun executor_grant_access(
+    registry: &AccessRegistry,
+    cap: &ExecutorCap,
+    kb: &mut KbFile,
+    delegate: address,
+    clock: &Clock,
+) {
+    access::assert_executor(registry, cap);
+    assert!(delegate != kb.owner, ESelfDelegate);
+    if (util::set_insert(&mut kb.delegates, delegate)) {
+        let now_ms = clock.timestamp_ms();
+        kb.updated_at_ms = now_ms;
+        event::emit(KbAccessGranted { kb_file_id: object::id(kb), delegate, timestamp_ms: now_ms });
+    };
+}
+
+public fun executor_revoke_access(
+    registry: &AccessRegistry,
+    cap: &ExecutorCap,
+    kb: &mut KbFile,
+    delegate: address,
+    clock: &Clock,
+) {
+    access::assert_executor(registry, cap);
+    if (util::set_remove(&mut kb.delegates, delegate)) {
+        let now_ms = clock.timestamp_ms();
+        kb.updated_at_ms = now_ms;
+        event::emit(KbAccessRevoked { kb_file_id: object::id(kb), delegate, timestamp_ms: now_ms });
+    };
+}
+
+public fun executor_renew(
+    registry: &AccessRegistry,
+    cap: &ExecutorCap,
+    kb: &mut KbFile,
+    new_end_epoch: u32,
+    clock: &Clock,
+) {
+    access::assert_executor(registry, cap);
+    assert!(new_end_epoch > kb.walrus.end_epoch, EEpochNotLater);
+    let now_ms = clock.timestamp_ms();
+    kb.walrus.end_epoch = new_end_epoch;
+    kb.updated_at_ms = now_ms;
+    event::emit(KbFileRenewed { kb_file_id: object::id(kb), end_epoch: new_end_epoch, timestamp_ms: now_ms });
 }
 
 entry fun seal_approve(id: vector<u8>, kb: &KbFile, ctx: &TxContext) {
