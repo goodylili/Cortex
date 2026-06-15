@@ -1,21 +1,28 @@
 // Durable, owned, cross-device state on Walrus + Sui. Any JSON state (a chat
-// session, the activity timeline, the document index) is encrypted client-side
-// with an AES-GCM key derived deterministically from the user's wallet, uploaded
-// to Walrus via the fast relay, and its blob id recorded on Sui in the Account's
-// settings (account::set_setting). The local cache stays the instant source of
-// truth; this is the durable copy. One setting key per artifact.
+// session, the activity timeline, the document index) is encrypted client-side,
+// uploaded to Walrus via the fast relay, and its blob id recorded on Sui in the
+// Account's settings (account::set_setting). The local cache stays the instant
+// source of truth; this is the durable copy. One setting key per artifact.
+//
+// New blobs are prefixed with a 1-byte format tag: SEAL_TAG for owner-only Seal
+// encryption (used when key servers are configured) or AES_TAG for the legacy
+// wallet-derived AES-GCM path. Blobs written before tagging existed carry no tag
+// (raw iv|ct) and are read as legacy AES for backward compatibility.
 
 "use client";
 
 import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
-import { CORTEX_ENV } from "./env";
+import { CORTEX_ENV, sealEnabled } from "./env";
 import { getSuiClient, getWalrusClient } from "./clients";
 import { objectJson } from "./graphql";
+import { sealDecrypt, sealEncrypt } from "./seal";
 import type { PrivySuiSigner } from "./signer";
 
 const KEY_LABEL = "cortex:session-key:v1";
 const IV_BYTES = 12;
+const AES_TAG = 0x01;
+const SEAL_TAG = 0x02;
 
 export const TIMELINE_KEY = "events:current";
 export const DOCUMENTS_KEY = "docs:current";
@@ -40,7 +47,7 @@ async function deriveKey(signer: PrivySuiSigner): Promise<CryptoKey> {
   ]);
 }
 
-async function encrypt(
+async function aesEncrypt(
   signer: PrivySuiSigner,
   plaintext: string,
 ): Promise<Uint8Array> {
@@ -59,15 +66,41 @@ async function encrypt(
   return out;
 }
 
+async function aesDecrypt(
+  signer: PrivySuiSigner,
+  body: Uint8Array,
+): Promise<string> {
+  const key = await deriveKey(signer);
+  const iv = body.slice(0, IV_BYTES);
+  const ct = body.slice(IV_BYTES);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+  return new TextDecoder().decode(pt);
+}
+
+function tagged(tag: number, body: Uint8Array): Uint8Array {
+  const out = new Uint8Array(1 + body.length);
+  out[0] = tag;
+  out.set(body, 1);
+  return out;
+}
+
+async function encrypt(
+  signer: PrivySuiSigner,
+  plaintext: string,
+): Promise<Uint8Array> {
+  if (sealEnabled()) {
+    return tagged(SEAL_TAG, await sealEncrypt(signer, plaintext));
+  }
+  return tagged(AES_TAG, await aesEncrypt(signer, plaintext));
+}
+
 async function decrypt(
   signer: PrivySuiSigner,
   blob: Uint8Array,
 ): Promise<string> {
-  const key = await deriveKey(signer);
-  const iv = blob.slice(0, IV_BYTES);
-  const ct = blob.slice(IV_BYTES);
-  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
-  return new TextDecoder().decode(pt);
+  if (blob[0] === SEAL_TAG) return sealDecrypt(signer, blob.slice(1));
+  if (blob[0] === AES_TAG) return aesDecrypt(signer, blob.slice(1));
+  return aesDecrypt(signer, blob);
 }
 
 // Encrypt + upload arbitrary JSON to Walrus, returning its blob id.
