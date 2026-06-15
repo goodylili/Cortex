@@ -17,7 +17,7 @@ import {
   grantAdmin as accountGrantAdmin,
   revokeAdmin as accountRevokeAdmin,
 } from "@/lib/cortex/walrus/account";
-import { contractsEnabled } from "@/lib/cortex/walrus/env";
+import { contractsEnabled, sealEnabled } from "@/lib/cortex/walrus/env";
 import { storeFile, type StoredFile } from "@/lib/cortex/walrus/files";
 import { listKbFiles, type KbFileInfo } from "@/lib/cortex/walrus/kb";
 import {
@@ -26,6 +26,8 @@ import {
   loadSession as walrusLoadSession,
   saveState,
   loadState,
+  saveSettingValue,
+  loadSettingValue,
   TIMELINE_KEY,
   DOCUMENTS_KEY,
   type SessionMeta,
@@ -36,7 +38,16 @@ import {
   saveBus,
   loadBus,
 } from "@/lib/cortex/walrus/agents";
+import {
+  createWorkspace,
+  saveWorkspaceTasks,
+  loadWorkspaceTasks,
+  saveWorkspaceBus,
+  loadWorkspaceBus,
+} from "@/lib/cortex/walrus/workspace";
 import type { AgentTask, AgentMessage } from "@/lib/cortex/agents";
+
+const WORKSPACE_KEY = "agents:workspace";
 import {
   ensureMemory,
   loadMemoryCreds,
@@ -228,6 +239,9 @@ export function useCortexWallet(): CortexWalletState {
         const accountId = await getAccountId(address);
         return accountId ? loadState(signer, accountId, DOCUMENTS_KEY) : null;
       },
+      // With Seal configured, the agent task board + bus live in the shared
+      // Workspace object (owner + an authorized MCP can read/write). Without Seal,
+      // they fall back to the owner-only per-account encrypted blobs.
       saveAgents: async (tasks: AgentTask[], messages: AgentMessage[]) => {
         if (!contractsEnabled()) return;
         const accountId = await ensureAccount({
@@ -236,6 +250,18 @@ export function useCortexWallet(): CortexWalletState {
           displayName: "Cortex",
           handle: `cortex_${address.slice(2, 10)}`,
         });
+        if (sealEnabled()) {
+          let workspaceId = await loadSettingValue(accountId, WORKSPACE_KEY);
+          if (!workspaceId) {
+            workspaceId = await createWorkspace(signer, accountId);
+            await saveSettingValue(signer, accountId, WORKSPACE_KEY, workspaceId);
+          }
+          await Promise.all([
+            saveWorkspaceTasks(signer, workspaceId, tasks),
+            saveWorkspaceBus(signer, workspaceId, messages),
+          ]);
+          return;
+        }
         await Promise.all([
           saveTasks(signer, accountId, tasks),
           saveBus(signer, accountId, messages),
@@ -245,6 +271,15 @@ export function useCortexWallet(): CortexWalletState {
         if (!contractsEnabled()) return null;
         const accountId = await getAccountId(address);
         if (!accountId) return null;
+        if (sealEnabled()) {
+          const workspaceId = await loadSettingValue(accountId, WORKSPACE_KEY);
+          if (!workspaceId) return null;
+          const [tasks, messages] = await Promise.all([
+            loadWorkspaceTasks(signer, workspaceId),
+            loadWorkspaceBus(signer, workspaceId),
+          ]);
+          return { tasks, messages };
+        }
         const [tasks, messages] = await Promise.all([
           loadTasks(signer, accountId),
           loadBus(signer, accountId),

@@ -168,6 +168,24 @@ async function getSetting(
   return null;
 }
 
+// A plain (unencrypted) on-chain setting value — used for non-secret pointers like
+// the user's Workspace object id, which is just a public object reference.
+export async function saveSettingValue(
+  signer: PrivySuiSigner,
+  accountId: string,
+  key: string,
+  value: string,
+): Promise<void> {
+  await setPointer(signer, accountId, key, value);
+}
+
+export async function loadSettingValue(
+  accountId: string,
+  key: string,
+): Promise<string | null> {
+  return getSetting(accountId, key);
+}
+
 // Generic single-artifact save/load (used for timeline + documents).
 export async function saveState(
   signer: PrivySuiSigner,
