@@ -29,6 +29,7 @@ import {
   postMessage,
   listMessages,
   runAndRecordStep,
+  readUserAccount,
 } from "../src/core/index";
 
 const DEFAULT_PERIOD = { from: "0000", to: "9999" };
@@ -465,6 +466,72 @@ async function main() {
       json(await c.memwal.restore(namespace ?? cfg.namespace)),
   );
 
+  // ---- authorized user access: read a granting user's profile, memory, context ----
+  // The MCP reads with its own admin wallet (cfg.delegateKey). Once a user grants it
+  // via account::grant_admin, these tools surface that user's public on-chain account,
+  // distilled MemWal facts, and durable context pointers.
+  const CONTEXT_POINTER_KEYS = [
+    "sessions:index",
+    "events:current",
+    "docs:current",
+    "agents:tasks",
+    "agents:bus",
+  ];
+  const CONTEXT_NOTE =
+    "These pointers reference Seal/AES-encrypted Walrus blobs; decrypting the verbatim transcripts requires the user's own key (owner-only). The MCP works from user_memory (the distilled facts) for context.";
+
+  server.tool(
+    "user_profile",
+    "Read an authorized user's public on-chain account: profile (display name, handle, bio), MemWal account pointer, and which durable context keys exist.",
+    { address: z.string() },
+    async ({ address }: any) => {
+      const account = await readUserAccount(cfg, address);
+      if (!account)
+        return text(
+          `No on-chain account found for ${address}. The Cortex contracts must be deployed (seal.policyPackage set) and the user must own an account::Account object granting this MCP admin access.`,
+        );
+      return json(account);
+    },
+  );
+  server.tool(
+    "user_memory",
+    "Recall an authorized user's distilled memory facts from their shared MemWal namespace.",
+    {
+      namespace: z.string().optional(),
+      query: z.string().optional(),
+      limit: z.number().optional(),
+    },
+    async ({ namespace, query, limit }: any) =>
+      json(
+        await c.memwal.recall(namespace ?? cfg.namespace, query ?? "", {
+          limit,
+        }),
+      ),
+  );
+  server.tool(
+    "user_context",
+    "Read an authorized user's durable CONTEXT pointers (blob-id pointers to their sessions, events, docs, and agent state) from the on-chain account settings.",
+    { address: z.string() },
+    async ({ address }: any) => {
+      const account = await readUserAccount(cfg, address);
+      if (!account)
+        return text(
+          `No on-chain account found for ${address}. The Cortex contracts must be deployed (seal.policyPackage set) and the user must own an account::Account object granting this MCP admin access.`,
+        );
+      const contextPointers: Record<string, string> = {};
+      for (const key of CONTEXT_POINTER_KEYS) {
+        const value = account.settings[key];
+        if (value) contextPointers[key] = value;
+      }
+      return json({
+        accountId: account.accountId,
+        namespace: cfg.namespace,
+        contextPointers,
+        note: CONTEXT_NOTE,
+      });
+    },
+  );
+
   // ---- resources: browse Cortex memory as MCP resources ----
   server.registerResource(
     "memory",
@@ -575,6 +642,7 @@ async function main() {
       `task_complete, agent_run_step, agent_message_post, agent_message_list\n` +
       `  execution: wallet_info, walrus_put_blob, walrus_get_blob, sui_record_pointer, ` +
       `sui_read_pointer, memwal_restore\n` +
+      `  users: user_profile, user_memory, user_context\n` +
       `  connectors: web_fetch, service_notify, service_export\n` +
       `  resources: cortex://memory, cortex://timeline, cortex://digest, cortex://agents, cortex://tasks\n` +
       `  prompts: summarize_memory, daily_digest`,

@@ -35,6 +35,7 @@ export interface CortexEnv {
   registryId: string;
   accessRegistryId: string;
   executorCapId: string;
+  mcpAddress: string;
   walrusEpochs: number;
   walrusUploadRelay: string;
   walrusAggregator: string;
@@ -69,6 +70,7 @@ export const CORTEX_ENV: CortexEnv = {
   registryId: process.env.NEXT_PUBLIC_CORTEX_REGISTRY_ID ?? "",
   accessRegistryId: process.env.NEXT_PUBLIC_CORTEX_ACCESS_REGISTRY ?? "",
   executorCapId: process.env.NEXT_PUBLIC_CORTEX_EXECUTOR_CAP ?? "",
+  mcpAddress: process.env.NEXT_PUBLIC_CORTEX_MCP_ADDRESS ?? "",
   walrusEpochs: parseIntOr(
     process.env.NEXT_PUBLIC_WALRUS_EPOCHS,
     DEFAULT_WALRUS_EPOCHS,

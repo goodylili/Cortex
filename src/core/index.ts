@@ -11,6 +11,7 @@ export * from "./extractor";
 export * from "./agent";
 export * from "./agents";
 export * from "./sync";
+export * from "./user-access";
 export * from "./watcher";
 export * from "./demo";
 export { buildTags } from "./artifacts/tags";

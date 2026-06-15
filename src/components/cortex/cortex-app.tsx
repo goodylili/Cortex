@@ -32,7 +32,11 @@ import {
   type MemState,
 } from "@/lib/cortex/memory-model";
 import type { CortexWalletState } from "@/lib/cortex/use-wallet";
-import { sealEnabled } from "@/lib/cortex/walrus/env";
+import {
+  CORTEX_ENV,
+  contractsEnabled,
+  sealEnabled,
+} from "@/lib/cortex/walrus/env";
 import {
   AGENTS,
   agentById,
@@ -187,6 +191,7 @@ export function CortexApp({
     "all" | "mcp" | "frameworks" | "storage" | "sources"
   >("all");
   const [intOpen, setIntOpen] = useState<string | null>(null);
+  const [mcpAuthBusy, setMcpAuthBusy] = useState(false);
   const [session, setSession] = useState<{ addr: string; via: string } | null>(
     null,
   );
@@ -340,6 +345,39 @@ export function CortexApp({
   function flash(m: string) {
     setToast(m);
     setTimeout(() => setToast(""), 2600);
+  }
+
+  const mcpAuthReady =
+    !!walletState?.wallet &&
+    contractsEnabled() &&
+    CORTEX_ENV.mcpAddress.length > 0;
+
+  async function authorizeMcp() {
+    const w = walletState?.wallet;
+    if (!w || !mcpAuthReady) return;
+    setMcpAuthBusy(true);
+    try {
+      await w.grantAdmin(CORTEX_ENV.mcpAddress);
+      flash("Authorized your MCP — it can now access your memory and context.");
+    } catch (err) {
+      flash(err instanceof Error ? err.message : String(err));
+    } finally {
+      setMcpAuthBusy(false);
+    }
+  }
+
+  async function revokeMcp() {
+    const w = walletState?.wallet;
+    if (!w || !mcpAuthReady) return;
+    setMcpAuthBusy(true);
+    try {
+      await w.revokeAdmin(CORTEX_ENV.mcpAddress);
+      flash("Revoked MCP access.");
+    } catch (err) {
+      flash(err instanceof Error ? err.message : String(err));
+    } finally {
+      setMcpAuthBusy(false);
+    }
   }
 
   if (!s.ready)
@@ -2440,6 +2478,55 @@ export function CortexApp({
                         )}
                       </div>
                     ))}
+                  </div>
+
+                  <div className="scard" style={{ marginTop: 16 }}>
+                    <div className="int2-name">Authorize MCP</div>
+                    <div className="ssub" style={{ marginTop: 4 }}>
+                      Grants the MCP wallet admin-delegate rights on your
+                      on-chain Account so it can read your details, memory and
+                      context on your behalf; you can revoke anytime.
+                    </div>
+                    <div
+                      className="ssub"
+                      style={{ marginTop: 10, fontFamily: "var(--mono,monospace)" }}
+                    >
+                      {CORTEX_ENV.mcpAddress
+                        ? CORTEX_ENV.mcpAddress.slice(0, 10) +
+                          "…" +
+                          CORTEX_ENV.mcpAddress.slice(-6)
+                        : "No MCP wallet configured"}
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        marginTop: 12,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <button
+                        className="pill-btn keep"
+                        disabled={!mcpAuthReady || mcpAuthBusy}
+                        onClick={authorizeMcp}
+                      >
+                        {mcpAuthBusy ? "Authorizing…" : "Authorize MCP"}
+                      </button>
+                      <button
+                        className="pill-btn"
+                        disabled={!mcpAuthReady || mcpAuthBusy}
+                        onClick={revokeMcp}
+                      >
+                        Revoke
+                      </button>
+                    </div>
+                    {!mcpAuthReady && (
+                      <div className="ssub" style={{ marginTop: 10 }}>
+                        {!walletState?.wallet
+                          ? "Sign in to authorize your MCP."
+                          : "Set NEXT_PUBLIC_CORTEX_MCP_ADDRESS and deploy the contracts to enable."}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
