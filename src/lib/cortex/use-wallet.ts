@@ -57,9 +57,11 @@ const WORKSPACE_KEY = "agents:workspace";
 import {
   authorizeMemoryDelegate,
   ensureMemory,
+  listMemoryDelegates,
   loadMemoryCreds,
   recallLive,
   rememberLive,
+  revokeMemoryDelegate,
   type RecalledMemory,
 } from "@/lib/cortex/walrus/memory";
 
@@ -93,6 +95,8 @@ export interface CortexWallet {
   revokeAdmin: (delegate: string) => Promise<void>;
   authorizeMcpAccess: () => Promise<void>;
   revokeMcpAccess: () => Promise<void>;
+  listDelegates: () => Promise<{ publicKey: string; isThisDevice: boolean }[]>;
+  revokeDelegate: (publicKey: string) => Promise<boolean>;
 }
 
 export interface CortexWalletState {
@@ -376,6 +380,14 @@ export function useCortexWallet(): CortexWalletState {
           );
         }
         await Promise.all(revocations);
+      },
+      listDelegates: async () => {
+        if (!contractsEnabled()) return [];
+        return listMemoryDelegates(userKey);
+      },
+      revokeDelegate: async (publicKey: string) => {
+        if (!contractsEnabled()) return false;
+        return revokeMemoryDelegate({ userKey, signer, publicKey });
       },
     };
   }, [signer, user]);
