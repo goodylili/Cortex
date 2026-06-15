@@ -192,6 +192,11 @@ export function CortexApp({
   >("all");
   const [intOpen, setIntOpen] = useState<string | null>(null);
   const [mcpAuthBusy, setMcpAuthBusy] = useState(false);
+  const [delegates, setDelegates] = useState<
+    { publicKey: string; isThisDevice: boolean }[]
+  >([]);
+  const [delegatesLoading, setDelegatesLoading] = useState(false);
+  const [revokingKey, setRevokingKey] = useState<string | null>(null);
   const [session, setSession] = useState<{ addr: string; via: string } | null>(
     null,
   );
@@ -381,6 +386,47 @@ export function CortexApp({
       setMcpAuthBusy(false);
     }
   }
+
+  async function loadDelegates() {
+    const w = walletState?.wallet;
+    if (!w) {
+      setDelegates([]);
+      return;
+    }
+    setDelegatesLoading(true);
+    try {
+      setDelegates(await w.listDelegates());
+    } catch {
+      setDelegates([]);
+    } finally {
+      setDelegatesLoading(false);
+    }
+  }
+
+  async function revokeDelegate(publicKey: string) {
+    const w = walletState?.wallet;
+    if (!w) return;
+    setRevokingKey(publicKey);
+    try {
+      const ok = await w.revokeDelegate(publicKey);
+      if (!ok) {
+        flash("Revoking from chain isn't available in this build yet.");
+        return;
+      }
+      flash("Revoked.");
+      await loadDelegates();
+    } catch (err) {
+      flash(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRevokingKey(null);
+    }
+  }
+
+  useEffect(() => {
+    if (view !== "settings") return;
+    void loadDelegates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, walletState?.wallet]);
 
   if (!s.ready)
     return (
@@ -2890,6 +2936,92 @@ export function CortexApp({
                       ? "Sign in to authorize your MCP."
                       : "Set NEXT_PUBLIC_CORTEX_MCP_ADDRESS and deploy the contracts to enable."}
                   </div>
+                )}
+              </div>
+            </div>
+
+            <div className="set-group">
+              <div className="set-gh">
+                <div className="set-gt">Devices &amp; Access</div>
+                <div className="set-gs">
+                  Each device and agent that can read your memory has its own
+                  key, derived on that device and never stored — revoke any of
+                  them anytime.
+                </div>
+              </div>
+
+              <div className="scard">
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                  }}
+                >
+                  <div className="int2-name">Authorized keys</div>
+                  <button
+                    className="pill-btn"
+                    disabled={!walletState?.wallet || delegatesLoading}
+                    onClick={() => void loadDelegates()}
+                  >
+                    {delegatesLoading ? "Refreshing…" : "Refresh"}
+                  </button>
+                </div>
+                {!walletState?.wallet ? (
+                  <div className="ssub" style={{ marginTop: 10 }}>
+                    Sign in to manage access.
+                  </div>
+                ) : !contractsEnabled() || delegates.length === 0 ? (
+                  <div className="ssub" style={{ marginTop: 10 }}>
+                    Keys appear here once your memory is provisioned.
+                  </div>
+                ) : (
+                  delegates.map((d) => {
+                    const label = d.isThisDevice
+                      ? "This device"
+                      : d.publicKey === CORTEX_ENV.mcpMemwalPubkey
+                        ? "MCP"
+                        : "Device / agent";
+                    return (
+                      <div
+                        key={d.publicKey}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          padding: "8px 0",
+                          borderTop: "1px solid var(--line, rgba(0,0,0,0.08))",
+                        }}
+                      >
+                        <span style={{ minWidth: 110, fontWeight: 600 }}>
+                          {label}
+                        </span>
+                        <span
+                          className="ssub"
+                          style={{
+                            flex: 1,
+                            fontFamily: "var(--mono,monospace)",
+                          }}
+                        >
+                          {d.publicKey.slice(0, 10) +
+                            "…" +
+                            d.publicKey.slice(-6)}
+                        </span>
+                        {!d.isThisDevice && (
+                          <button
+                            className="pill-btn"
+                            disabled={revokingKey === d.publicKey}
+                            onClick={() => void revokeDelegate(d.publicKey)}
+                          >
+                            {revokingKey === d.publicKey
+                              ? "Revoking…"
+                              : "Revoke"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
