@@ -22,6 +22,7 @@ public struct Workspace has key {
     owner: address,
     tasks_blob: String,
     bus_blob: String,
+    loops_blob: String,
     delegates: VecSet<address>,
     created_at_ms: u64,
     updated_at_ms: u64,
@@ -30,6 +31,7 @@ public struct Workspace has key {
 public struct WorkspaceCreated has copy, drop { workspace_id: ID, account_id: ID, owner: address }
 public struct WorkspaceTasksSet has copy, drop { workspace_id: ID, timestamp_ms: u64 }
 public struct WorkspaceBusSet has copy, drop { workspace_id: ID, timestamp_ms: u64 }
+public struct WorkspaceLoopsSet has copy, drop { workspace_id: ID, timestamp_ms: u64 }
 public struct DelegateGranted has copy, drop { workspace_id: ID, delegate: address, timestamp_ms: u64 }
 public struct DelegateRevoked has copy, drop { workspace_id: ID, delegate: address, timestamp_ms: u64 }
 
@@ -44,6 +46,7 @@ public fun create_workspace(account: &Account, clock: &Clock, ctx: &mut TxContex
         owner,
         tasks_blob: b"".to_string(),
         bus_blob: b"".to_string(),
+        loops_blob: b"".to_string(),
         delegates: vec_set::empty(),
         created_at_ms: now_ms,
         updated_at_ms: now_ms,
@@ -88,6 +91,14 @@ public fun owner_set_bus(ws: &mut Workspace, blob: String, clock: &Clock, ctx: &
     event::emit(WorkspaceBusSet { workspace_id: object::id(ws), timestamp_ms: now_ms });
 }
 
+public fun owner_set_loops(ws: &mut Workspace, blob: String, clock: &Clock, ctx: &TxContext) {
+    assert!(ctx.sender() == ws.owner, ENotOwner);
+    let now_ms = clock.timestamp_ms();
+    ws.loops_blob = blob;
+    ws.updated_at_ms = now_ms;
+    event::emit(WorkspaceLoopsSet { workspace_id: object::id(ws), timestamp_ms: now_ms });
+}
+
 // === Executor-gated engine operations ===
 // The off-chain engine (the MCP service wallet, holding an ExecutorCap) writes
 // task-board and message-bus pointers on a user's shared Workspace without being
@@ -121,6 +132,20 @@ public fun executor_set_bus(
     event::emit(WorkspaceBusSet { workspace_id: object::id(ws), timestamp_ms: now_ms });
 }
 
+public fun executor_set_loops(
+    registry: &AccessRegistry,
+    cap: &ExecutorCap,
+    ws: &mut Workspace,
+    blob: String,
+    clock: &Clock,
+) {
+    access::assert_executor(registry, cap);
+    let now_ms = clock.timestamp_ms();
+    ws.loops_blob = blob;
+    ws.updated_at_ms = now_ms;
+    event::emit(WorkspaceLoopsSet { workspace_id: object::id(ws), timestamp_ms: now_ms });
+}
+
 // Seal policy: the owner or any delegate may unseal workspace-scoped identities
 // (those prefixed with this workspace's id). Mirrors walrus::seal_approve.
 entry fun seal_approve(id: vector<u8>, ws: &Workspace, ctx: &TxContext) {
@@ -134,6 +159,7 @@ public fun ws_owner(ws: &Workspace): address { ws.owner }
 public fun ws_account(ws: &Workspace): ID { ws.account_id }
 public fun tasks_blob(ws: &Workspace): String { ws.tasks_blob }
 public fun bus_blob(ws: &Workspace): String { ws.bus_blob }
+public fun loops_blob(ws: &Workspace): String { ws.loops_blob }
 public fun is_delegate(ws: &Workspace, addr: address): bool { ws.delegates.contains(&addr) }
 public fun can_access(ws: &Workspace, addr: address): bool {
     addr == ws.owner || ws.delegates.contains(&addr)
