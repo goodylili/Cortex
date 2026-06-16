@@ -686,6 +686,18 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .chip.gone{color:var(--muted)}.chip.gone .dot{background:var(--faint)}
 .chip.shared{color:var(--accent-ink);background:var(--accent-soft)}.chip.shared .dot{background:currentColor}
 
+/* sharing: header identity + sharing view */
+.fchip.shared{color:var(--accent-ink)}.fchip.shared.on{color:var(--accent-ink);background:var(--accent-soft);border-color:transparent}
+.you-handle{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--accent-ink);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.you-handle .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.you-handle:hover{text-decoration:underline}
+.you-claim{font-size:12px;color:var(--accent-ink)}.you-claim:hover{text-decoration:underline}
+.share-row{transition:background .12s;border-radius:6px}
+.share-row:hover{background:var(--surface2)}
+.share-check{flex-shrink:0;width:20px;height:20px;border-radius:5px;border:1px solid var(--line2);display:grid;place-items:center;font-size:12px;color:#fff;margin-top:1px}
+.share-check.on{background:var(--accent);border-color:transparent}
+.share-status{font-weight:600}.share-status.s1{color:var(--accent-ink)}.share-status.s2{color:var(--muted)}
+
 /* memory model in drawer */
 .mem-model{margin-top:18px;border:1px solid var(--line);border-radius:8px;padding:15px;background:var(--surface2)}
 .mm-row{display:flex;align-items:center;gap:10px}
