@@ -10,9 +10,9 @@ import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 
 const NAV_LINKS = [
-  { label: "Memory", href: "#solution" },
+  { label: "Memory", href: "/app#memories" },
   { label: "Features", href: "#features" },
-  { label: "Agents", href: "#features" },
+  { label: "Agents", href: "/app#agents" },
   { label: "FAQ", href: "#faq" },
 ];
 
