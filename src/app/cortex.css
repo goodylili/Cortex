@@ -777,3 +777,13 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .ov-card-text{font-size:15.5px;line-height:1.5;color:var(--ink);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .ov-card-foot{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--faint);margin-top:auto}
 .ov-link{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;flex:none}
+
+/* ── Composer pill (reference look) ── */
+.capture{border-radius:26px;padding:6px 8px 6px 12px}
+.composer-dock::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--accent)}
+.mode-toggle{border-radius:999px;padding:3px}
+.mode-toggle button{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:8px 15px}
+.mode-toggle button.on{background:var(--ink);color:var(--paper);box-shadow:none}
+.mode-toggle button svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.cap-send{margin-left:auto;width:42px;height:42px;padding:0;border-radius:50%;justify-content:center;gap:0}
+.cap-send svg{width:19px;height:19px}
