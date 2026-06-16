@@ -55,6 +55,32 @@ export async function registerAccount(opts: {
   return { digest: digestOf(exec) };
 }
 
+// Set the Account's handle (account::set_handle). The handle is the cortex username;
+// when a user claims a SuiNS subname we set it here too so the on-chain owner_handle
+// (and thus a memory share's provenance) reads as `<handle>.cortex.sui`. The registry
+// enforces handle uniqueness, mirroring the SuiNS namespace.
+export async function setHandle(opts: {
+  signer: PrivySuiSigner;
+  accountId: string;
+  handle: string;
+}): Promise<{ digest: string }> {
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${CORTEX_ENV.packageId}::account::set_handle`,
+    arguments: [
+      tx.object(CORTEX_ENV.registryId),
+      tx.object(opts.accountId),
+      tx.pure.string(opts.handle),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
+  });
+  const exec = await opts.signer.signAndExecuteTransaction({
+    transaction: tx,
+    client: getSuiClient(),
+  });
+  return { digest: digestOf(exec) };
+}
+
 // Grant an address admin (delegate) read access over the caller's Account. The
 // delegate is recorded on chain (account::grant_admin), which lets the holder
 // derive a Seal key for the Account's encrypted artifacts.

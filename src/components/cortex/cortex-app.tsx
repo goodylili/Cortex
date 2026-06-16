@@ -63,6 +63,13 @@ const LOOP_STATUS_LABEL: Record<LoopStatus, string> = {
   gave_up: "Gave up",
 };
 
+// cortex::sharing MemoryShare.status: 0 DRAFT, 1 ACTIVE, 2 REVOKED.
+const SHARE_STATUS_LABEL: Record<number, string> = {
+  0: "draft",
+  1: "active",
+  2: "revoked",
+};
+
 const MARK = (
   <svg viewBox="0 0 120 120" fill="currentColor">
     <circle cx="60" cy="60" r="9" />
@@ -215,6 +222,16 @@ export function CortexApp({
   const [session, setSession] = useState<{ addr: string; via: string } | null>(
     null,
   );
+  // memory sharing (cortex::sharing) + SuiNS handle, local UI state.
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareRecipient, setShareRecipient] = useState("");
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareErr, setShareErr] = useState("");
+  const [username, setUsername] = useState("");
+  const [claimBusy, setClaimBusy] = useState(false);
+  const [claimErr, setClaimErr] = useState("");
+  const [claimedName, setClaimedName] = useState("");
+  const [revokingShareId, setRevokingShareId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
   const ta = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
@@ -324,6 +341,15 @@ export function CortexApp({
         if (Array.isArray(loops) && loops.length)
           s.setLoops(loops as Parameters<typeof s.setLoops>[0]);
       })
+      .catch(() => {});
+    // Memories others shared with me (read-only) + the shares I created.
+    void w
+      .loadSharedWithMe()
+      .then((shared) => s.setSharedMemories(shared))
+      .catch(() => {});
+    void w
+      .listMyShares()
+      .then((shares) => s.setShares(shares))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletState?.wallet]);
@@ -452,6 +478,83 @@ export function CortexApp({
       setRevokingKey(null);
     }
   }
+
+  // Share one of my OWN memories with a named recipient (username / *.cortex.sui
+  // / 0x address). Bundles a single item, then refreshes my outbox of shares.
+  async function shareMemory(m: Memory) {
+    const w = walletState?.wallet;
+    const recipient = shareRecipient.trim();
+    if (!w || !recipient) return;
+    setShareBusy(true);
+    setShareErr("");
+    try {
+      const title = m.text.length > 60 ? m.text.slice(0, 60) + "…" : m.text;
+      await w.createMemoryShare({
+        title,
+        items: [
+          {
+            id: m.id,
+            text: m.text,
+            tags: m.tags,
+            ts: m.ts,
+            facet: m.facet,
+            tier: m.tier,
+            origin: m.origin,
+          },
+        ],
+        recipient,
+      });
+      s.setShares(await w.listMyShares());
+      setShareOpen(false);
+      setShareRecipient("");
+      flash(`Shared with ${recipient}.`);
+    } catch (err) {
+      setShareErr(err instanceof Error ? err.message : String(err));
+    } finally {
+      setShareBusy(false);
+    }
+  }
+
+  // Claim a SuiNS subname under cortex.sui and set it as the account handle.
+  async function claimUsername() {
+    const w = walletState?.wallet;
+    const name = username.trim();
+    if (!w || !name) return;
+    setClaimBusy(true);
+    setClaimErr("");
+    try {
+      const result = await w.claimUsername(name);
+      setClaimedName(result.name);
+      flash(`Claimed ${result.name}.`);
+    } catch (err) {
+      setClaimErr(err instanceof Error ? err.message : String(err));
+    } finally {
+      setClaimBusy(false);
+    }
+  }
+
+  // Retire a whole share I created; refresh the outbox so its status updates.
+  async function revokeShare(shareId: string) {
+    const w = walletState?.wallet;
+    if (!w) return;
+    setRevokingShareId(shareId);
+    try {
+      await w.revokeShare(shareId);
+      s.setShares(await w.listMyShares());
+      flash("Revoked.");
+    } catch (err) {
+      flash(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRevokingShareId(null);
+    }
+  }
+
+  // Collapse the inline share form whenever the drawer opens a different memory.
+  useEffect(() => {
+    setShareOpen(false);
+    setShareErr("");
+    setShareRecipient("");
+  }, [drawer]);
 
   useEffect(() => {
     if (view !== "settings") return;
@@ -1087,7 +1190,14 @@ export function CortexApp({
     <div className="mcard" key={m.id} onClick={() => setDrawer(m)}>
       <div className="mtext">{m.text}</div>
       <div className="mfoot">
+        {m.shared && (
+          <span className="chip shared">
+            <span className="dot" />
+            shared{m.sharedBy ? ` · ${m.sharedBy}` : ""}
+          </span>
+        )}
         {(() => {
+          if (m.shared) return null;
           const st = memState(m);
           return st === "core" ? (
             <span className="chip core">
@@ -1136,14 +1246,19 @@ export function CortexApp({
           ? "Good afternoon."
           : "Good evening.";
   };
-  const memList = live.filter(
+  // Memories others shared with me sit alongside my own in the Memories view,
+  // newest first, but never mingle with my own retention model (see the store).
+  const brainMemories = [...live, ...s.sharedMemories].sort(
+    (a, b) => b.ts - a.ts,
+  );
+  const memList = brainMemories.filter(
     (m) =>
       (memFilter === "all" || m.tags.includes(memFilter)) &&
       (m.text + " " + m.tags.join(" "))
         .toLowerCase()
         .includes(memQuery.toLowerCase()),
   );
-  const tags = [...new Set(live.flatMap((m) => m.tags))];
+  const tags = [...new Set(brainMemories.flatMap((m) => m.tags))];
   const modelList = MODELS.filter((m) =>
     (m.name + " " + m.prov).toLowerCase().includes(modelSearch.toLowerCase()),
   );
@@ -3212,6 +3327,112 @@ export function CortexApp({
 
             <div className="set-group">
               <div className="set-gh">
+                <div className="set-gt">Username &amp; sharing</div>
+                <div className="set-gs">
+                  Claim a handle under cortex.sui so others can share memories
+                  with you by name, and manage the memories you&apos;ve shared
+                  with others.
+                </div>
+              </div>
+
+              <div className="scard" style={{ marginBottom: 16 }}>
+                <div className="int2-name">Username</div>
+                <div className="ssub" style={{ marginTop: 4 }}>
+                  Claiming mints a real SuiNS subname under cortex.sui and points
+                  it at your wallet.
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    marginTop: 12,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <input
+                    className="cortex-input"
+                    style={{ flex: 1, minWidth: 180 }}
+                    placeholder="yourname"
+                    value={username}
+                    disabled={claimBusy}
+                    onChange={(e) => setUsername(e.target.value)}
+                  />
+                  <button
+                    className="pill-btn keep"
+                    disabled={!wallet || claimBusy || !username.trim()}
+                    onClick={() => void claimUsername()}
+                  >
+                    {claimBusy ? "Claiming…" : "Claim"}
+                  </button>
+                </div>
+                {claimedName && (
+                  <div className="ssub" style={{ marginTop: 10 }}>
+                    You hold{" "}
+                    <span style={{ fontFamily: "var(--mono,monospace)" }}>
+                      {claimedName}
+                    </span>{" "}
+                    — it points to your wallet.
+                  </div>
+                )}
+                {claimErr && (
+                  <div className="ssub" style={{ marginTop: 10 }}>
+                    {claimErr}
+                  </div>
+                )}
+                {!wallet && (
+                  <div className="ssub" style={{ marginTop: 10 }}>
+                    Sign in to claim a username.
+                  </div>
+                )}
+              </div>
+
+              <div className="scard">
+                <div className="int2-name">Memories you&apos;ve shared</div>
+                {!wallet ? (
+                  <div className="ssub" style={{ marginTop: 10 }}>
+                    Sign in to manage your shares.
+                  </div>
+                ) : s.shares.length === 0 ? (
+                  <div className="ssub" style={{ marginTop: 10 }}>
+                    Nothing shared yet. Open a memory and use “Share”.
+                  </div>
+                ) : (
+                  s.shares.map((sh) => (
+                    <div
+                      key={sh.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "8px 0",
+                        borderTop: "1px solid var(--line, rgba(0,0,0,0.08))",
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="set-acc-n">{sh.title || "Untitled"}</div>
+                        <div className="set-acc-s">
+                          {sh.ownerHandle} · {sh.recipientCount}{" "}
+                          {sh.recipientCount === 1 ? "recipient" : "recipients"}{" "}
+                          · {SHARE_STATUS_LABEL[sh.status] ?? "unknown"}
+                        </div>
+                      </div>
+                      {sh.status === 1 && (
+                        <button
+                          className="pill-btn"
+                          disabled={revokingShareId === sh.id}
+                          onClick={() => void revokeShare(sh.id)}
+                        >
+                          {revokingShareId === sh.id ? "Revoking…" : "Revoke"}
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="set-group">
+              <div className="set-gh">
                 <div className="set-gt">Devices &amp; Access</div>
                 <div className="set-gs">
                   Each device and agent that can read your memory has its own
@@ -3687,7 +3908,11 @@ export function CortexApp({
       <aside className={"drawer" + (drawer ? " show" : "")}>
         <div className="drawer-head">
           <div className="dt">
-            {drawer === "savings" ? "How Cortex saves you money" : "A memory"}
+            {drawer === "savings"
+              ? "How Cortex saves you money"
+              : drawer?.shared
+                ? "Shared with you"
+                : "A memory"}
           </div>
           <button className="x" onClick={() => setDrawer(null)}>
             ✕
@@ -3696,6 +3921,49 @@ export function CortexApp({
         <div className="drawer-body">
           {drawer &&
             drawer !== "savings" &&
+            drawer.shared &&
+            (() => {
+              const m =
+                s.sharedMemories.find((x) => x.id === drawer.id) || drawer;
+              // Shared memories are display-only: no retention model, no mutating
+              // controls — they belong to whoever shared them.
+              return (
+                <>
+                  <div className="kv">
+                    <div className="row">
+                      <div className="k">What they shared</div>
+                      <div className="v">{m.text}</div>
+                    </div>
+                    <div className="row">
+                      <div className="k">Shared by</div>
+                      <div className="v">{m.sharedBy || "someone"}</div>
+                    </div>
+                    <div className="row">
+                      <div className="k">When</div>
+                      <div className="v">{ago(m.ts)}</div>
+                    </div>
+                    <div className="row">
+                      <div className="k">Themes</div>
+                      <div className="v">
+                        {m.tags.map((t) => (
+                          <span className="mtag" key={t}>
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mm-note" style={{ marginTop: 16 }}>
+                    Shared with you, read-only. It lives in {m.sharedBy || "the"}
+                    {m.sharedBy ? "’s" : " owner’s"} memory — you can read it, but
+                    only they can change it.
+                  </div>
+                </>
+              );
+            })()}
+          {drawer &&
+            drawer !== "savings" &&
+            !drawer.shared &&
             (() => {
               const m = live.find((x) => x.id === drawer.id) || drawer;
               const st = memState(m);
@@ -3854,6 +4122,65 @@ export function CortexApp({
                     >
                       Forget for good (purge)
                     </button>
+                  </div>
+                  <div className="mm-controls">
+                    <div className="mm-ctl-h">Share it</div>
+                    {shareOpen ? (
+                      <div className="mm-ctl-row" style={{ flexWrap: "wrap" }}>
+                        <input
+                          className="cortex-input"
+                          style={{ flex: 1, minWidth: 180 }}
+                          placeholder="username or username.cortex.sui"
+                          value={shareRecipient}
+                          disabled={shareBusy}
+                          onChange={(e) => setShareRecipient(e.target.value)}
+                        />
+                        <button
+                          className="pill-btn keep"
+                          disabled={!wallet || shareBusy || !shareRecipient.trim()}
+                          onClick={() => void shareMemory(m)}
+                        >
+                          {shareBusy ? "Sharing…" : "Share"}
+                        </button>
+                        <button
+                          className="pill-btn"
+                          disabled={shareBusy}
+                          onClick={() => {
+                            setShareOpen(false);
+                            setShareErr("");
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        {shareErr && (
+                          <div
+                            className="ssub"
+                            style={{ flexBasis: "100%", marginTop: 6 }}
+                          >
+                            {shareErr}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="mm-ctl-row">
+                        <button
+                          className="pill-btn"
+                          disabled={!wallet}
+                          onClick={() => {
+                            setShareErr("");
+                            setShareRecipient("");
+                            setShareOpen(true);
+                          }}
+                        >
+                          Share this memory
+                        </button>
+                      </div>
+                    )}
+                    {!wallet && (
+                      <div className="mm-note" style={{ marginTop: 8 }}>
+                        Sign in to share a memory with someone.
+                      </div>
+                    )}
                   </div>
                 </>
               );

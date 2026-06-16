@@ -34,6 +34,7 @@ import {
   type SweepSummary,
 } from "./memory-model";
 import type { SessionMeta } from "./walrus/sessions";
+import type { ShareSummary } from "./walrus/sharing";
 import {
   type AgentTask,
   type AgentMessage,
@@ -161,6 +162,13 @@ interface State {
   tasks: AgentTask[];
   agentMessages: AgentMessage[];
   loops: LoopRun[];
+  // memories other users have shared with me (cortex::sharing). Decrypted from each
+  // active share on sign-in, shown in the brain tagged "shared" with the owner's
+  // handle. Remote-sourced: re-loaded each session, never persisted or swept, so they
+  // never mingle with my own memories' retention model.
+  sharedMemories: Memory[];
+  // shares I have created and granted to others (display + management).
+  shares: ShareSummary[];
   // ephemeral UI
   mode: Mode;
   importance: Importance;
@@ -238,6 +246,9 @@ interface State {
   stopLoop: (loopId: string) => void;
   spawnWorkerLoop: (parentId: string, workerGoal: string) => string;
   setLoops: (loops: LoopRun[]) => void;
+  // memory sharing (cortex::sharing)
+  setSharedMemories: (memories: Memory[]) => void;
+  setShares: (shares: ShareSummary[]) => void;
 }
 
 function persist(s: {
@@ -315,6 +326,8 @@ export const useCortex = create<State>((set, get) => ({
   tasks: [],
   agentMessages: [],
   loops: [],
+  sharedMemories: [],
+  shares: [],
   mode: "remember",
   importance: "normal",
   model: MODELS[1]!,
@@ -1524,6 +1537,8 @@ export const useCortex = create<State>((set, get) => ({
       persist({ memories: s.memories, events: s.events, cost: s.cost, loops });
       return { loops };
     }),
+  setSharedMemories: (sharedMemories) => set({ sharedMemories }),
+  setShares: (shares) => set({ shares }),
   resetMemory: () =>
     set((s) => {
       const fresh = emptyState();
