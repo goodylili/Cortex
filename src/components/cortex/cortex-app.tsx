@@ -99,7 +99,6 @@ type View =
   | "agents"
   | "studio"
   | "knowledge"
-  | "sharing"
   | "integrations"
   | "settings";
 type Theme = "light" | "dark" | "system";
@@ -204,6 +203,7 @@ export function CortexApp({
   );
   // memory sharing (cortex::sharing) + SuiNS handle, local UI state.
   const [shareOpen, setShareOpen] = useState(false);
+  const [shareHubOpen, setShareHubOpen] = useState(false);
   const [shareRecipient, setShareRecipient] = useState("");
   const [shareBusy, setShareBusy] = useState(false);
   const [shareErr, setShareErr] = useState("");
@@ -243,7 +243,6 @@ export function CortexApp({
           "agents",
           "studio",
           "knowledge",
-          "sharing",
           "integrations",
           "settings",
         ].includes(h)
@@ -1634,12 +1633,20 @@ export function CortexApp({
           <section className={"view" + (view === "memories" ? " on" : "")}>
             <div className="rr-head">
               <h1 className="h1">Your memories</h1>
-              <button
-                className="pill-btn keep"
-                onClick={() => setCaptureOpen(true)}
-              >
-                + Build memory
-              </button>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  className="pill-btn"
+                  onClick={() => setShareHubOpen(true)}
+                >
+                  Share
+                </button>
+                <button
+                  className="pill-btn keep"
+                  onClick={() => setCaptureOpen(true)}
+                >
+                  + Build memory
+                </button>
+              </div>
             </div>
             <div className="filters" style={{ marginTop: 20 }}>
               <button
@@ -2659,13 +2666,31 @@ export function CortexApp({
           </section>
 
           {/* SHARING — SuiNS identity, share memories, inbox + outbox */}
-          <section className={"view" + (view === "sharing" ? " on" : "")}>
-            <h1 className="h1">Sharing</h1>
-            <p className="lede show">
-              Claim a name under cortex.sui, share memories with people by name,
-              and see what others have shared with you. Everything is owned by
-              your wallet on Sui — you can revoke a share at any time.
-            </p>
+          {shareHubOpen && (
+            <div
+              className="share-backdrop"
+              onClick={() => setShareHubOpen(false)}
+            >
+              <div
+                className="share-modal"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  className="share-x"
+                  onClick={() => setShareHubOpen(false)}
+                  aria-label="Close"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
+                </button>
+                <h1 className="h1">Sharing</h1>
+                <p className="lede show">
+                  Claim a name under cortex.sui, share memories with people by
+                  name, and see what others have shared with you. Everything is
+                  owned by your wallet on Sui — you can revoke a share at any
+                  time.
+                </p>
 
             {!wallet ? (
               <div className="empty" style={{ marginTop: 28 }}>
@@ -3000,7 +3025,9 @@ export function CortexApp({
                 </div>
               </div>
             )}
-          </section>
+              </div>
+            </div>
+          )}
 
           {/* INTEGRATIONS — MCP clients, storage backends, sources */}
           <section className={"view" + (view === "integrations" ? " on" : "")}>
@@ -3555,7 +3582,7 @@ export function CortexApp({
 
               <button
                 className="pill-btn"
-                onClick={() => setView("sharing")}
+                onClick={() => setShareHubOpen(true)}
               >
                 Open Sharing
               </button>
@@ -3819,6 +3846,18 @@ export function CortexApp({
         {view === "brain" && (
           <div className="brain-stage">
             <MemoryMap onOpen={(m) => setDrawer(m)} />
+            <button
+              className="brain-share"
+              onClick={() => setShareHubOpen(true)}
+            >
+              <svg viewBox="0 0 24 24">
+                <circle cx="18" cy="5" r="2.6" />
+                <circle cx="6" cy="12" r="2.6" />
+                <circle cx="18" cy="19" r="2.6" />
+                <path d="M8.3 10.7l7.4-4.4M8.3 13.3l7.4 4.4" />
+              </svg>
+              Share
+            </button>
           </div>
         )}
 
