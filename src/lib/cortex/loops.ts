@@ -87,6 +87,10 @@ export interface LoopRun {
   iterations: LoopIteration[];
   tokensUsed: number;
   startedAt?: number;
+  // The self-improving reviewer rubric, seeded from the spec's reviewer gates and
+  // sharpened by human-flagged misses. Attached lazily (see ensureRunRubric) so it
+  // rides the same loops_blob persistence as the rest of the run.
+  rubric?: LoopRubric;
   updatedAt: number;
 }
 
@@ -488,3 +492,17 @@ export const refineRubric = (
     updatedAt: now,
   };
 };
+
+// The rubric starts from the loop's own declared reviewer criteria: collect the `check`
+// of every reviewer-kind gate (command/invariant gates verify by exit code, not by the
+// rubric, so they are skipped). Empty when the spec has no reviewer gate.
+export const seedRubricCriteria = (spec: LoopSpec): string[] =>
+  spec.gates.filter((g) => g.kind === "reviewer").map((g) => g.check);
+
+// Lazily attach a seeded rubric to a run the first time it is needed; an existing rubric
+// (already sharpened by prior human flags) is left untouched. Immutable, like every other
+// transition in this file, so it composes with saveRun's persistence.
+export const ensureRunRubric = (run: LoopRun, now: number): LoopRun =>
+  run.rubric
+    ? run
+    : { ...run, rubric: newRubric(seedRubricCriteria(run.spec), now) };

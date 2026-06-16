@@ -20,14 +20,17 @@ import { readWorkspaceLoops, writeWorkspaceLoops } from "./workspace";
 import {
   budgetExceeded,
   commandGateVerdict,
+  ensureRunRubric,
   hasBoardConflict,
   linkChild,
   newIteration,
   newRun,
   recordIteration,
+  refineRubric,
   setRunStatus,
   spawnChildSpec,
   triggerShouldFire,
+  type LoopRubric,
   type LoopRun,
   type LoopSpec,
   type VerificationGate,
@@ -128,6 +131,34 @@ export async function registerLoop(
   return run;
 }
 
+// Human-in-the-loop entry point for the self-improving rubric: a person flags a miss the
+// reviewer let through, and the flagged criterion is folded into the loop's persisted
+// rubric (seeding it first if the loop has never run) so the next run's critic is sharper.
+// Returns the refined rubric. The CLI `loop flag` command wires to this.
+export async function flagRubricMiss(
+  c: Clients,
+  cfg: Config,
+  loopId: string,
+  humanFlag: string,
+): Promise<LoopRubric> {
+  if (!humanFlag.trim())
+    throw new Error(
+      "flagRubricMiss needs a non-empty flag describing the miss the reviewer let through",
+    );
+  const workspaceId = requireWorkspace(cfg);
+  const loaded = await loadRun(c, cfg, workspaceId, loopId);
+  if (!loaded) throw new Error(`loop "${loopId}" not found in workspace`);
+
+  const now = Date.now();
+  const seeded = ensureRunRubric(loaded, now);
+  if (!seeded.rubric)
+    throw new Error(`loop "${loopId}" has no rubric after seeding; cannot refine`);
+  const rubric = refineRubric(seeded.rubric, humanFlag, now);
+  const run: LoopRun = { ...seeded, rubric, updatedAt: now };
+  await saveRun(c, cfg, workspaceId, run);
+  return rubric;
+}
+
 interface GateOutcome {
   verdict: "pass" | "fail" | "pending";
   gate?: string;
@@ -136,11 +167,13 @@ interface GateOutcome {
 
 // Run the spec's terminal gate against the latest action. Command/invariant gates run
 // the real command and decide from the exit code; reviewer gates run the adversarial
-// critic (different model) against the rubric drawn from the gate's check.
+// critic (different model) against the persisted, self-improving rubric — the criteria
+// the loop has accumulated across runs, not a throwaway built from the gate's check.
 async function evaluateGate(
   cfg: Config,
   spec: LoopSpec,
   acted: string,
+  rubricCriteria: string[],
 ): Promise<GateOutcome> {
   const command = spec.gates.find(
     (g) => g.kind === "command" || g.kind === "invariant",
@@ -155,10 +188,13 @@ async function evaluateGate(
   }
   const reviewer = spec.gates.find((g) => g.kind === "reviewer");
   if (reviewer) {
+    // Persisted rubric criteria win; fall back to the gate's own check so behaviour
+    // never regresses to "no rubric" when a run hasn't seeded any yet.
+    const rubric = rubricCriteria.length ? rubricCriteria : [reviewer.check];
     const review = await runCriticStep(cfg, {
       goal: spec.goal,
       output: acted,
-      rubric: [reviewer.check],
+      rubric,
     });
     if (!review.ok)
       return {
@@ -215,9 +251,18 @@ export async function stepLoop(
   if (!agent)
     throw new Error(`loop "${loopId}" references unknown agent "${run.spec.agentId}"`);
 
+  // Seed the rubric before verifying so the critic scores against it and the saveRun at
+  // the end of this step persists it alongside the run (no extra blob/contract change).
+  run = ensureRunRubric(run, now);
+
   const stepResult = await runStepWithPolicy(c, cfg, run);
   const acted = stepResult.observation;
-  const outcome = await evaluateGate(cfg, run.spec, acted);
+  const outcome = await evaluateGate(
+    cfg,
+    run.spec,
+    acted,
+    run.rubric?.criteria ?? [],
+  );
 
   const it = newIteration(
     {

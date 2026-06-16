@@ -3,11 +3,15 @@ import {
   allGatesPassed,
   budgetExceeded,
   DEFAULT_BUDGET,
+  ensureRunRubric,
   LOOP_TEMPLATES,
   newIteration,
   newLoop,
+  newRubric,
   newRun,
   recordIteration,
+  refineRubric,
+  seedRubricCriteria,
   setRunStatus,
   skeletonSpec,
   type LoopSpec,
@@ -144,5 +148,90 @@ describe("LOOP_TEMPLATES", () => {
   it("builds the research monitor as a scheduled trigger", () => {
     const monitor = LOOP_TEMPLATES.find((t) => t.id === "research-monitor")!;
     expect(monitor.build("watch", "a", NOW).trigger.type).toBe("schedule");
+  });
+});
+
+const LATER = NOW + 1_000;
+
+describe("newRubric", () => {
+  it("assigns a generated id with the rubric prefix", () => {
+    expect(newRubric(["a"], NOW).id.startsWith("rb_")).toBe(true);
+  });
+
+  it("stores the supplied criteria", () => {
+    expect(newRubric(["a", "b"], NOW).criteria).toEqual(["a", "b"]);
+  });
+
+  it("stamps the update time", () => {
+    expect(newRubric(["a"], NOW).updatedAt).toBe(NOW);
+  });
+});
+
+describe("refineRubric", () => {
+  it("appends the human-flagged criterion", () => {
+    const rubric = newRubric(["grounded"], NOW);
+    expect(refineRubric(rubric, "cites a source", LATER).criteria).toContain(
+      "Human-flagged miss: cites a source",
+    );
+  });
+
+  it("drops a near-duplicate existing criterion", () => {
+    const rubric = newRubric(["output must cite a source"], NOW);
+    const refined = refineRubric(rubric, "cite a source", LATER);
+    expect(refined.criteria).toEqual(["Human-flagged miss: cite a source"]);
+  });
+
+  it("ignores a whitespace-only flag and leaves the rubric unchanged", () => {
+    const rubric = newRubric(["grounded"], NOW);
+    expect(refineRubric(rubric, "   ", LATER)).toBe(rubric);
+  });
+
+  it("bumps the update time", () => {
+    expect(refineRubric(newRubric(["a"], NOW), "miss", LATER).updatedAt).toBe(
+      LATER,
+    );
+  });
+});
+
+describe("seedRubricCriteria", () => {
+  it("returns the checks of reviewer gates only", () => {
+    const spec = newLoop(
+      {
+        ...baseSpecArgs,
+        gates: [
+          { name: "tests", kind: "command", check: "exit 0" },
+          { name: "tsc", kind: "invariant", check: "tsc --noEmit" },
+          { name: "review", kind: "reviewer", check: "reviewer confirms goal" },
+        ],
+      },
+      NOW,
+    );
+    expect(seedRubricCriteria(spec)).toEqual(["reviewer confirms goal"]);
+  });
+
+  it("is empty when the spec has no reviewer gate", () => {
+    const spec = newLoop(
+      {
+        ...baseSpecArgs,
+        gates: [{ name: "tests", kind: "command", check: "exit 0" }],
+      },
+      NOW,
+    );
+    expect(seedRubricCriteria(spec)).toEqual([]);
+  });
+});
+
+describe("ensureRunRubric", () => {
+  it("attaches a seeded rubric when none is present", () => {
+    const run = newRun(newLoop(baseSpecArgs, NOW), NOW);
+    const ensured = ensureRunRubric(run, LATER);
+    expect(ensured.rubric?.criteria).toEqual(["ok"]);
+    expect(ensured.rubric?.id.startsWith("rb_")).toBe(true);
+  });
+
+  it("leaves an existing rubric untouched", () => {
+    const existing = newRubric(["already sharpened"], NOW);
+    const run = { ...newRun(newLoop(baseSpecArgs, NOW), NOW), rubric: existing };
+    expect(ensureRunRubric(run, LATER).rubric).toBe(existing);
   });
 });
