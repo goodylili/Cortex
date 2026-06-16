@@ -3889,16 +3889,22 @@ export function CortexApp({
                   </button>
                   <div className="mode-toggle">
                     <button
-                      className={s.mode === "remember" ? "on" : ""}
-                      onClick={() => s.setMode("remember")}
-                    >
-                      Remember
-                    </button>
-                    <button
                       className={s.mode === "ask" ? "on" : ""}
                       onClick={() => s.setMode("ask")}
                     >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      </svg>
                       Ask
+                    </button>
+                    <button
+                      className={s.mode === "remember" ? "on" : ""}
+                      onClick={() => s.setMode("remember")}
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M12 3l1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6z" />
+                      </svg>
+                      Remember
                     </button>
                   </div>
                   <button
@@ -3963,10 +3969,13 @@ export function CortexApp({
                       </button>
                     ))}
                   </div>
-                  <button className="cap-send" onClick={submit}>
-                    {s.mode === "ask" ? "Ask" : "Remember"}
+                  <button
+                    className="cap-send"
+                    onClick={submit}
+                    aria-label={s.mode === "ask" ? "Ask" : "Remember"}
+                  >
                     <svg viewBox="0 0 24 24">
-                      <path d="M5 12h14M13 6l6 6-6 6" />
+                      <path d="M12 19V5M5 12l7-7 7 7" />
                     </svg>
                   </button>
                 </div>
