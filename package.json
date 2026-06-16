@@ -12,7 +12,9 @@
     "format:check": "prettier --check .",
     "server:typecheck": "tsc -p tsconfig.server.json --noEmit",
     "demo": "tsx src/core/cli.ts demo",
-    "mcp": "tsx mcp/server.ts"
+    "mcp": "tsx mcp/server.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
@@ -61,6 +63,7 @@
     "tailwindcss": "^4.1.9",
     "tsx": "^4.19.2",
     "tw-animate-css": "1.3.3",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   }
 }
