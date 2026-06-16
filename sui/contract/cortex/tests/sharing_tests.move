@@ -84,7 +84,7 @@ fun activate_and_share_with(scenario: &mut ts::Scenario, recipient: address) {
         let w = walrus::new_ref(BLOB_ID, BLOB_SIZE, END_EPOCH, walrus::default_encoding());
         let s = seal::new_ref(identity, seal::default_threshold());
         sharing::set_bundle(&mut share, w, s, content_hash(), ITEM_COUNT, &clk, ts::ctx(scenario));
-        sharing::share_with_address(&mut share, recipient, string::utf8(b"bob@context.sui"), &clk, ts::ctx(scenario));
+        sharing::share_with_address(&mut share, recipient, string::utf8(b"bob.cortex.sui"), &clk, ts::ctx(scenario));
         clock::destroy_for_testing(clk);
         ts::return_shared(share);
     };
@@ -99,7 +99,7 @@ fun create_share_starts_in_draft_with_suins_handle() {
     {
         let share = ts::take_shared<MemoryShare>(&scenario);
         assert!(share.status() == sharing::status_draft(), 0);
-        assert!(share.owner_handle() == string::utf8(b"alice@context.sui"), 1);
+        assert!(share.owner_handle() == string::utf8(b"alice.cortex.sui"), 1);
         assert!(!share.has_bundle(), 2);
         assert!(share.recipient_count() == 0, 3);
         ts::return_shared(share);
@@ -238,7 +238,7 @@ fun share_with_handle_resolves_recipient() {
         sharing::share_with_handle(&mut share, &registry, string::utf8(b"bob"), &clk, ts::ctx(&mut scenario));
         assert!(share.is_recipient(FRIEND), 0);
         let name = share.recipient_name(FRIEND);
-        assert!(name.destroy_some() == string::utf8(b"bob@context.sui"), 1);
+        assert!(name.destroy_some() == string::utf8(b"bob.cortex.sui"), 1);
         clock::destroy_for_testing(clk);
         ts::return_shared(share);
         ts::return_shared(registry);
@@ -278,7 +278,7 @@ fun stranger_cannot_share() {
     {
         let mut share = ts::take_shared<MemoryShare>(&scenario);
         let clk = clock::create_for_testing(ts::ctx(&mut scenario));
-        sharing::share_with_address(&mut share, STRANGER, string::utf8(b"evil@context.sui"), &clk, ts::ctx(&mut scenario));
+        sharing::share_with_address(&mut share, STRANGER, string::utf8(b"evil.cortex.sui"), &clk, ts::ctx(&mut scenario));
         clock::destroy_for_testing(clk);
         ts::return_shared(share);
     };
@@ -296,7 +296,7 @@ fun owner_cannot_share_with_self() {
     {
         let mut share = ts::take_shared<MemoryShare>(&scenario);
         let clk = clock::create_for_testing(ts::ctx(&mut scenario));
-        sharing::share_with_address(&mut share, OWNER, string::utf8(b"alice@context.sui"), &clk, ts::ctx(&mut scenario));
+        sharing::share_with_address(&mut share, OWNER, string::utf8(b"alice.cortex.sui"), &clk, ts::ctx(&mut scenario));
         clock::destroy_for_testing(clk);
         ts::return_shared(share);
     };
