@@ -239,6 +239,7 @@ export function CortexApp({
           "memories",
           "reflect",
           "brain",
+          "agents",
           "studio",
           "knowledge",
           "sharing",

@@ -4,15 +4,15 @@ import { Logo } from "@/components/logo";
 
 const PRODUCT_LINKS = [
   { label: "Features", href: "#features" },
-  { label: "Memory System", href: "#solution" },
-  { label: "Multi-Agent Loops", href: "#features" },
+  { label: "Memory System", href: "/app#memories" },
+  { label: "Multi-Agent Loops", href: "/app#agents" },
   { label: "Launch App", href: "/app" },
 ];
 
 const DEVELOPER_LINKS = [
-  { label: "Documentation", href: "#faq" },
-  { label: "API Reference", href: "#faq" },
-  { label: "SDK", href: "#faq" },
+  { label: "Knowledge Base", href: "/app#knowledge" },
+  { label: "Studio", href: "/app#studio" },
+  { label: "Integrations", href: "/app#integrations" },
   { label: "GitHub", href: "https://github.com" },
 ];
 
