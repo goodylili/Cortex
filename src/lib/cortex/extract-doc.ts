@@ -4,12 +4,49 @@
 
 "use client";
 
+import type { PDFPageProxy } from "pdfjs-dist";
+
+const MIN_PAGE_TEXT_CHARS = 16;
+const OCR_RENDER_SCALE = 2;
+const OCR_IMAGE_MIME = "image/png";
+const OCR_PROMPT =
+  "This is a scanned document page. Transcribe all readable text verbatim as plain text for memory. If there is no text, reply with nothing.";
+const DATA_URL_PREFIX = /^data:[^;]+;base64,/;
+
 function ext(name: string): string {
   return name.split(".").pop()?.toLowerCase() ?? "";
 }
 
 interface PdfTextItem {
   str?: string;
+}
+
+async function ocrPage(page: PDFPageProxy): Promise<string> {
+  const viewport = page.getViewport({ scale: OCR_RENDER_SCALE });
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil(viewport.width);
+  canvas.height = Math.ceil(viewport.height);
+  const canvasContext = canvas.getContext("2d");
+  if (!canvasContext) return "";
+  await page.render({ canvas, canvasContext, viewport }).promise;
+  const dataBase64 = canvas
+    .toDataURL(OCR_IMAGE_MIME)
+    .replace(DATA_URL_PREFIX, "");
+  if (!dataBase64) return "";
+  try {
+    const res = await fetch("/api/vision", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        images: [{ dataBase64, mime: OCR_IMAGE_MIME }],
+        prompt: OCR_PROMPT,
+      }),
+    });
+    const d = await res.json();
+    return d.ok && d.text ? (d.text as string).trim() : "";
+  } catch {
+    return "";
+  }
 }
 
 async function extractPdf(file: File): Promise<string> {
@@ -21,12 +58,16 @@ async function extractPdf(file: File): Promise<string> {
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);
     const content = await page.getTextContent();
-    pages.push(
-      content.items
-        .map((item) => (item as PdfTextItem).str ?? "")
-        .join(" ")
-        .trim(),
-    );
+    const text = content.items
+      .map((item) => (item as PdfTextItem).str ?? "")
+      .join(" ")
+      .trim();
+    if (text.length >= MIN_PAGE_TEXT_CHARS) {
+      pages.push(text);
+      continue;
+    }
+    const ocr = await ocrPage(page);
+    pages.push(ocr || text);
   }
   return pages.filter(Boolean).join("\n\n").trim();
 }
