@@ -7,7 +7,14 @@
 // the spec generator falls back to a deterministic skeleton, and templates seed common
 // shapes (keep tests green, monitor research) grounded in what the agent already knows.
 
-import { uid } from "./logic";
+const UID_RADIX = 36;
+const UID_SLICE_START = 2;
+const UID_SLICE_END = 9;
+
+const uid = (prefix: string): string =>
+  prefix +
+  "_" +
+  Math.random().toString(UID_RADIX).slice(UID_SLICE_START, UID_SLICE_END);
 
 export type LoopType = "deterministic" | "nondeterministic";
 export type LoopStatus =
@@ -18,6 +25,8 @@ export type LoopStatus =
   | "done"
   | "gave_up";
 export type GateKind = "command" | "invariant" | "reviewer";
+export type LoopRole = "monitor" | "worker" | "coordinator" | "standalone";
+export type LoopConcurrency = "sequential" | "parallel";
 
 export interface VerificationGate {
   name: string;
@@ -51,6 +60,11 @@ export interface LoopSpec {
   guardrails: string[];
   humanGate: string;
   memoryWrites: string;
+  role: LoopRole;
+  concurrency: LoopConcurrency;
+  parentId?: string;
+  childIds?: string[];
+  boardEntry?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -98,6 +112,8 @@ const SKELETON_GUARDRAILS = [
 const SKELETON_HUMAN_GATE = "prepare the result and hand it to a human";
 const SKELETON_MEMORY_WRITES =
   "append each iteration summary + final verdict to memory";
+const DEFAULT_ROLE: LoopRole = "standalone";
+const DEFAULT_CONCURRENCY: LoopConcurrency = "sequential";
 const SKELETON_GATE: VerificationGate = {
   name: "goal_met",
   kind: "reviewer",
@@ -205,6 +221,8 @@ export const skeletonSpec = (
       guardrails: SKELETON_GUARDRAILS,
       humanGate: SKELETON_HUMAN_GATE,
       memoryWrites: SKELETON_MEMORY_WRITES,
+      role: DEFAULT_ROLE,
+      concurrency: DEFAULT_CONCURRENCY,
     },
     now,
   );
@@ -253,6 +271,8 @@ export const LOOP_TEMPLATES: {
           humanGate: "open a PR, do not merge",
           memoryWrites:
             "append each iteration summary + final verdict to memory",
+          role: "worker",
+          concurrency: "sequential",
         },
         now,
       ),
@@ -290,6 +310,8 @@ export const LOOP_TEMPLATES: {
           humanGate: "prepare a digest and hand it to a human",
           memoryWrites:
             "append each iteration summary + final verdict to memory",
+          role: "monitor",
+          concurrency: "sequential",
         },
         now,
       ),
@@ -324,4 +346,145 @@ export const buildLoopSpecInput = (args: {
     "",
     "Write the loop spec grounded in what the agent already knows from the memories above; never invent facts that aren't supported there.",
   ].join("\n");
+};
+
+// === Composition (phase 4) ===
+// A monitor or coordinator loop spawns worker/sub-agent loops. The child is linked
+// to its parent by id (parentId on the child, childIds on the parent) so the trace
+// stays a tree, and it inherits the parent's budget/guardrails unless overridden.
+
+const CHILD_ROLE: LoopRole = "worker";
+
+export const spawnChildSpec = (
+  parent: LoopSpec,
+  overrides: Partial<Omit<LoopSpec, "id" | "parentId" | "createdAt" | "updatedAt">>,
+  now: number,
+): LoopSpec =>
+  newLoop(
+    {
+      agentId: overrides.agentId ?? parent.agentId,
+      goal: overrides.goal ?? parent.goal,
+      loopType: overrides.loopType ?? parent.loopType,
+      trigger: overrides.trigger ?? { type: "manual" },
+      stateSource: overrides.stateSource ?? parent.stateSource,
+      gates: overrides.gates ?? parent.gates,
+      budget: overrides.budget ?? parent.budget,
+      giveUp: overrides.giveUp ?? parent.giveUp,
+      errorPolicy: overrides.errorPolicy ?? parent.errorPolicy,
+      guardrails: overrides.guardrails ?? parent.guardrails,
+      humanGate: overrides.humanGate ?? parent.humanGate,
+      memoryWrites: overrides.memoryWrites ?? parent.memoryWrites,
+      role: overrides.role ?? CHILD_ROLE,
+      concurrency: overrides.concurrency ?? "sequential",
+      parentId: parent.id,
+      ...(overrides.childIds ? { childIds: overrides.childIds } : {}),
+      ...(overrides.boardEntry !== undefined
+        ? { boardEntry: overrides.boardEntry }
+        : parent.boardEntry !== undefined
+          ? { boardEntry: parent.boardEntry }
+          : {}),
+    },
+    now,
+  );
+
+export const linkChild = (
+  parent: LoopSpec,
+  childId: string,
+  now: number,
+): LoopSpec => ({
+  ...parent,
+  childIds: [...(parent.childIds ?? []), childId],
+  updatedAt: now,
+});
+
+// Two running loops conflict when they target the same board/loop entry, so a
+// coordinator only runs children in parallel when this returns false.
+export const hasBoardConflict = (
+  runs: LoopRun[],
+  candidate: LoopSpec,
+): boolean => {
+  if (candidate.boardEntry === undefined) return false;
+  for (const r of runs) {
+    if (r.spec.id === candidate.id) continue;
+    if (r.status !== "running") continue;
+    if (r.spec.boardEntry === candidate.boardEntry) return true;
+  }
+  return false;
+};
+
+// === Triggers (phase 2) ===
+// A schedule trigger fires when at least `on` ms have elapsed since the last run; an
+// event trigger fires whenever its named event is pending; a manual trigger never
+// auto-fires. `on` is parsed as a millisecond count for schedules.
+
+const SCHEDULE_DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
+
+export const triggerShouldFire = (
+  trigger: LoopTrigger,
+  now: number,
+  lastRunAt: number | undefined,
+): boolean => {
+  switch (trigger.type) {
+    case "manual":
+      return false;
+    case "event":
+      return true;
+    case "schedule": {
+      if (lastRunAt === undefined) return true;
+      const parsed = trigger.on ? Number.parseInt(trigger.on, 10) : NaN;
+      const interval =
+        Number.isFinite(parsed) && parsed > 0
+          ? parsed
+          : SCHEDULE_DEFAULT_INTERVAL_MS;
+      return now - lastRunAt >= interval;
+    }
+  }
+};
+
+// === Command-gate verdict ===
+// A command/invariant gate's verdict is decided by the command's exit code: 0 passes,
+// anything else fails. Pure so the runtime and tests share one mapping.
+
+const PASS_EXIT_CODE = 0;
+
+export const commandGateVerdict = (
+  exitCode: number,
+): "pass" | "fail" => (exitCode === PASS_EXIT_CODE ? "pass" : "fail");
+
+// === Self-improving rubric (phase 3) ===
+// A reviewer gate scores work against an explicit rubric. When a human flags a miss
+// the reviewer let through, the flagged criterion is appended (and any near-duplicate
+// dropped) so the next run's verifier is sharper — the loop gets better at judging.
+
+export interface LoopRubric {
+  id: string;
+  criteria: string[];
+  updatedAt: number;
+}
+
+const RUBRIC_FLAG_PREFIX = "Human-flagged miss: ";
+
+export const newRubric = (criteria: string[], now: number): LoopRubric => ({
+  id: uid("rb"),
+  criteria,
+  updatedAt: now,
+});
+
+export const refineRubric = (
+  rubric: LoopRubric,
+  humanFlag: string,
+  now: number,
+): LoopRubric => {
+  const flag = humanFlag.trim();
+  if (!flag) return rubric;
+  const sharpened = `${RUBRIC_FLAG_PREFIX}${flag}`;
+  const normalized = flag.toLowerCase();
+  const kept = rubric.criteria.filter(
+    (c) => !c.toLowerCase().includes(normalized),
+  );
+  return {
+    ...rubric,
+    criteria: [...kept, sharpened],
+    updatedAt: now,
+  };
 };

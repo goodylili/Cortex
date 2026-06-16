@@ -57,12 +57,44 @@ import {
   budgetExceeded,
   allGatesPassed,
   skeletonSpec,
+  spawnChildSpec,
+  linkChild,
+  hasBoardConflict,
 } from "./loops";
 
 const KEY = "cortex.db.v3";
 const STEP_MEMORY_LIMIT = 6;
 const ITERATION_DELAY_MS = 1200;
-const CRITIC_AGENT_ID = "agent_critic";
+const REVIEW_PASS_PREFIX = /^\s*pass\b/i;
+
+// Run a reviewer gate through the adversarial /api/loop-verify route, which picks a
+// model distinct from the builder so the loop never grades its own work. Degrades to a
+// failing verdict (escalate to a human) when the route is unreachable.
+async function reviewWork(
+  goal: string,
+  output: string,
+  rubric: string[],
+  builderModel: string,
+): Promise<{ verdict: "pass" | "fail"; review: string }> {
+  try {
+    const res = await fetch("/api/loop-verify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ goal, output, rubric, builderModel }),
+    });
+    const d = (await res.json()) as { verdict?: string; review?: string };
+    const verdict =
+      d.verdict === "pass" || REVIEW_PASS_PREFIX.test(d.review ?? "")
+        ? "pass"
+        : "fail";
+    return { verdict, review: typeof d.review === "string" ? d.review : "" };
+  } catch {
+    return {
+      verdict: "fail",
+      review: "Could not reach the verifier; escalating to a human.",
+    };
+  }
+}
 
 export interface ChatSource {
   type: "memory" | "web";
@@ -204,6 +236,7 @@ interface State {
   generateLoop: (task: string, assignTo: string) => Promise<string>;
   startLoop: (loopId: string) => void;
   stopLoop: (loopId: string) => void;
+  spawnWorkerLoop: (parentId: string, workerGoal: string) => string;
   setLoops: (loops: LoopRun[]) => void;
 }
 
@@ -1376,14 +1409,14 @@ export const useCortex = create<State>((set, get) => ({
         let gate: string | undefined;
         let feedback = "";
         if (reviewer) {
-          const judgment = await askAgent(
-            CRITIC_AGENT_ID,
-            `Judge strictly whether this goal is met. Goal: "${run.spec.goal}". Latest work: ${acted || "(none)"}. Begin your reply with PASS or FAIL, then one sentence of evidence.`,
-            [],
-            cites,
+          const judgment = await reviewWork(
+            run.spec.goal,
+            acted,
+            [reviewer.check],
+            get().model.name,
           );
-          feedback = judgment;
-          verdict = /^\s*pass\b/i.test(judgment) ? "pass" : "fail";
+          feedback = judgment.review;
+          verdict = judgment.verdict;
           gate = reviewer.name;
         } else if (command) {
           verdict = "pending";
@@ -1444,6 +1477,48 @@ export const useCortex = create<State>((set, get) => ({
       persist({ memories: s.memories, events: s.events, cost: s.cost, loops });
       return { loops };
     }),
+  // Composition: a monitor/coordinator loop spawns a worker loop for one task. The
+  // child links to its parent and runs sequentially; a parallel spawn would be refused
+  // when another running loop targets the same board entry (hasBoardConflict guard).
+  spawnWorkerLoop: (parentId, workerGoal) => {
+    const goal = workerGoal.trim();
+    const parent = get().loops.find((r) => r.spec.id === parentId);
+    if (!parent || !goal) return "";
+    if (parent.spec.role !== "monitor" && parent.spec.role !== "coordinator")
+      return "";
+    const now = Date.now();
+    const child = spawnChildSpec(
+      parent.spec,
+      { goal, role: "worker", concurrency: "sequential" },
+      now,
+    );
+    if (
+      child.concurrency === "parallel" &&
+      hasBoardConflict(get().loops, child)
+    )
+      return "";
+    const childRun = newRun(child, now);
+    set((s) => {
+      const loops = [
+        childRun,
+        ...s.loops.map((r) =>
+          r.spec.id === parentId
+            ? { ...r, spec: linkChild(r.spec, child.id, now), updatedAt: now }
+            : r,
+        ),
+      ];
+      const parentAgent = agentById(parent.spec.agentId);
+      const events = logEvent(
+        s.events,
+        "agent",
+        `${parentAgent?.name ?? "A monitor loop"} spawned a worker loop`,
+        goal.length > 60 ? goal.slice(0, 60) + "…" : goal,
+      );
+      persist({ memories: s.memories, events, cost: s.cost, loops });
+      return { loops, events };
+    });
+    return child.id;
+  },
   setLoops: (loops) =>
     set((s) => {
       persist({ memories: s.memories, events: s.events, cost: s.cost, loops });

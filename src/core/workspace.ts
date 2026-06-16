@@ -9,15 +9,18 @@
 import type { Config } from "./config";
 import type { Clients } from "../../sui/app/clients";
 import type { AgentMessageRecord, AgentTaskRecord } from "./agents";
+import type { LoopRun } from "../lib/cortex/loops";
 import { importExternal } from "./external";
 
 const SUI_ADDRESS_BYTES = 32;
 const TASKS_SCOPE = "tasks";
 const BUS_SCOPE = "bus";
+const LOOPS_SCOPE = "loops";
 const CLOCK_OBJECT_ID = "0x6";
 const SESSION_TTL_MIN = 10;
 const SET_TASKS_FN = "workspace::executor_set_tasks";
 const SET_BUS_FN = "workspace::executor_set_bus";
+const SET_LOOPS_FN = "workspace::executor_set_loops";
 const SEAL_APPROVE_FN = "workspace::seal_approve";
 const KEY_SERVER_WEIGHT = 1;
 const SCOPE_TEXT = new TextEncoder();
@@ -149,10 +152,12 @@ async function sealDecryptJson(
   return JSON.parse(new TextDecoder().decode(decrypted));
 }
 
+type BlobField = "tasks_blob" | "bus_blob" | "loops_blob";
+
 async function readBlobField(
   cfg: Config,
   workspaceId: string,
-  field: "tasks_blob" | "bus_blob",
+  field: BlobField,
 ): Promise<string | null> {
   const sui: any = await importExternal("@mysten/sui/client");
   const suiClient = new sui.SuiClient({ url: cfg.sui.rpc });
@@ -207,7 +212,7 @@ async function readScope<T>(
   cfg: Config,
   workspaceId: string,
   scope: string,
-  field: "tasks_blob" | "bus_blob",
+  field: BlobField,
 ): Promise<T[] | null> {
   if (missingLiveDeps(cfg).length > 0) return null;
   try {
@@ -295,5 +300,36 @@ export async function writeWorkspaceBus(
     SET_BUS_FN,
     messages,
     "write workspace bus",
+  );
+}
+
+export async function readWorkspaceLoops(
+  c: Clients,
+  cfg: Config,
+  workspaceId: string,
+): Promise<LoopRun[] | null> {
+  return readScope<LoopRun>(
+    c,
+    cfg,
+    workspaceId,
+    LOOPS_SCOPE,
+    "loops_blob",
+  );
+}
+
+export async function writeWorkspaceLoops(
+  c: Clients,
+  cfg: Config,
+  workspaceId: string,
+  loops: LoopRun[],
+): Promise<void> {
+  return writeScope(
+    c,
+    cfg,
+    workspaceId,
+    LOOPS_SCOPE,
+    SET_LOOPS_FN,
+    loops,
+    "write workspace loops",
   );
 }
