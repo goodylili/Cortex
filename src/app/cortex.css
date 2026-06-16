@@ -817,3 +817,22 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .tb-menu-item svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;color:var(--muted);flex:none}
 .tb-menu-item.danger,.tb-menu-item.danger svg{color:var(--ink)}
 @media(max-width:760px){.tb-brand b{display:none}.tb-you-name{display:none}.topbar-inner{gap:10px}}
+
+/* Center page headers/intros within every view, like the Home hero */
+.view .eyebrow,
+.view .h1,
+.view .lede{text-align:center}
+.view .lede{margin-left:auto;margin-right:auto}
+.view .section-title{justify-content:center}
+
+/* Share hub modal (opened from Memories/Brain) */
+.share-backdrop{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:48px 18px;overflow-y:auto}
+.share-modal{position:relative;width:100%;max-width:640px;margin:auto;background:var(--paper);border:1px solid var(--line2);border-radius:18px;box-shadow:var(--shadow-lg);padding:34px}
+.share-modal .h1{text-align:left;font-size:28px}
+.share-modal .lede{text-align:left;margin:10px 0 0}
+.share-x{position:absolute;top:16px;right:16px;display:grid;place-items:center;width:34px;height:34px;border-radius:8px;color:var(--muted)}
+.share-x:hover{background:var(--surface2);color:var(--ink)}
+.share-x svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.brain-share{position:absolute;top:18px;right:18px;z-index:12;display:inline-flex;align-items:center;gap:8px;padding:9px 15px;border-radius:999px;background:var(--paper);border:1px solid var(--line2);color:var(--ink);font-size:14px;font-weight:500;box-shadow:var(--shadow)}
+.brain-share:hover{border-color:var(--faint)}
+.brain-share svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
