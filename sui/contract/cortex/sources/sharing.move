@@ -1,5 +1,5 @@
-// Encrypted memory sharing between Cortex users, addressed by SuiNS-style handles
-// (e.g. `great@context.sui`). An owner bundles a CHOSEN subset of their memories,
+// Encrypted memory sharing between Cortex users, addressed by SuiNS subnames
+// (e.g. `great.cortex.sui`). An owner bundles a CHOSEN subset of their memories,
 // Seal-encrypts it under an identity scoped to the share object itself, stores the
 // blob on Walrus, and grants named recipients read access. A recipient decrypts the
 // bundle as a delegate of THIS share only — never the owner's wider account memory —
@@ -37,7 +37,7 @@ const ERevoked: u64 = 7;
 // === Constants ===
 
 const HASH_LEN: u64 = 32;
-const NAME_SUFFIX: vector<u8> = b"@context.sui";
+const NAME_SUFFIX: vector<u8> = b".cortex.sui";
 
 const STATUS_DRAFT: u8 = 0;
 const STATUS_ACTIVE: u8 = 1;
@@ -88,12 +88,14 @@ public struct RecipientAdded has copy, drop {
     recipient_name: String,
     timestamp_ms: u64,
 }
+
 public struct RecipientRemoved has copy, drop { share_id: ID, recipient: address, timestamp_ms: u64 }
 public struct ShareRevoked has copy, drop { share_id: ID, timestamp_ms: u64 }
 
 // === Naming ===
 
-// Render a bare handle as its SuiNS-style extension, e.g. `great` -> `great@context.sui`.
+// Render a bare handle as its SuiNS subname under the project domain, e.g.
+// `great` -> `great.cortex.sui` (the leaf subname minted for the user).
 public fun full_name(handle: String): String {
     let mut name = handle;
     name.append(NAME_SUFFIX.to_string());
@@ -178,7 +180,7 @@ public fun share_with_address(
 }
 
 // Grant a recipient by their cortex handle, resolved to an address through the
-// account registry. The stored display name is the SuiNS-style `<handle>@context.sui`.
+// account registry. The stored display name is the SuiNS subname `<handle>.cortex.sui`.
 public fun share_with_handle(
     share: &mut MemoryShare,
     registry: &Registry,
