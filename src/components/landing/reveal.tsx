@@ -1,56 +1,32 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { motion, type Variants } from "framer-motion";
+import { type ReactNode } from "react";
 
-const ROOT_MARGIN = "0px 0px -12% 0px";
-const THRESHOLD = 0.15;
+const REVEAL_VARIANTS: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0 },
+};
 
 export function Reveal({
   children,
-  className = "",
   delay = 0,
+  className,
 }: {
   children: ReactNode;
-  className?: string;
   delay?: number;
+  className?: string;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [shown, setShown] = useState(false);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setShown(true);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setShown(true);
-            observer.disconnect();
-          }
-        }
-      },
-      { rootMargin: ROOT_MARGIN, threshold: THRESHOLD },
-    );
-
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
   return (
-    <div
-      ref={ref}
-      data-reveal
-      data-shown={shown ? "true" : "false"}
-      style={{ transitionDelay: `${delay}ms` }}
+    <motion.div
       className={className}
+      variants={REVEAL_VARIANTS}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay }}
     >
       {children}
-    </div>
+    </motion.div>
   );
 }
