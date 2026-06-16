@@ -21,6 +21,7 @@ const ENotOwner: u64 = 5;
 const ESelfDelegate: u64 = 6;
 const ENoAccess: u64 = 7;
 const EBadIdentity: u64 = 8;
+const EHandleNotFound: u64 = 9;
 
 // Admin delegates (e.g. an MCP service wallet the owner authorizes to read their
 // account-scoped memory) live in a dynamic field rather than an Account field, so
@@ -279,6 +280,14 @@ public fun handle_taken(registry: &Registry, handle: String): bool { registry.ha
 public fun account_of(registry: &Registry, owner: address): ID {
     assert!(registry.accounts.contains(owner), ENotRegistered);
     *registry.accounts.borrow(owner)
+}
+
+// Resolve a registered handle to the address that owns it. The naming layer for
+// memory sharing: a handle like `great` is how cortex::sharing addresses a recipient
+// (rendered `great@context.sui`) before granting Seal access by their address.
+public fun owner_of_handle(registry: &Registry, handle: String): address {
+    assert!(registry.handles.contains(handle), EHandleNotFound);
+    *registry.handles.borrow(handle)
 }
 
 #[test_only]
