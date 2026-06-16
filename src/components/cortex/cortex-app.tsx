@@ -249,7 +249,10 @@ export function CortexApp({
       )
         setView(h);
     };
-    apply();
+    // Always open on the overview; a deep-link hash no longer picks the initial
+    // view. In-app nav still drives the hash, so back/forward keep working.
+    if (location.hash && location.hash !== "#home")
+      history.replaceState(null, "", "#home");
     window.addEventListener("hashchange", apply);
     return () => window.removeEventListener("hashchange", apply);
   }, []);
