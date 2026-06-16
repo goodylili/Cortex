@@ -30,6 +30,8 @@ import {
   listMessages,
   runAndRecordStep,
   readUserAccount,
+  executorGrantKbAccess,
+  executorRenewKbFile,
 } from "../src/core/index";
 
 const DEFAULT_PERIOD = { from: "0000", to: "9999" };
@@ -452,6 +454,24 @@ async function main() {
     },
   );
   server.tool(
+    "kb_grant_access",
+    "Grant a delegate read access to a shared KbFile, acting as the executor (cfg.executorCapId). Returns the transaction digest.",
+    { kbFileId: z.string(), delegate: z.string() },
+    async ({ kbFileId, delegate }: any) => {
+      const digest = await executorGrantKbAccess(cfg, kbFileId, delegate);
+      return json({ kbFileId, delegate, digest });
+    },
+  );
+  server.tool(
+    "kb_renew",
+    "Extend a shared KbFile's Walrus storage to a later end epoch, acting as the executor (cfg.executorCapId). Returns the transaction digest.",
+    { kbFileId: z.string(), newEndEpoch: z.number().int().positive() },
+    async ({ kbFileId, newEndEpoch }: any) => {
+      const digest = await executorRenewKbFile(cfg, kbFileId, newEndEpoch);
+      return json({ kbFileId, newEndEpoch, digest });
+    },
+  );
+  server.tool(
     "sui_read_pointer",
     "Read the on-chain manifest pointer for a namespace.",
     { namespace: z.string().optional() },
@@ -641,7 +661,7 @@ async function main() {
       `  agents: agent_list, task_create, task_list, task_get, task_observe, task_handoff, ` +
       `task_complete, agent_run_step, agent_message_post, agent_message_list\n` +
       `  execution: wallet_info, walrus_put_blob, walrus_get_blob, sui_record_pointer, ` +
-      `sui_read_pointer, memwal_restore\n` +
+      `sui_read_pointer, kb_grant_access, kb_renew, memwal_restore\n` +
       `  users: user_profile, user_memory, user_context\n` +
       `  connectors: web_fetch, service_notify, service_export\n` +
       `  resources: cortex://memory, cortex://timeline, cortex://digest, cortex://agents, cortex://tasks\n` +
