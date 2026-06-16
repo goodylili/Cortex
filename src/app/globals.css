@@ -126,6 +126,8 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-canvas: var(--canvas);
+  --color-ink: var(--ink);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -159,20 +161,18 @@
   }
 }
 
-/* ───────── Landing: scroll-reveal + marquee ───────── */
-
-[data-reveal] {
-  opacity: 0;
-  transform: translateY(26px);
-  transition:
-    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: opacity, transform;
+.cortex-landing {
+  --canvas: #000000;
+  --ink: #ffffff;
 }
 
-[data-reveal][data-shown="true"] {
-  opacity: 1;
-  transform: none;
+.cortex-landing.theme-light {
+  --canvas: #ffffff;
+  --ink: #0a0a0a;
+}
+
+.cortex-landing :is(h1, h2, h3, h4) {
+  font-family: var(--font-instrument-sans), system-ui, sans-serif;
 }
 
 @keyframes cortex-marquee {
@@ -188,15 +188,15 @@
   -webkit-mask-image: linear-gradient(
     to right,
     transparent,
-    #000 12%,
-    #000 88%,
+    #000 8%,
+    #000 92%,
     transparent
   );
   mask-image: linear-gradient(
     to right,
     transparent,
-    #000 12%,
-    #000 88%,
+    #000 8%,
+    #000 92%,
     transparent
   );
 }
@@ -204,19 +204,10 @@
 .cortex-marquee-track {
   display: flex;
   width: max-content;
-  animation: cortex-marquee 32s linear infinite;
-}
-
-.cortex-marquee:hover .cortex-marquee-track {
-  animation-play-state: paused;
+  animation: cortex-marquee 34s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-reveal] {
-    opacity: 1;
-    transform: none;
-    transition: none;
-  }
   .cortex-marquee-track {
     animation: none;
   }
