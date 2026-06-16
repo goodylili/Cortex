@@ -104,19 +104,6 @@ type View =
   | "settings";
 type Theme = "light" | "dark" | "system";
 
-// A reflection suggestion shown on the Reflect view. `loading` marks the
-// transient "thinking" placeholder; the rest describe a proposed change.
-type Notice = {
-  loading?: boolean;
-  kind?: "merge" | "pattern" | "tidy";
-  title?: string;
-  body?: React.ReactNode;
-  ids?: string[];
-  keepId?: string;
-  tag?: string;
-  count?: number;
-};
-
 // Popular destinations per modality — "Open in …" from the Studio output.
 // `prefill` URLs accept the prompt as a ?q= query; the rest just open the app
 // (we always copy the prompt to the clipboard so it's ready to paste).
@@ -181,18 +168,9 @@ export function CortexApp({
   const [openLoopId, setOpenLoopId] = useState<string | null>(null);
   const dictation = useDictation();
   const readAloud = useReadAloud();
-  const [rrIdx, setRrIdx] = useState(0);
-  const [rmIdx, setRmIdx] = useState(0);
-  const [reflectIdx, setReflectIdx] = useState(0);
-  const [reflected, setReflected] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
   const [drawer, setDrawer] = useState<Memory | "savings" | null>(null);
-  const [notices, setNotices] = useState<Notice[] | null>(null);
-  const [dreams, setDreams] = useState<
-    { title: string; body: string }[] | null
-  >(null);
-  const [dreaming, setDreaming] = useState(false);
   const [studioTask, setStudioTask] = useState("");
   const [studioStyle, setStudioStyle] = useState<PromptStyle>(DEFAULT_STYLE);
   const [studioType, setStudioType] = useState<PromptType>(DEFAULT_TYPE);
@@ -402,14 +380,6 @@ export function CortexApp({
     document.addEventListener("click", onClick);
     return () => document.removeEventListener("click", onClick);
   }, []);
-  // Reflect on load: surface insights + tidy-ups for the Home carousel.
-  useEffect(() => {
-    if (s.ready && !reflected && s.live().length) {
-      setReflected(true);
-      runReflect();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.ready, reflected]);
   function flash(m: string) {
     setToast(m);
     setTimeout(() => setToast(""), 2600);
@@ -712,67 +682,6 @@ export function CortexApp({
 
   const hasChat = s.chat.length > 0 && s.mode === "ask";
   const sav = computeSavings(live, s.cost);
-
-  // ---- reflect ----
-  function runReflect() {
-    setNotices([{ loading: true }]);
-    // Dreams: AI-surfaced insights across your memories (with fallback).
-    setDreaming(true);
-    setDreams(null);
-    fetch("/api/dream", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ memories: live }),
-    })
-      .then((r) => r.json())
-      .then((d) => setDreams(d.dreams || []))
-      .catch(() => setDreams([]))
-      .finally(() => setDreaming(false));
-    setTimeout(() => {
-      const out: Notice[] = [];
-      findClusters(live).forEach((g) => {
-        const c = g.slice().sort((a, b) => b.text.length - a.text.length)[0]!;
-        out.push({
-          kind: "merge",
-          ids: g.map((m) => m.id),
-          keepId: c.id,
-          title: `You noted something ${g.length} times`,
-          body: (
-            <>
-              Cortex can fold these into one: <em>“{c.text}”</em>
-            </>
-          ),
-        });
-      });
-      const p = findPattern(live);
-      if (p)
-        out.push({
-          kind: "pattern",
-          tag: p.tag,
-          title: "A gentle pattern is forming",
-          body: (
-            <>
-              Your memories keep circling back to <strong>{p.tag}</strong>,{" "}
-              {p.count} of them now.
-            </>
-          ),
-        });
-      const old = live.find((m) => Date.now() - m.ts > 25 * 86400000);
-      if (old)
-        out.push({
-          kind: "tidy",
-          ids: [old.id],
-          title: "One memory has gone quiet",
-          body: (
-            <>
-              “{old.text}” hasn&apos;t come up in a while. Cortex can set it
-              aside.
-            </>
-          ),
-        });
-      setNotices(out);
-    }, 700);
-  }
 
   const NAV: [View, string, React.ReactNode][] = [
     [
@@ -1315,16 +1224,6 @@ export function CortexApp({
     </div>
   );
 
-  const greeting = () => {
-    const h = new Date().getHours();
-    return h < 5
-      ? "Still up?"
-      : h < 12
-        ? "Good morning."
-        : h < 18
-          ? "Good afternoon."
-          : "Good evening.";
-  };
   // Memories others shared with me sit alongside my own in the Memories view,
   // newest first, but never mingle with my own retention model (see the store).
   const brainMemories = [...live, ...s.sharedMemories].sort(
@@ -1508,300 +1407,78 @@ export function CortexApp({
             </div>
             {!hasChat ? (
               <div className="home-intro">
-                <div className="eyebrow">Welcome back</div>
-                <h1 className="h1">{greeting()}</h1>
-                <p className="lede show">
-                  Tell Cortex anything worth remembering, or ask it what you
-                  already know. Your memory, gently kept.
-                </p>
-                <div className="savings">
-                  <div className="save-head">
-                    <div className="save-icon">
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                <div className="ov-hero">
+                  <h1 className="ov-hello">
+                    Hello, {claimedName ? claimedName.split(/[.@]/)[0] : "there"}
+                    .
+                  </h1>
+                  <p className="ov-sub">
+                    Cortex has processed {live.length.toLocaleString()}{" "}
+                    {live.length === 1 ? "memory" : "memories"} since your last
+                    session. Ready to expand your neural workspace?
+                  </p>
+                </div>
+
+                {live.length > 0 && (
+                  <div className="ov-recent">
+                    <div className="ov-recent-head">
+                      <div className="ov-recent-title">Recent Memories</div>
+                      <button
+                        className="ov-viewall"
+                        onClick={() => setView("memories")}
                       >
-                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="save-t">
-                        Cortex is keeping your AI costs down
-                      </div>
-                      <div className="save-s">
-                        More memory could mean bigger prompts. Cortex keeps them
-                        small, so your bills stay low.
-                      </div>
-                    </div>
-                    <button
-                      className="save-learn"
-                      onClick={() => setDrawer("savings")}
-                    >
-                      How
-                    </button>
-                  </div>
-                  <div className="save-grid">
-                    <div className="save-stat">
-                      <div className="sv">{sav.reductionPct}%</div>
-                      <div className="sl">
-                        smaller prompts than pasting it all
-                      </div>
-                    </div>
-                    <div className="save-stat accent">
-                      <div className="sv">{fmtMoney(sav.per100$)}</div>
-                      <div className="sl">saved per 100 questions</div>
-                    </div>
-                    <div className="save-stat sage">
-                      <div className="sv">{fmtTokens(sav.realizedTok)}</div>
-                      <div className="sl">tokens saved so far</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="glance">
-                  <div className="gstat">
-                    <div className="n">{live.length}</div>
-                    <div className="l">memories, all yours</div>
-                  </div>
-                  <div className="gstat accent">
-                    <div className="n">
-                      {
-                        live.filter((m) => Date.now() - m.ts < 7 * 86400000)
-                          .length
-                      }
-                    </div>
-                    <div className="l">added this week</div>
-                  </div>
-                  <div className="gstat sage">
-                    <div className="n">{live.filter((m) => m.kept).length}</div>
-                    <div className="l">you&apos;ve chosen to keep close</div>
-                  </div>
-                </div>
-                {(() => {
-                  type RCard = {
-                    kind: string;
-                    cat: string;
-                    title: string;
-                    body: React.ReactNode;
-                    actionLabel: string;
-                    onAction: () => void;
-                    onDismiss: () => void;
-                  };
-                  const cards: RCard[] = [
-                    ...(dreams || []).map((d) => ({
-                      kind: "insight",
-                      cat: "Insight",
-                      title: d.title,
-                      body: d.body as React.ReactNode,
-                      actionLabel: "Save as memory",
-                      onAction: () => {
-                        s.remember(d.body, "normal");
-                        setDreams((cur) => cur?.filter((x) => x !== d) ?? null);
-                        flash("Saved as a memory.");
-                      },
-                      onDismiss: () =>
-                        setDreams((cur) => cur?.filter((x) => x !== d) ?? null),
-                    })),
-                    ...(notices || [])
-                      .filter((n) => !n.loading && n.kind)
-                      .map((n) => ({
-                        kind: n.kind as string,
-                        cat:
-                          n.kind === "merge"
-                            ? "Duplicate"
-                            : n.kind === "pattern"
-                              ? "Pattern"
-                              : "Tidy up",
-                        title: n.title || "",
-                        body: n.body as React.ReactNode,
-                        actionLabel:
-                          n.kind === "merge"
-                            ? "Keep the tidy version"
-                            : n.kind === "pattern"
-                              ? "Save this insight"
-                              : "Set it aside",
-                        onAction: () => {
-                          s.reflectKeep(n.kind!, n.ids || [], n.keepId, n.tag);
-                          setNotices(
-                            (cur) => cur?.filter((x) => x !== n) ?? null,
-                          );
-                          flash("Done.");
-                        },
-                        onDismiss: () =>
-                          setNotices(
-                            (cur) => cur?.filter((x) => x !== n) ?? null,
-                          ),
-                      })),
-                  ];
-                  const loading = dreaming || !!notices?.[0]?.loading;
-                  if (!cards.length && !loading) return null;
-                  const i = Math.min(reflectIdx, Math.max(0, cards.length - 1));
-                  const c = cards[i];
-                  return (
-                    <div className="rfx">
-                      <div className="rr-head">
-                        <div className="section-title" style={{ margin: 0 }}>
-                          Reflect{" "}
-                          <span className="count">
-                            catch up on what Cortex noticed
-                          </span>
-                        </div>
-                        {cards.length > 1 && (
-                          <div className="rr-nav">
-                            <button
-                              aria-label="Previous"
-                              onClick={() =>
-                                setReflectIdx(
-                                  (i - 1 + cards.length) % cards.length,
-                                )
-                              }
-                            >
-                              ‹
-                            </button>
-                            <span className="rr-count">
-                              {i + 1} of {cards.length}
-                            </span>
-                            <button
-                              aria-label="Next"
-                              onClick={() =>
-                                setReflectIdx((i + 1) % cards.length)
-                              }
-                            >
-                              ›
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      {c ? (
-                        <div className="rfx-card">
-                          <div className="rfx-cat">
-                            <span className={"rfx-ic " + c.kind} />
-                            {c.cat}
-                          </div>
-                          <div className="rfx-title">{c.title}</div>
-                          <div className="rfx-body">{c.body}</div>
-                          <div className="rfx-foot">
-                            <button
-                              className="pill-btn keep"
-                              onClick={c.onAction}
-                            >
-                              {c.actionLabel}
-                            </button>
-                            <button className="pill-btn" onClick={c.onDismiss}>
-                              Dismiss
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="rfx-card">
-                          <div className="rfx-cat">
-                            <span className="rfx-ic insight" />
-                            Reflecting
-                          </div>
-                          <div className="rfx-title">
-                            Taking a quiet moment…
-                          </div>
-                          <div className="rfx-body">
-                            Looking across your {live.length} memories for
-                            patterns and connections.
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-                {(() => {
-                  const rr = live.slice(0, 6);
-                  if (!rr.length) return null;
-                  const i = Math.min(rrIdx, rr.length - 1);
-                  const m = rr[i]!;
-                  return (
-                    <div className="rr">
-                      <div className="rr-head">
-                        <div className="section-title" style={{ margin: 0 }}>
-                          Recently Remembered{" "}
-                          <span className="count">{live.length} in all</span>
-                        </div>
-                        <div className="rr-nav">
-                          <button
-                            aria-label="Previous"
-                            onClick={() =>
-                              setRrIdx((i - 1 + rr.length) % rr.length)
-                            }
-                          >
-                            ‹
-                          </button>
-                          <span className="rr-count">
-                            {i + 1} of {rr.length}
-                          </span>
-                          <button
-                            aria-label="Next"
-                            onClick={() => setRrIdx((i + 1) % rr.length)}
-                          >
-                            ›
-                          </button>
-                        </div>
-                      </div>
-                      <button className="rr-card" onClick={() => setDrawer(m)}>
-                        <div className="rr-text">{m.text}</div>
-                        <div className="rr-foot">
-                          <span className="rr-tags">
-                            {m.tags.join(" · ") || "note"}
-                          </span>
-                          <span>{ago(m.ts)}</span>
-                          <span className="rr-dive">Dive in →</span>
-                        </div>
+                        View All
                       </button>
                     </div>
-                  );
-                })()}
-                {(() => {
-                  const rm = live.slice(0, 5);
-                  if (!rm.length) return null;
-                  const j = Math.min(rmIdx, rm.length - 1);
-                  const mm = rm[j]!;
-                  return (
-                    <div className="rr">
-                      <div className="rr-head">
-                        <div className="section-title" style={{ margin: 0 }}>
-                          Recent Memories
-                        </div>
-                        <div className="rr-nav">
+                    <div className="ov-cards">
+                      {live.slice(0, 4).map((m) => {
+                        const pinned = !!(m.kept || m.lock === "pinned");
+                        const fromFile = !!(m.origin || m.docId);
+                        const related = m.edges?.length ?? 0;
+                        const cat = pinned
+                          ? "Pinned Interaction"
+                          : m.tags[0]
+                            ? m.tags[0]
+                            : fromFile
+                              ? "File"
+                              : "Memory";
+                        return (
                           <button
-                            aria-label="Previous"
-                            onClick={() =>
-                              setRmIdx((j - 1 + rm.length) % rm.length)
+                            key={m.id}
+                            className={
+                              "ov-card" +
+                              (pinned ? " pinned" : "") +
+                              (fromFile ? " file" : "")
                             }
+                            onClick={() => setDrawer(m)}
                           >
-                            ‹
+                            <div className="ov-card-top">
+                              <span className="ov-tag">
+                                {pinned && (
+                                  <svg className="ov-heart" viewBox="0 0 24 24">
+                                    <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
+                                  </svg>
+                                )}
+                                {cat}
+                              </span>
+                              <span className="ov-ago">{ago(m.ts)}</span>
+                            </div>
+                            <div className="ov-card-text">{m.text}</div>
+                            {related > 0 && (
+                              <div className="ov-card-foot">
+                                <svg className="ov-link" viewBox="0 0 24 24">
+                                  <path d="M9 12h6M10 9l-3 3 3 3M14 9l3 3-3 3" />
+                                </svg>
+                                {related} related{" "}
+                                {related === 1 ? "node" : "nodes"}
+                              </div>
+                            )}
                           </button>
-                          <span className="rr-count">
-                            {j + 1} of {rm.length}
-                          </span>
-                          <button
-                            aria-label="Next"
-                            onClick={() => setRmIdx((j + 1) % rm.length)}
-                          >
-                            ›
-                          </button>
-                        </div>
-                      </div>
-                      <button className="rr-card" onClick={() => setDrawer(mm)}>
-                        <div className="rr-text">{mm.text}</div>
-                        <div className="rr-foot">
-                          <span className="rr-tags">
-                            {mm.tags.join(" · ") || "note"}
-                          </span>
-                          <span>{ago(mm.ts)}</span>
-                          <span className="rr-dive">Dive in →</span>
-                        </div>
-                      </button>
+                        );
+                      })}
                     </div>
-                  );
-                })()}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="home-chat">
