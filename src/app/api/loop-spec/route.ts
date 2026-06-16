@@ -64,6 +64,13 @@ const loopSpecSchema = z.object({
   guardrails: z.array(z.string()),
   humanGate: z.string(),
   memoryWrites: z.string(),
+  role: z
+    .enum(["monitor", "worker", "coordinator", "standalone"])
+    .optional(),
+  concurrency: z.enum(["sequential", "parallel"]).optional(),
+  parentId: z.string().optional(),
+  childIds: z.array(z.string()).optional(),
+  boardEntry: z.string().optional(),
   createdAt: z.number().optional(),
   updatedAt: z.number().optional(),
 });
@@ -81,7 +88,9 @@ const SYSTEM =
   "budget ({ maxIterations: number, maxTokens: number, maxWallClockMs: number, maxItems?: number }), " +
   "giveUp (string: the condition that ends the loop unfinished), " +
   "errorPolicy (string: what to do when an action errors), " +
-  "guardrails (array of strings), humanGate (string), and memoryWrites (string: what gets written back to memory). " +
+  "guardrails (array of strings), humanGate (string), memoryWrites (string: what gets written back to memory), " +
+  'role ("monitor" | "worker" | "coordinator" | "standalone": choose "monitor" for a watch-and-classify loop, "worker" for a single-task loop, "coordinator" when it delegates to sub-loops, else "standalone"), ' +
+  'and concurrency ("sequential" | "parallel": default "sequential"). ' +
   "Ground EVERY field in the supplied memories: set a command gate to the EXACT test or build command the memory shows this project uses; " +
   "set guardrails and the state source from what the agent has touched or been told before; do not invent commands, paths, or conventions absent from the memories. " +
   'Choose loopType "deterministic" when the memories support a machine-checkable definition of done (a test/build command, an invariant) and make that the terminal gate with kind "command" or "invariant"; ' +
@@ -103,6 +112,8 @@ function stamp(
     ...parsed,
     id: parsed.id ?? `loop_${now.toString(36)}`,
     agentId: parsed.agentId ?? fallbackAgentId,
+    role: parsed.role ?? "standalone",
+    concurrency: parsed.concurrency ?? "sequential",
     createdAt: parsed.createdAt ?? now,
     updatedAt: parsed.updatedAt ?? now,
   };

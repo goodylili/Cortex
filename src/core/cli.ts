@@ -5,6 +5,8 @@
 //   dream [--apply]      run consolidation; commits diff first
 //   verify               fetch all blobs from the aggregator (relayer bypassed)
 //   watch                watch configured folders and ingest changes
+//   loop run <loopId>    drive a persisted loop to a terminal state (executor)
+//   loop step <loopId>   advance a persisted loop by one iteration
 
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { basename, extname } from "node:path";
@@ -13,6 +15,7 @@ import { createClients } from "../../sui/app/clients";
 import { ingestSource, runDream, applyDiff, verify } from "./sync";
 import { seedDemo } from "./demo";
 import { startWatcher } from "./watcher";
+import { runLoop, stepLoop } from "./loops";
 import type { SourceKind } from "./models";
 
 const cfg = loadConfig();
@@ -96,6 +99,27 @@ async function main() {
       console.log(`${v.fetched}/${v.total} blobs fetchable. head ${v.head}`);
       break;
     }
+    case "loop": {
+      const sub = process.argv[3];
+      const loopId = process.argv[4];
+      if ((sub !== "run" && sub !== "step") || !loopId) {
+        console.error("usage: cortex loop run <loopId> | cortex loop step <loopId>");
+        process.exit(1);
+      }
+      const result =
+        sub === "run"
+          ? await runLoop(c, cfg, loopId)
+          : await stepLoop(c, cfg, loopId);
+      console.log(
+        `loop ${loopId}: status ${result.status}, ${result.run.iterations.length} iteration(s), verdict ${result.verdict}, tokens ${result.run.tokensUsed}`,
+      );
+      const last = result.run.iterations[result.run.iterations.length - 1];
+      if (last)
+        console.log(
+          `  · last gate ${last.gate ?? "(none)"} -> ${last.verdict}: ${last.feedback.slice(0, 120)}`,
+        );
+      break;
+    }
     case "watch": {
       const stop = startWatcher(c, cfg, (uri) => console.log("ingested", uri));
       console.log(
@@ -109,7 +133,7 @@ async function main() {
     }
     default:
       console.log(
-        "commands: demo | ingest <file> | dream [--apply] | verify | watch",
+        "commands: demo | ingest <file> | dream [--apply] | verify | watch | loop run <loopId> | loop step <loopId>",
       );
   }
 }

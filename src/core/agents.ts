@@ -322,10 +322,22 @@ function buildStepInput(
   ].join("\n");
 }
 
+// Anthropic fallbacks used to give the critic a model distinct from the builder's
+// cfg.models.chat, so adversarial verification is never the same model grading itself.
+const CRITIC_MODEL_PRIMARY = "claude-opus-4-8";
+const CRITIC_MODEL_ALTERNATE = "claude-sonnet-4-6";
+
+function criticModelId(cfg: Config): string {
+  return cfg.models.chat === CRITIC_MODEL_PRIMARY
+    ? CRITIC_MODEL_ALTERNATE
+    : CRITIC_MODEL_PRIMARY;
+}
+
 async function callModel(
   cfg: Config,
   system: string,
   user: string,
+  modelId: string = cfg.models.chat,
 ): Promise<{ ok: boolean; text: string; reason?: string }> {
   if (!cfg.models.anthropicApiKey)
     return { ok: false, text: "", reason: "no anthropic api key configured" };
@@ -337,7 +349,7 @@ async function callModel(
       "anthropic-version": ANTHROPIC_VERSION,
     },
     body: JSON.stringify({
-      model: cfg.models.chat,
+      model: modelId,
       max_tokens: STEP_MAX_TOKENS,
       system,
       messages: [{ role: "user", content: user }],
@@ -351,6 +363,39 @@ async function callModel(
     };
   const data = (await res.json()) as { content?: { text?: string }[] };
   return { ok: true, text: (data.content ?? []).map((p) => p.text ?? "").join("") };
+}
+
+const CRITIC_PASS_PREFIX = /^\s*pass\b/i;
+const CRITIC_SYSTEM =
+  "You are an adversarial verifier. You did NOT build the work under review. " +
+  "Judge strictly whether the iteration output meets the goal against every rubric " +
+  "criterion supplied. Begin your reply with PASS or FAIL on its own, then one " +
+  "sentence of concrete evidence citing the rubric. Reward nothing you cannot verify.";
+
+// Adversarial verification step: run the critic against an iteration's output and an
+// explicit rubric using a DIFFERENT model id than the builder's cfg.models.chat, so
+// the verifier never grades its own work. Returns the verdict plus the raw review.
+export async function runCriticStep(
+  cfg: Config,
+  args: { goal: string; output: string; rubric: string[] },
+): Promise<{ ok: boolean; verdict: "pass" | "fail"; review: string; reason?: string }> {
+  const rubricBlock = args.rubric.length
+    ? args.rubric.map((c, i) => `(${i + 1}) ${c}`).join("\n")
+    : "(no explicit rubric supplied; judge against the goal alone)";
+  const user = [
+    `Goal: ${args.goal}`,
+    "",
+    "Rubric criteria:",
+    rubricBlock,
+    "",
+    "Iteration output under review:",
+    args.output || "(no output produced)",
+  ].join("\n");
+  const res = await callModel(cfg, CRITIC_SYSTEM, user, criticModelId(cfg));
+  if (!res.ok)
+    return { ok: false, verdict: "fail", review: "", reason: res.reason };
+  const verdict = CRITIC_PASS_PREFIX.test(res.text) ? "pass" : "fail";
+  return { ok: true, verdict, review: res.text };
 }
 
 // Recall shared memory, reason as the agent, then record the result as an
