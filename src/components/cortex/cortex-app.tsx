@@ -758,16 +758,6 @@ export function CortexApp({
       </>,
     ],
     [
-      "sharing",
-      "Sharing",
-      <>
-        <circle key="a" cx="18" cy="5" r="2.6" />
-        <circle key="b" cx="6" cy="12" r="2.6" />
-        <circle key="c" cx="18" cy="19" r="2.6" />
-        <path key="d" d="M8.3 10.7l7.4-4.4M8.3 13.3l7.4 4.4" />
-      </>,
-    ],
-    [
       "integrations",
       "Integrations",
       <>
@@ -776,17 +766,6 @@ export function CortexApp({
           d="M9 3v4M15 3v4M9 17v4M15 17v4M3 9h4M3 15h4M17 9h4M17 15h4"
         />
         <rect key="b" x="7" y="7" width="10" height="10" rx="2" />
-      </>,
-    ],
-    [
-      "settings",
-      "Settings",
-      <>
-        <circle key="a" cx="12" cy="12" r="3" />
-        <path
-          key="b"
-          d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-        />
       </>,
     ],
   ];
@@ -1325,9 +1304,9 @@ export function CortexApp({
                       {sess && claimedName ? (
                         <a
                           className="you-handle"
-                          href="#sharing"
+                          href="#settings"
                           onClick={() => {
-                            setView("sharing");
+                            setView("settings");
                             setProfileOpen(false);
                           }}
                         >
@@ -1337,9 +1316,9 @@ export function CortexApp({
                       ) : sess ? (
                         <a
                           className="you-claim"
-                          href="#sharing"
+                          href="#settings"
                           onClick={() => {
-                            setView("sharing");
+                            setView("settings");
                             setProfileOpen(false);
                           }}
                         >
@@ -1387,6 +1366,19 @@ export function CortexApp({
                     </svg>
                     <span style={{ flex: 1, textAlign: "left" }}>Developer</span>
                     <span className="dev-switch" />
+                  </button>
+                  <button
+                    className="tb-menu-item"
+                    onClick={() => {
+                      setView("settings");
+                      setProfileOpen(false);
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                    <span>Settings</span>
                   </button>
                   {sess ? (
                     <button
