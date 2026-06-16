@@ -1,0 +1,377 @@
+{
+  "landingPage": {
+    "name": "Cortex Landing",
+    "description": "Calm, private memory layer for AI — a dark, serif-led landing with a living memory-mesh hero, scroll-reveal motion, and an honest local-first access story.",
+    "mainComponent": "src/app/home/page.tsx",
+    "route": "/home",
+    "notes": "Sections marked status 'built' exist today in src/app/home/page.tsx. Sections marked 'proposed' are blueprint slots adapted from the source template taxonomy for the next facelift pass. Cortex's calm aesthetic intentionally replaces high-energy template motifs (glitch text, collaborative cursors) with the Constellation memory-mesh and quiet scroll reveals.",
+    "sections": [
+      {
+        "order": 1,
+        "componentName": "Navbar",
+        "filePath": "src/app/home/page.tsx#nav",
+        "type": "Navigation",
+        "status": "built",
+        "description": "Sticky header with backdrop blur, anchor navigation, Cortex radial-burst logo mark, and a primary Launch app CTA.",
+        "features": [
+          "Scroll-triggered backdrop blur over a translucent black bar",
+          "Anchor links: How it works, Features, Access, FAQ",
+          "Logo mark plus Expose-serif wordmark",
+          "Primary violet Launch app button",
+          "Hover color transition on nav links",
+          "Collapses to logo + CTA on mobile"
+        ],
+        "subComponents": ["Logo"]
+      },
+      {
+        "order": 2,
+        "componentName": "Hero",
+        "filePath": "src/app/home/page.tsx#hero",
+        "type": "Hero Section",
+        "status": "built",
+        "description": "Full-viewport hero over the Constellation 'brain' memory mesh: a status pill, a serif headline with a violet italic accent, supporting copy, and dual CTAs.",
+        "features": [
+          "Constellation canvas background (drifting primitives clustering into a brain)",
+          "Live status pill with pinging violet dot: 'Early access · local-first'",
+          "Serif headline 'You live it. Cortex remembers.' with violet italic emphasis",
+          "Subheading on memory, privacy, and cross-tool recall",
+          "Primary Launch app + secondary gold See how it works CTAs",
+          "Reassurance line: no account to start, data stays on device",
+          "Staggered scroll-reveal on every block"
+        ],
+        "subComponents": ["Constellation", "Reveal", "Logo"]
+      },
+      {
+        "order": 3,
+        "componentName": "BuiltOn",
+        "filePath": "src/app/home/page.tsx#built-on",
+        "type": "Social Proof",
+        "status": "built",
+        "description": "Infinite wordmark marquee of the open infrastructure Cortex runs on, with an eyebrow label and edge fade mask.",
+        "features": [
+          "Pure-CSS marquee, pauses on hover, honors reduced-motion",
+          "Edge gradient mask for a clean fade in/out",
+          "Eyebrow: 'The memory layer for AI, built on open infrastructure'",
+          "Serif wordmarks rather than third-party logo art"
+        ],
+        "marqueeItems": ["Sui", "Walrus", "Seal", "MemWal", "MCP", "Privy"],
+        "subComponents": ["Reveal"]
+      },
+      {
+        "order": 4,
+        "componentName": "Manifesto",
+        "filePath": "src/app/home/page.tsx#manifesto",
+        "type": "Pull Quote",
+        "status": "built",
+        "description": "Centered large-serif manifesto line — Cortex's signature, calm equivalent of a hype testimonial band.",
+        "features": [
+          "Single large Expose-serif statement",
+          "Violet italic close",
+          "Generous vertical rhythm, reveal on scroll"
+        ],
+        "content": "We carry more than we can hold in mind. Cortex remembers the rest — gently, and only for you.",
+        "subComponents": ["Reveal"]
+      },
+      {
+        "order": 5,
+        "componentName": "HowItWorks",
+        "filePath": "src/app/home/page.tsx#how",
+        "type": "Process Section",
+        "status": "built",
+        "description": "The Keep / Connect / Recall model as three numbered cards over a low-density Constellation drift.",
+        "features": [
+          "Numbered markers 01–03 (a real sequence)",
+          "Three equal cards with hover border lift",
+          "Constellation drift background at reduced opacity",
+          "Section header with eyebrow, serif title, and intro"
+        ],
+        "steps": [
+          { "id": "01", "title": "Keep", "summary": "Hand Cortex a thought, file, note, or link — it keeps only what matters, no folders or tags." },
+          { "id": "02", "title": "Connect", "summary": "It links what belongs together, tidies repeats, and draws the constellation of your memory." },
+          { "id": "03", "title": "Recall", "summary": "Ask in plain words from any tool — answers are grounded only in what you actually saved." }
+        ],
+        "subComponents": ["SectionHeader", "Constellation", "Reveal"]
+      },
+      {
+        "order": 6,
+        "componentName": "Features",
+        "filePath": "src/app/home/page.tsx#features",
+        "type": "Features Section",
+        "status": "built",
+        "description": "Six capability cards in a responsive grid, each with a hand-drawn line icon, serif title, and description.",
+        "features": [
+          "Responsive 1/2/3-column grid",
+          "Violet stroke icons",
+          "Hover border lift, equal-height cards",
+          "Per-row stagger on scroll reveal"
+        ],
+        "featureCards": [
+          { "title": "Memory that outlives the chat", "summary": "Context persists across session, tool, and model." },
+          { "title": "One brain behind every agent", "summary": "MCP lets every tool share the same memory." },
+          { "title": "Yours, on your device", "summary": "Local-first by default; nothing leaves unless you choose." },
+          { "title": "Shared, sealed, by name", "summary": "Send a memory to a handle; encrypted before it leaves you." },
+          { "title": "It gets sharper over time", "summary": "Merges duplicates, corrects stale facts, prunes gently." },
+          { "title": "Durable, and inspectable", "summary": "Artifacts on storage you control — state you can see." }
+        ],
+        "subComponents": ["SectionHeader", "Reveal"]
+      },
+      {
+        "order": 7,
+        "componentName": "Stats",
+        "filePath": "src/components/landing/stats.tsx",
+        "type": "Guarantees",
+        "status": "proposed",
+        "description": "A restrained trio of guarantees rather than vanity metrics — honest claims Cortex can stand behind.",
+        "features": [
+          "Three large serif values with small labels",
+          "No fabricated user counts",
+          "Reveal with light stagger"
+        ],
+        "stats": [
+          { "value": "Local-first", "label": "Your memory lives on your device by default" },
+          { "value": "Encrypted", "label": "Anything shared is sealed before it leaves you" },
+          { "value": "Portable", "label": "The same context across every tool you use" }
+        ],
+        "subComponents": ["Reveal"]
+      },
+      {
+        "order": 8,
+        "componentName": "Showcase",
+        "filePath": "src/app/home/page.tsx#showcase",
+        "type": "Gallery",
+        "status": "built",
+        "description": "'One brain behind every agent' headline over the Cortex memory-map screenshot in a bordered frame.",
+        "features": [
+          "Serif headline with violet italic accent",
+          "Framed product screenshot (/cortex-app.png)",
+          "Reveal on scroll for headline, copy, and image"
+        ],
+        "subComponents": ["Reveal"]
+      },
+      {
+        "order": 9,
+        "componentName": "Bento",
+        "filePath": "src/components/landing/bento.tsx",
+        "type": "Feature Showcase",
+        "status": "proposed",
+        "description": "Bento grid of Cortex's real product surfaces, with one highlighted tile and varied sizing.",
+        "features": [
+          "Two-row bento with mixed tile sizes",
+          "One highlighted tile (Memory Map) in violet",
+          "Loops tile accented with gold border",
+          "Color-coded badges [01]–[06]",
+          "Maps to surfaces that exist in src/components/cortex and src/app/api"
+        ],
+        "bentoCards": [
+          { "id": "[01]", "title": "MEMORY MAP", "color": "Violet (#7C5CD6)", "size": "full-width", "summary": "A living constellation of what you've kept and how it connects." },
+          { "id": "[02]", "title": "CAPTURE", "color": "Surface (#0F0F0F)", "size": "1/3", "summary": "Drop in notes, files, images, audio, and URLs from one composer." },
+          { "id": "[03]", "title": "ASK", "color": "Dark (#0A0A0A)", "size": "1/3", "summary": "Question your memory in plain language, grounded in your sources." },
+          { "id": "[04]", "title": "STUDIO", "color": "Surface (#0F0F0F)", "size": "1/3", "summary": "Compose with multiple models over your own context." },
+          { "id": "[05]", "title": "LOOPS", "color": "Gold border (#FFB829)", "size": "1/3", "summary": "Quiet agents that research, tidy, and plan — and check each other." },
+          { "id": "[06]", "title": "SHARING", "color": "Dark (#0A0A0A)", "size": "1/3", "summary": "Seal-encrypted memory shared to a SuiNS handle." }
+        ],
+        "subComponents": ["SectionHeader", "Reveal"]
+      },
+      {
+        "order": 10,
+        "componentName": "Comparison",
+        "filePath": "src/components/landing/comparison.tsx",
+        "type": "Comparison Section",
+        "status": "proposed",
+        "description": "A two-column 'without / with Cortex' contrast on what happens to context over time.",
+        "features": [
+          "Left column: context lost each session, repeated, siloed per tool",
+          "Right column: context kept, consolidated, portable, private",
+          "No named competitors — a before/after of memory itself"
+        ],
+        "subComponents": ["Reveal"]
+      },
+      {
+        "order": 11,
+        "componentName": "Testimonials",
+        "filePath": "src/components/landing/testimonials.tsx",
+        "type": "Social Proof",
+        "status": "proposed",
+        "description": "Voices from early users. Placeholder copy until real, attributable quotes exist — do not ship fabricated names.",
+        "features": [
+          "Quote cards with attribution",
+          "status: placeholder content pending real testimonials"
+        ],
+        "subComponents": ["Reveal"]
+      },
+      {
+        "order": 12,
+        "componentName": "Access",
+        "filePath": "src/app/home/page.tsx#access",
+        "type": "Pricing Section",
+        "status": "built",
+        "description": "One honest plan: free during early access, local-first, with optional bring-your-own durable storage.",
+        "features": [
+          "Single plan card, 'Free during early access'",
+          "Two-column included checklist with gold check marks",
+          "Optional add-on row: live durable storage (Walrus + Seal)",
+          "Dual CTA: Launch app + See how it works",
+          "No fabricated monthly price"
+        ],
+        "included": [
+          "Keep notes, files, thoughts and links",
+          "Recall in plain language, grounded in what you saved",
+          "Connect over MCP to the AI tools you already use",
+          "Local-first storage — nothing leaves your device by default",
+          "Self-improving memory: merges, corrects, and prunes",
+          "Pause anytime; nothing is ever quietly deleted"
+        ],
+        "subComponents": ["SectionHeader", "Reveal"]
+      },
+      {
+        "order": 13,
+        "componentName": "BuiltInTheOpen",
+        "filePath": "src/app/home/page.tsx#open",
+        "type": "Call-to-Action",
+        "status": "built",
+        "description": "Banded CTA on inspectable, open infrastructure with a gold outline action.",
+        "features": [
+          "Split layout: statement left, action right",
+          "Eyebrow 'Built in the open'",
+          "Gold-outline Open the app button"
+        ],
+        "subComponents": ["Reveal"]
+      },
+      {
+        "order": 14,
+        "componentName": "FAQ",
+        "filePath": "src/app/home/page.tsx#faq",
+        "type": "FAQ Section",
+        "status": "built",
+        "description": "Accordion of four questions on what Cortex is, privacy, tool integration, and memory over time.",
+        "features": [
+          "Radix accordion, single-open, collapsible",
+          "Hairline dividers, no underline on triggers",
+          "Reveal on scroll"
+        ],
+        "items": [
+          "What is Cortex?",
+          "Is my memory private?",
+          "Does it work with my AI tools?",
+          "How does it remember over time?"
+        ],
+        "subComponents": ["Accordion", "Reveal"]
+      },
+      {
+        "order": 15,
+        "componentName": "FinalCTA",
+        "filePath": "src/app/home/page.tsx#final-cta",
+        "type": "Call-to-Action",
+        "status": "built",
+        "description": "Closing section over Constellation drift with a large serif line and a single Launch app button.",
+        "features": [
+          "Headline 'Your memory has the answer. Just ask.'",
+          "Constellation drift background",
+          "Single primary CTA, reveal on scroll"
+        ],
+        "subComponents": ["Constellation", "Reveal"]
+      },
+      {
+        "order": 16,
+        "componentName": "Footer",
+        "filePath": "src/app/home/page.tsx#footer",
+        "type": "Footer",
+        "status": "built",
+        "description": "Footer with logo, a closing line, and a giant low-opacity Cortex serif watermark.",
+        "features": [
+          "Logo + wordmark and closing statement",
+          "Oversized Cortex watermark at 5% opacity",
+          "Generous bottom padding"
+        ],
+        "subComponents": ["Logo"]
+      }
+    ],
+    "utilityComponents": [
+      {
+        "componentName": "Reveal",
+        "filePath": "src/components/landing/reveal.tsx",
+        "type": "Motion Utility",
+        "status": "built",
+        "description": "IntersectionObserver wrapper that fades and rises children into view once, with a per-element delay for staggering.",
+        "usage": "Wraps nearly every content block across the landing"
+      },
+      {
+        "componentName": "Constellation",
+        "filePath": "src/components/landing/constellation.tsx",
+        "type": "Ambient Background",
+        "status": "built",
+        "description": "Dependency-free canvas memory mesh: drifting geometric primitives that cluster into a brain ('brain') or drift loosely ('drift').",
+        "usage": "Hero, How it works, and final CTA backgrounds"
+      },
+      {
+        "componentName": "Logo",
+        "filePath": "src/components/logo.tsx",
+        "type": "Brand Mark",
+        "status": "built",
+        "description": "Radial-burst Cortex mark with white/black/color variants.",
+        "usage": "Navbar and Footer"
+      },
+      {
+        "componentName": "SectionHeader",
+        "filePath": "src/components/landing/section-header.tsx",
+        "type": "Utility",
+        "status": "proposed",
+        "description": "Reusable eyebrow + serif title + optional intro, extracted from the repeated header pattern.",
+        "usage": "How it works, Features, Bento, Access"
+      },
+      {
+        "componentName": "Accordion",
+        "filePath": "src/components/ui/accordion.tsx",
+        "type": "Primitive",
+        "status": "built",
+        "description": "Radix-based accordion primitive.",
+        "usage": "FAQ section"
+      }
+    ],
+    "designSystem": {
+      "colors": {
+        "primary": "#7C5CD6",
+        "primarySoft": "#B79BEA",
+        "accent": "#FFB829",
+        "sage": "#15846E",
+        "background": "#000000",
+        "surface": "rgba(255,255,255,0.02)",
+        "surfaceSolid": "#0A0A0A",
+        "border": "rgba(255,255,255,0.10)",
+        "borderStrong": "rgba(255,255,255,0.25)",
+        "textLight": "#FFFFFF",
+        "textBody": "#BDBDBD",
+        "textGray": "#9A9A9A",
+        "textDim": "rgba(255,255,255,0.40)",
+        "selection": "rgba(124,92,214,0.30)"
+      },
+      "typography": {
+        "display": "Expose (Fontshare) — serif headings, logo wordmark",
+        "body": "Supreme (Fontshare) — paragraph and UI text",
+        "fallback": "Neue Montreal, system-ui, sans-serif",
+        "scale": {
+          "hero": "clamp(2.9rem, 8vw, 7rem)",
+          "h2": "clamp(2.25rem, 5vw, 3.5rem)",
+          "pullQuote": "clamp(1.9rem, 4.2vw, 3.2rem)",
+          "cardTitle": "21–26px",
+          "body": "15–17px",
+          "eyebrow": "12px uppercase, 0.2em tracking"
+        }
+      },
+      "layout": {
+        "container": "max-w-[1200px]",
+        "gutter": "px-6 (24px)",
+        "cardRadius": "24–28px",
+        "cardGap": "20px (gap-5)",
+        "sectionPadding": "py-[60px] to py-[140px]"
+      },
+      "motion": {
+        "scrollReveal": "opacity 0→1 + translateY(26px)→0, cubic-bezier(0.22,1,0.36,1), 0.7s, IntersectionObserver-triggered, per-element delay",
+        "marquee": "32s linear infinite translateX(-50%), pause on hover, edge-mask fade",
+        "ambient": "Constellation canvas (slow drift, parallax depth)",
+        "pill": "pinging violet status dot",
+        "reducedMotion": "all reveals and marquee disabled under prefers-reduced-motion"
+      }
+    }
+  }
+}
