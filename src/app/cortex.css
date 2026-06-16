@@ -754,3 +754,26 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .set-tr{border-top:1px solid var(--line)}
 .set-tr span:not(:first-child){font-family:var(--mono,monospace);color:var(--muted)}
 .set-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:22px}
+
+/* ── Overview (Home) ── */
+.ov-hero{text-align:center;max-width:660px;margin:48px auto 0;padding-top:20px}
+.ov-hello{font-family:var(--head);font-weight:700;font-size:clamp(36px,5vw,54px);line-height:1.04;letter-spacing:-.03em;color:var(--ink)}
+.ov-sub{margin:18px auto 0;color:var(--muted);font-size:16px;line-height:1.6;max-width:48ch}
+.ov-recent{margin-top:72px}
+.ov-recent-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:18px}
+.ov-recent-title{font-family:var(--head);font-size:22px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+.ov-viewall{font-size:14px;color:var(--muted);background:none;border:none;cursor:pointer;padding:6px 4px;transition:color .15s}
+.ov-viewall:hover{color:var(--ink)}
+.ov-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;align-items:start}
+@media(max-width:760px){.ov-cards{grid-template-columns:1fr}}
+.ov-card{display:flex;flex-direction:column;gap:14px;text-align:left;background:var(--surface);border:1px solid var(--line2);border-radius:16px;padding:22px 24px;box-shadow:var(--shadow);cursor:pointer;transition:border-color .15s,transform .15s,box-shadow .15s;min-height:152px}
+.ov-card:hover{border-color:var(--faint);transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.ov-card.pinned{border-color:#F1D9D6}
+.ov-card-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ov-tag{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;color:var(--accent-ink);background:var(--accent-soft);padding:5px 11px;border-radius:999px;text-transform:capitalize}
+.ov-card.pinned .ov-tag{color:#C2453E;background:#FBEAE8}
+.ov-heart{width:13px;height:13px;fill:#E4564E;stroke:none;flex:none}
+.ov-ago{font-size:12.5px;color:var(--faint);white-space:nowrap}
+.ov-card-text{font-size:15.5px;line-height:1.5;color:var(--ink);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ov-card-foot{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--faint);margin-top:auto}
+.ov-link{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;flex:none}
