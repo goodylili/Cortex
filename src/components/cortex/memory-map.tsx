@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useCortex } from "@/lib/cortex/store";
 import { type Memory } from "@/lib/cortex/logic";
 
@@ -9,7 +9,14 @@ import { type Memory } from "@/lib/cortex/logic";
 // Ported to run on the app's live memories. Self-contained dark immersive view.
 
 export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
-  const live = useCortex((s) => s.live)();
+  const ownLive = useCortex((s) => s.live)();
+  const sharedMemories = useCortex((s) => s.sharedMemories);
+  // Memories shared with you are part of your brain too — graph them alongside your
+  // own (they carry shared: true so the card/drawer mark them).
+  const live = useMemo(
+    () => [...ownLive, ...sharedMemories],
+    [ownLive, sharedMemories],
+  );
   const rootRef = useRef<HTMLDivElement>(null);
   const liveRef = useRef(live);
   liveRef.current = live;

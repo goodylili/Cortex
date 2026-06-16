@@ -46,6 +46,21 @@ const OBJECT_QUERY = graphql(`
   }
 `);
 
+const EVENTS_QUERY = graphql(`
+  query Events($type: String!) {
+    events(filter: { type: $type }) {
+      nodes {
+        sender {
+          address
+        }
+        contents {
+          json
+        }
+      }
+    }
+  }
+`);
+
 export interface OwnedObject {
   id: string;
   json: Record<string, unknown>;
@@ -61,6 +76,20 @@ interface OwnedResult {
 
 interface ObjectResult {
   object?: { asMoveObject?: { contents?: { json?: unknown } } };
+}
+
+interface EventsResult {
+  events?: {
+    nodes?: {
+      sender?: { address?: string } | null;
+      contents?: { json?: unknown } | null;
+    }[];
+  };
+}
+
+export interface ModuleEvent {
+  sender: string;
+  json: Record<string, unknown>;
 }
 
 export async function ownedObjects(
@@ -86,4 +115,20 @@ export async function objectJson(
   const data = res.data as ObjectResult | undefined;
   const json = data?.object?.asMoveObject?.contents?.json;
   return json ? (json as Record<string, unknown>) : null;
+}
+
+// Events of one fully-qualified Move type (e.g. `${pkg}::sharing::ShareCreated`),
+// returning each event's sender address and its payload decoded as JSON. Callers filter
+// on the JSON fields. Move struct fields arrive as plain JSON (no `.fields`).
+export async function moduleEvents(eventType: string): Promise<ModuleEvent[]> {
+  const res = await gql().query({
+    query: EVENTS_QUERY,
+    variables: { type: eventType },
+  });
+  const data = res.data as EventsResult | undefined;
+  const nodes = data?.events?.nodes ?? [];
+  return nodes.map((n) => ({
+    sender: n.sender?.address ?? "",
+    json: (n.contents?.json ?? {}) as Record<string, unknown>,
+  }));
 }

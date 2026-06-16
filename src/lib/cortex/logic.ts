@@ -37,6 +37,12 @@ export interface Memory {
   // source provenance (when this memory was distilled from a document)
   docId?: string;
   origin?: string; // url or filename the memory came from
+  // shared-memory provenance (when another user shared this memory with you via
+  // cortex::sharing). Read-only in your brain: it shows as "shared", is never swept
+  // or consolidated, and carries the owner's handle as its source.
+  shared?: boolean;
+  sharedBy?: string; // owner handle, e.g. great@context.sui
+  sharedFrom?: string; // the MemoryShare object id this came from
 }
 
 export interface CortexEvent {

@@ -25,6 +25,7 @@ const DEFAULT_AGGREGATOR: Record<CortexNetwork, string> = {
   testnet: "https://aggregator.walrus-testnet.walrus.space",
   mainnet: "https://aggregator.walrus-mainnet.walrus.space",
 };
+const DEFAULT_SUINS_PARENT = "cortex.sui";
 
 export interface CortexEnv {
   privyAppId: string;
@@ -42,6 +43,7 @@ export interface CortexEnv {
   walrusAggregator: string;
   seal: { serverObjectIds: string[]; threshold: number };
   memwal: { serverUrl: string; packageId: string; registryId: string };
+  suinsParent: string;
 }
 
 function parseNetwork(value: string | undefined): CortexNetwork {
@@ -94,6 +96,8 @@ export const CORTEX_ENV: CortexEnv = {
     packageId: process.env.NEXT_PUBLIC_MEMWAL_PACKAGE_ID ?? "",
     registryId: process.env.NEXT_PUBLIC_MEMWAL_REGISTRY_ID ?? "",
   },
+  suinsParent:
+    process.env.NEXT_PUBLIC_CORTEX_SUINS_PARENT ?? DEFAULT_SUINS_PARENT,
 };
 
 // Privy login is available whenever an app id is set.
@@ -117,4 +121,9 @@ export function memoryConfigured(): boolean {
     CORTEX_ENV.memwal.packageId.length > 0 &&
     CORTEX_ENV.memwal.registryId.length > 0
   );
+}
+
+// SuiNS username claiming/resolution is available whenever a parent domain is set.
+export function suinsEnabled(): boolean {
+  return CORTEX_ENV.suinsParent.length > 0;
 }
