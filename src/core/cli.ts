@@ -7,6 +7,8 @@
 //   watch                watch configured folders and ingest changes
 //   loop run <loopId>    drive a persisted loop to a terminal state (executor)
 //   loop step <loopId>   advance a persisted loop by one iteration
+//   loop host [secs]     run the scheduler daemon, firing due loops on an interval
+//   loop flag <loopId> <text>  sharpen a loop's critic rubric from a human-flagged miss
 
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { basename, extname } from "node:path";
@@ -15,8 +17,11 @@ import { createClients } from "../../sui/app/clients";
 import { ingestSource, runDream, applyDiff, verify } from "./sync";
 import { seedDemo } from "./demo";
 import { startWatcher } from "./watcher";
-import { runLoop, stepLoop } from "./loops";
+import { flagRubricMiss, runLoop, stepLoop } from "./loops";
+import { startLoopHost } from "./loop-host";
 import type { SourceKind } from "./models";
+
+const MS_PER_SECOND = 1000;
 
 const cfg = loadConfig();
 const c = createClients(cfg);
@@ -101,9 +106,45 @@ async function main() {
     }
     case "loop": {
       const sub = process.argv[3];
+
+      if (sub === "host") {
+        const secs = Number.parseInt(process.argv[4] ?? "", 10);
+        const intervalMs = Number.isFinite(secs) && secs > 0 ? secs * MS_PER_SECOND : undefined;
+        const host = startLoopHost(c, cfg, {
+          ...(intervalMs !== undefined ? { intervalMs } : {}),
+          onTick: (fired) => {
+            if (fired.length) console.log(`fired ${fired.length} loop(s): ${fired.join(", ")}`);
+          },
+          onError: (err) => console.error("tick failed:", err.message),
+        });
+        console.log("loop scheduler running. ctrl-c to stop.");
+        process.on("SIGINT", () => {
+          host.stop();
+          process.exit(0);
+        });
+        break;
+      }
+
+      if (sub === "flag") {
+        const loopId = process.argv[4];
+        const flag = process.argv.slice(5).join(" ");
+        if (!loopId || !flag) {
+          console.error("usage: cortex loop flag <loopId> <what the verifier missed>");
+          process.exit(1);
+        }
+        const rubric = await flagRubricMiss(c, cfg, loopId, flag);
+        console.log(
+          `rubric ${rubric.id} for loop ${loopId}: ${rubric.criteria.length} criteria`,
+        );
+        rubric.criteria.forEach((criterion) => console.log(`  · ${criterion}`));
+        break;
+      }
+
       const loopId = process.argv[4];
       if ((sub !== "run" && sub !== "step") || !loopId) {
-        console.error("usage: cortex loop run <loopId> | cortex loop step <loopId>");
+        console.error(
+          "usage: cortex loop run <loopId> | step <loopId> | host [secs] | flag <loopId> <text>",
+        );
         process.exit(1);
       }
       const result =
@@ -133,7 +174,7 @@ async function main() {
     }
     default:
       console.log(
-        "commands: demo | ingest <file> | dream [--apply] | verify | watch | loop run <loopId> | loop step <loopId>",
+        "commands: demo | ingest <file> | dream [--apply] | verify | watch | loop run|step <loopId> | loop host [secs] | loop flag <loopId> <text>",
       );
   }
 }
