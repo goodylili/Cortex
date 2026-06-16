@@ -66,7 +66,7 @@ input,textarea{font:inherit;color:inherit}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
 ::selection{background:var(--accent-soft)}
 
-.app{display:flex;min-height:100vh}
+.app{display:flex;flex-direction:column;min-height:100vh}
 
 /* ---------------- soft rail ---------------- */
 .rail{width:240px;flex-shrink:0;display:flex;flex-direction:column;padding:26px 18px;position:sticky;top:0;height:100vh;transition:width .25s ease,padding .25s ease,opacity .2s ease;overflow:hidden}
@@ -86,7 +86,7 @@ input,textarea{font:inherit;color:inherit}
 
 /* global composer, fixed at the bottom of every page */
 .home-chat{display:flex;flex-direction:column;gap:22px;padding-top:6px}
-.composer-dock{position:fixed;bottom:0;left:240px;right:0;z-index:30;padding:14px 28px 22px;background:linear-gradient(to top,var(--paper) 74%,transparent)}
+.composer-dock{position:fixed;bottom:0;left:0;right:0;z-index:30;padding:14px 28px 22px;background:linear-gradient(to top,var(--paper) 74%,transparent)}
 .composer-dock .capture{max-width:min(1320px,92%);margin:0 auto}
 @media(max-width:880px){.composer-dock{left:0;padding:12px 18px 16px}}
 .capture-bar{flex-wrap:nowrap}
@@ -787,3 +787,33 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .mode-toggle button svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .cap-send{margin-left:auto;width:42px;height:42px;padding:0;border-radius:50%;justify-content:center;gap:0}
 .cap-send svg{width:19px;height:19px}
+
+/* ── Top navigation ── */
+.topbar{position:sticky;top:0;z-index:40;background:var(--paper);border-bottom:1px solid var(--line)}
+.topbar-inner{display:flex;align-items:center;gap:18px;max-width:min(1480px,96%);margin:0 auto;height:66px;padding:0 8px}
+.tb-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);flex-shrink:0}
+.tb-brand .mark{width:30px;height:30px;color:var(--accent)}
+.tb-brand .mark svg{width:100%;height:100%;display:block}
+.tb-brand b{font-family:var(--serif);font-weight:600;font-size:23px;letter-spacing:-.01em}
+.tb-nav{display:flex;align-items:center;gap:4px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+.tb-nav::-webkit-scrollbar{display:none}
+.tb-item{display:inline-flex;align-items:center;gap:8px;padding:8px 13px;border-radius:8px;color:var(--muted);font-size:14.5px;font-weight:500;text-decoration:none;white-space:nowrap;transition:background .15s,color .15s}
+.tb-item svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.tb-item:hover{color:var(--ink);background:var(--surface2)}
+.tb-item.on{color:#fff;background:var(--accent)}
+.tb-right{display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto}
+.tb-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:8px;color:var(--muted);transition:background .15s,color .15s}
+.tb-icon:hover{background:var(--surface2);color:var(--ink)}
+.tb-icon svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.tb-profile{position:relative}
+.tb-you{display:flex;align-items:center;gap:9px;padding:5px 10px 5px 6px;border-radius:999px;color:var(--ink);transition:background .15s}
+.tb-you:hover,.tb-you.on{background:var(--surface2)}
+.tb-you-name{font-size:14px;font-weight:500;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb-chev{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:var(--muted)}
+.tb-menu{position:absolute;top:calc(100% + 8px);right:0;width:250px;background:var(--paper);border:1px solid var(--line2);border-radius:12px;box-shadow:var(--shadow-lg);padding:8px;z-index:50;animation:rise .18s ease}
+.tb-menu-head{display:flex;align-items:center;gap:11px;padding:8px 8px 12px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.tb-menu-item{display:flex;align-items:center;gap:11px;width:100%;padding:10px;border-radius:8px;color:var(--ink);font-size:14px;transition:background .12s}
+.tb-menu-item:hover{background:var(--surface2)}
+.tb-menu-item svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;color:var(--muted);flex:none}
+.tb-menu-item.danger,.tb-menu-item.danger svg{color:#C2453E}
+@media(max-width:760px){.tb-brand b{display:none}.tb-you-name{display:none}.topbar-inner{gap:10px}}

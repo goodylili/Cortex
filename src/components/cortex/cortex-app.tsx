@@ -153,7 +153,8 @@ export function CortexApp({
   const s = useCortex();
   const [view, setView] = useState<View>("home");
   const [theme, setTheme] = useState<Theme>("system");
-  const [railOpen, setRailOpen] = useState(true);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
   const [dev, setDev] = useState(false);
   const [input, setInput] = useState("");
   const [memFilter, setMemFilter] = useState("all");
@@ -381,6 +382,16 @@ export function CortexApp({
     document.addEventListener("click", onClick);
     return () => document.removeEventListener("click", onClick);
   }, []);
+  useEffect(() => {
+    if (!profileOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [profileOpen]);
   function flash(m: string) {
     setToast(m);
     setTimeout(() => setToast(""), 2600);
@@ -1245,138 +1256,173 @@ export function CortexApp({
   );
 
   return (
-    <div className={"app" + (railOpen ? "" : " rail-closed")}>
-      {!railOpen && (
-        <button
-          className="rail-open"
-          onClick={() => setRailOpen(true)}
-          aria-label="Open sidebar"
-        >
-          <svg viewBox="0 0 24 24">
-            <path d="M10 4H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3" />
-            <path d="M20 12H10" />
-            <path d="M16 8l4 4-4 4" />
-          </svg>
-        </button>
-      )}
-      <aside className="rail" aria-label="Navigation">
-        <div className="brand">
-          <span className="mark">{MARK}</span>
-          <b>
-            Cortex<sup className="tm">TM</sup>
-          </b>
-          <button
-            className="rail-toggle"
-            onClick={() => setRailOpen(false)}
-            aria-label="Collapse sidebar"
-          >
-            <svg viewBox="0 0 24 24">
-              <path d="M14 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" />
-              <path d="M4 12h10" />
-              <path d="M8 8l-4 4 4 4" />
-            </svg>
-          </button>
-        </div>
-        <nav className="nav">
-          {NAV.map(([v, label, icon]) => (
-            <a
-              key={v}
-              className={view === v ? "on" : ""}
-              href={`#${v}`}
-              onClick={() => setView(v)}
-            >
-              <svg viewBox="0 0 24 24">{icon}</svg>
-              {label}
-            </a>
-          ))}
-        </nav>
-        <div className="rail-foot">
-          <button
-            className="softbtn"
-            onClick={() => {
-              const n = eff === "dark" ? "light" : "dark";
-              setTheme(n);
-              try {
-                localStorage.setItem("cortex-theme", n);
-              } catch {}
-            }}
-          >
-            <svg viewBox="0 0 24 24">
-              {eff === "dark" ? (
-                <g>
-                  <circle cx="12" cy="12" r="4.2" />
-                  <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.4 1.4M17.6 17.6L19 19M19 5l-1.4 1.4M6.4 17.6L5 19" />
-                </g>
-              ) : (
-                <path d="M20 14.5A8 8 0 1 1 9.5 4a6.3 6.3 0 0 0 10.5 10.5z" />
-              )}
-            </svg>
-            <span>{eff === "dark" ? "Light" : "Dark"}</span>
-          </button>
-          <button
-            className="softbtn"
-            onClick={() => {
-              const n = !dev;
-              setDev(n);
-              try {
-                localStorage.setItem("cortex-dev", n ? "1" : "");
-              } catch {}
-            }}
-          >
-            <svg viewBox="0 0 24 24">
-              <path d="M8 3H7a2 2 0 0 0-2 2v3a2 2 0 0 1-2 2 2 2 0 0 1 2 2v3a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 1 2 2v3a2 2 0 0 0 2 2 2 2 0 0 0-2 2v3a2 2 0 0 1-2 2h-1" />
-            </svg>
-            <span style={{ flex: 1, textAlign: "left" }}>Developer</span>
-            <span className="dev-switch" />
-          </button>
-          <div className="you">
-            <span className="avatar">
-              {(walletState?.label?.[0] ?? "G").toUpperCase()}
-            </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="nm">{walletState?.label ?? "Guest"}</div>
-              {sess && claimedName ? (
-                <a
-                  className="you-handle"
-                  href="#sharing"
-                  onClick={() => setView("sharing")}
-                  title="Manage your sharing identity"
-                >
-                  <span className="dot" />
-                  {claimedName}
-                </a>
-              ) : sess ? (
-                <a
-                  className="you-claim"
-                  href="#sharing"
-                  onClick={() => setView("sharing")}
-                >
-                  Claim username
-                </a>
-              ) : (
-                <div className="sub">Free · just you</div>
-              )}
-            </div>
-            {sess ? (
-              <button
-                className="you-out"
-                onClick={doSignOut}
-                title="Sign out"
-                aria-label="Sign out"
+    <div className="app">
+      <header className="topbar">
+        <div className="topbar-inner">
+          <a className="tb-brand" href="#home" onClick={() => setView("home")}>
+            <span className="mark">{MARK}</span>
+            <b>Cortex</b>
+          </a>
+          <nav className="tb-nav" aria-label="Primary">
+            {NAV.map(([v, label, icon]) => (
+              <a
+                key={v}
+                className={"tb-item" + (view === v ? " on" : "")}
+                href={`#${v}`}
+                onClick={() => setView(v)}
               >
-                <svg viewBox="0 0 24 24">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <path d="M16 17l5-5-5-5M21 12H9" />
+                <svg viewBox="0 0 24 24">{icon}</svg>
+                <span>{label}</span>
+              </a>
+            ))}
+          </nav>
+          <div className="tb-right">
+            <button
+              className="tb-icon"
+              aria-label="Search memories"
+              onClick={() => setView("memories")}
+            >
+              <svg viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M21 21l-4.3-4.3" />
+              </svg>
+            </button>
+            <button
+              className="tb-icon"
+              aria-label="Notifications"
+              onClick={() => flash("You're all caught up.")}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+              </svg>
+            </button>
+            <div className="tb-profile" ref={profileRef}>
+              <button
+                className={"tb-you" + (profileOpen ? " on" : "")}
+                onClick={() => setProfileOpen((o) => !o)}
+                aria-haspopup="menu"
+                aria-expanded={profileOpen}
+              >
+                <span className="avatar">
+                  {(walletState?.label?.[0] ?? "G").toUpperCase()}
+                </span>
+                <span className="tb-you-name">
+                  {walletState?.label ?? "Guest"}
+                </span>
+                <svg className="tb-chev" viewBox="0 0 24 24">
+                  <path d="M6 9l6 6 6-6" />
                 </svg>
               </button>
-            ) : privyOn ? (
-              <button className="you-out you-in" onClick={doSignIn}>
-                Sign in
-              </button>
-            ) : null}
+              {profileOpen && (
+                <div className="tb-menu" role="menu">
+                  <div className="tb-menu-head">
+                    <span className="avatar">
+                      {(walletState?.label?.[0] ?? "G").toUpperCase()}
+                    </span>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="nm">{walletState?.label ?? "Guest"}</div>
+                      {sess && claimedName ? (
+                        <a
+                          className="you-handle"
+                          href="#sharing"
+                          onClick={() => {
+                            setView("sharing");
+                            setProfileOpen(false);
+                          }}
+                        >
+                          <span className="dot" />
+                          {claimedName}
+                        </a>
+                      ) : sess ? (
+                        <a
+                          className="you-claim"
+                          href="#sharing"
+                          onClick={() => {
+                            setView("sharing");
+                            setProfileOpen(false);
+                          }}
+                        >
+                          Claim username
+                        </a>
+                      ) : (
+                        <div className="sub">Free · just you</div>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    className="tb-menu-item"
+                    onClick={() => {
+                      const n = eff === "dark" ? "light" : "dark";
+                      setTheme(n);
+                      try {
+                        localStorage.setItem("cortex-theme", n);
+                      } catch {}
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24">
+                      {eff === "dark" ? (
+                        <g>
+                          <circle cx="12" cy="12" r="4.2" />
+                          <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.4 1.4M17.6 17.6L19 19M19 5l-1.4 1.4M6.4 17.6L5 19" />
+                        </g>
+                      ) : (
+                        <path d="M20 14.5A8 8 0 1 1 9.5 4a6.3 6.3 0 0 0 10.5 10.5z" />
+                      )}
+                    </svg>
+                    <span>{eff === "dark" ? "Light mode" : "Dark mode"}</span>
+                  </button>
+                  <button
+                    className="tb-menu-item"
+                    onClick={() => {
+                      const n = !dev;
+                      setDev(n);
+                      try {
+                        localStorage.setItem("cortex-dev", n ? "1" : "");
+                      } catch {}
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M8 3H7a2 2 0 0 0-2 2v3a2 2 0 0 1-2 2 2 2 0 0 1 2 2v3a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 1 2 2v3a2 2 0 0 0 2 2 2 2 0 0 0-2 2v3a2 2 0 0 1-2 2h-1" />
+                    </svg>
+                    <span style={{ flex: 1, textAlign: "left" }}>Developer</span>
+                    <span className="dev-switch" />
+                  </button>
+                  {sess ? (
+                    <button
+                      className="tb-menu-item danger"
+                      onClick={() => {
+                        doSignOut();
+                        setProfileOpen(false);
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <path d="M16 17l5-5-5-5M21 12H9" />
+                      </svg>
+                      <span>Sign out</span>
+                    </button>
+                  ) : privyOn ? (
+                    <button
+                      className="tb-menu-item"
+                      onClick={() => {
+                        doSignIn();
+                        setProfileOpen(false);
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                        <path d="M10 17l5-5-5-5M15 12H3" />
+                      </svg>
+                      <span>Sign in</span>
+                    </button>
+                  ) : null}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </aside>
+      </header>
 
       <main className="main">
         <div className="wrap">
