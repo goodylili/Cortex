@@ -898,9 +898,10 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .cr-foot-meta{display:flex;flex-direction:column;min-width:0}
 .cr-foot-name{font-size:13.5px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cr-foot-sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.app.home-rail .main{padding-left:72px}
+.app.home-rail .main{padding-left:72px;transition:padding-left .2s ease}
 .app.home-rail .composer-dock{left:72px}
-.chat-rail.on-home.open{box-shadow:var(--shadow-lg)}
+.app.home-rail.rail-open .main{padding-left:280px}
+.app.home-rail.rail-open .composer-dock{left:280px}
 @media(max-width:900px){.app.home-rail .main,.app.home-rail.rail-open .main{padding-left:0}.app.home-rail .composer-dock,.app.home-rail.rail-open .composer-dock{left:0}.chat-rail.on-home:not(.open){transform:translateX(-100%)}.chat-rail.on-home.open{box-shadow:var(--shadow-lg);z-index:48}}
 
 /* ── Carousels (home): one card at a time, auto-sliding ── */
@@ -942,7 +943,8 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .dream-x:hover{background:var(--surface2)}
 
 /* ── Composer: Speak beside Send ── */
-.cap-tool.speak-tool{margin-left:auto}
+.cap-tail{margin-left:auto;display:flex;align-items:center;gap:8px}
+.cap-tail .cap-send{margin-left:0}
 
 /* ── Segmented toggle (Memories: Grid / Timeline) ── */
 .seg-wrap{display:flex;justify-content:center;margin-top:22px}

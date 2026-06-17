@@ -4572,40 +4572,42 @@ export function CortexApp({
                       </button>
                     ))}
                   </div>
-                  {dictation.supported && (
+                  <div className="cap-tail">
+                    {dictation.supported && (
+                      <button
+                        className={
+                          "cap-tool speak-tool" +
+                          (dictation.recording ? " on" : "")
+                        }
+                        onClick={() => void toggleDictation()}
+                        disabled={dictation.busy}
+                        title={
+                          dictation.recording
+                            ? "Stop and transcribe"
+                            : "Speak your prompt"
+                        }
+                      >
+                        <svg viewBox="0 0 24 24">
+                          <rect x="9" y="3" width="6" height="11" rx="3" />
+                          <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+                        </svg>{" "}
+                        {dictation.busy
+                          ? "…"
+                          : dictation.recording
+                            ? "Listening"
+                            : "Speak"}
+                      </button>
+                    )}
                     <button
-                      className={
-                        "cap-tool speak-tool" +
-                        (dictation.recording ? " on" : "")
-                      }
-                      onClick={() => void toggleDictation()}
-                      disabled={dictation.busy}
-                      title={
-                        dictation.recording
-                          ? "Stop and transcribe"
-                          : "Speak your prompt"
-                      }
+                      className="cap-send"
+                      onClick={submit}
+                      aria-label={s.mode === "ask" ? "Ask" : "Remember"}
                     >
                       <svg viewBox="0 0 24 24">
-                        <rect x="9" y="3" width="6" height="11" rx="3" />
-                        <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-                      </svg>{" "}
-                      {dictation.busy
-                        ? "…"
-                        : dictation.recording
-                          ? "Listening"
-                          : "Speak"}
+                        <path d="M12 19V5M5 12l7-7 7 7" />
+                      </svg>
                     </button>
-                  )}
-                  <button
-                    className="cap-send"
-                    onClick={submit}
-                    aria-label={s.mode === "ask" ? "Ask" : "Remember"}
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M12 19V5M5 12l7-7 7 7" />
-                    </svg>
-                  </button>
+                  </div>
                 </div>
               </div>
             </div>
