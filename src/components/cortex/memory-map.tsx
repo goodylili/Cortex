@@ -166,8 +166,8 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         H * 0.5,
         Math.max(W, H) * 0.8,
       );
-      vign.addColorStop(0, "#0a0810");
-      vign.addColorStop(0.5, "#040307");
+      vign.addColorStop(0, "#0c0c0d");
+      vign.addColorStop(0.5, "#060607");
       vign.addColorStop(1, "#000000");
     }
     const ro = new ResizeObserver(resize);
@@ -256,7 +256,9 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
       fanItems: FanItem[] = [],
       detailT = 0;
     type FanItem = { m: M; x: number; y: number; cy: number };
-    const vis = (m: M) => m.day <= asOf && !m.forgotten;
+    const hiddenCats = new Set<string>();
+    const vis = (m: M) =>
+      m.day <= asOf && !m.forgotten && !hiddenCats.has(m.cat);
     const hexA = (hex: string, a: number) => {
       hex = hex.replace("#", "");
       if (hex.length === 3)
@@ -529,15 +531,15 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
       ctx.beginPath();
       ctx.moveTo(p0[0]!, p0[1]!);
       ctx.quadraticCurveTo(c[0]!, c[1]!, p1[0]!, p1[1]!);
-      ctx.strokeStyle = hexA("#a98fe0", 0.13 * intensity);
+      ctx.strokeStyle = hexA("#c4c4c4", 0.13 * intensity);
       ctx.lineWidth = 6;
-      ctx.shadowColor = hexA("#c9b3f0", 0.55 * intensity);
+      ctx.shadowColor = hexA("#dcdcdc", 0.55 * intensity);
       ctx.shadowBlur = 14;
       ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(p0[0]!, p0[1]!);
       ctx.quadraticCurveTo(c[0]!, c[1]!, p1[0]!, p1[1]!);
-      ctx.strokeStyle = hexA("#d8c6f8", 0.6 * intensity);
+      ctx.strokeStyle = hexA("#efefef", 0.6 * intensity);
       ctx.lineWidth = 1.2;
       ctx.shadowBlur = 0;
       ctx.stroke();
@@ -548,7 +550,7 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
       ctx.beginPath();
       ctx.arc(gx, gy, 2, 0, PI2);
       ctx.fillStyle = hexA("#fff", 0.85 * intensity);
-      ctx.shadowColor = hexA("#d8c6f8", 0.9 * intensity);
+      ctx.shadowColor = hexA("#efefef", 0.9 * intensity);
       ctx.shadowBlur = 8;
       ctx.fill();
       ctx.shadowBlur = 0;
@@ -594,7 +596,7 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         const h = hubs[lf.cat!]!;
         const [ax, ay] = toScreen(h.x, h.y),
           [bx, by] = toScreen(lf.x, lf.y);
-        ctx.strokeStyle = hexA("#a98fe0", 0.09 * lf.a!);
+        ctx.strokeStyle = hexA("#c4c4c4", 0.09 * lf.a!);
         ctx.lineWidth = 1;
         ctx.setLineDash([1, 3]);
         ctx.beginPath();
@@ -732,7 +734,7 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         const a = (i / 80) * PI2,
           r1 = 34,
           r2 = i % 4 === 0 ? 41 : 37;
-        ctx.strokeStyle = hexA("#a98fe0", i % 4 === 0 ? 0.6 : 0.25);
+        ctx.strokeStyle = hexA("#c4c4c4", i % 4 === 0 ? 0.6 : 0.25);
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1);
@@ -740,8 +742,8 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         ctx.stroke();
       }
       ctx.restore();
-      ring(x, y, 44 * cam.scale, "#a98fe0", 0.45, 1);
-      ring(x, y, 31 * cam.scale, "#d8c6f8", 0.5, 1);
+      ring(x, y, 44 * cam.scale, "#c4c4c4", 0.45, 1);
+      ring(x, y, 31 * cam.scale, "#efefef", 0.5, 1);
       orb(x, y, 22 * cam.scale, "#9b7fd6", 1);
       ctx.textAlign = "left";
       ctx.fillStyle = hexA("#e9e0fb", 0.95);
@@ -825,7 +827,7 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         ctx.fill();
         ctx.lineWidth = cd.hi ? 1.5 : 1;
         ctx.strokeStyle = cd.hi
-          ? hexA("#a98fe0", 0.7)
+          ? hexA("#c4c4c4", 0.7)
           : "rgba(255,255,255,0.1)";
         if (cd.hi) {
           ctx.shadowColor = "rgba(183,155,234,0.4)";
@@ -848,7 +850,7 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
       fanItems.forEach((it, i) => {
         const frac = fanItems.length > 1 ? i / (fanItems.length - 1) : 0.5;
         const ec = EMO[it.m.emo]!.c;
-        const col2 = mixHex("#a98fe0", ec, frac);
+        const col2 = mixHex("#c4c4c4", ec, frac);
         const mx = (fx0 + it.x) / 2;
         const hot = hoverFan === it;
         ctx.beginPath();
@@ -1075,19 +1077,22 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
       el.style.setProperty("--bc", v.c);
       el.innerHTML = `<span class="dot" style="background:${v.c}"></span><span class="nm">${v.label}</span><span class="ct">${MEM.filter((m) => m.cat === k).length}</span>`;
       el.onclick = () => {
-        focusEmo = null;
-        focusCat = focusCat === k ? null : k;
-        camT = focusCat
-          ? { tx: hubs[k]!.x * 0.5, ty: hubs[k]!.y * 0.5, scale: 1.3 }
-          : { tx: 0, ty: 0, scale: 1 };
+        if (hiddenCats.has(k)) hiddenCats.delete(k);
+        else hiddenCats.add(k);
+        if (focusCat === k && hiddenCats.has(k)) {
+          focusCat = null;
+          camT = { tx: 0, ty: 0, scale: 1 };
+        }
         syncLegends();
+        updateStats();
       };
       rowsCat.appendChild(el);
     });
     function syncLegends() {
       rowsCat.querySelectorAll<HTMLElement>(".li").forEach((li) => {
-        li.classList.toggle("on", li.dataset.cat === focusCat);
-        li.classList.toggle("off", !!focusCat && li.dataset.cat !== focusCat);
+        const cat = li.dataset.cat!;
+        li.classList.toggle("on", cat === focusCat && !hiddenCats.has(cat));
+        li.classList.toggle("muted", hiddenCats.has(cat));
       });
     }
     const mSealed = q("#mSealed"),
