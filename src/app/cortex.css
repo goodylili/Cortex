@@ -962,7 +962,11 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .sel-n{font-size:14px;font-weight:500;color:var(--ink)}
 .sel-clear{font-size:13.5px;color:var(--muted);padding:6px 4px}
 .sel-clear:hover{color:var(--ink)}
-.sel-bar .pill-btn{margin-left:auto}
+.sel-actions{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap}
+.sel-act{font-size:13.5px;font-weight:500;color:var(--ink);border:1px solid var(--line2);border-radius:999px;padding:8px 15px;transition:background .12s,border-color .12s}
+.sel-act:hover{background:var(--surface2)}
+.sel-act.danger{color:#c0392b;border-color:rgba(192,57,43,.32)}
+.sel-act.danger:hover{background:rgba(192,57,43,.08)}
 
 /* ── Knowledge base (card grid) ── */
 .kb2-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:30px}
