@@ -235,7 +235,6 @@ export function CortexApp({
   const [input, setInput] = useState("");
   const [memFilter, setMemFilter] = useState("all");
   const [memTab, setMemTab] = useState<"cards" | "timeline">("cards");
-  const [homeMode, setHomeMode] = useState<"chat" | "agents">("chat");
   const [captureOpen, setCaptureOpen] = useState(false);
   const [agentGoal, setAgentGoal] = useState("");
   const [agentAssignee, setAgentAssignee] = useState<string>(AGENTS[0]!.id);
@@ -311,7 +310,6 @@ export function CortexApp({
   const [kbFilter, setKbFilter] = useState<
     "all" | "pdf" | "markdown" | "walrus" | "shared"
   >("all");
-  const [searchOpen, setSearchOpen] = useState(false);
   const [dreams, setDreams] = useState<{ title: string; body: string }[]>([]);
   const [dreamsLoading, setDreamsLoading] = useState(false);
   const dreamsTried = useRef(false);
@@ -884,6 +882,15 @@ export function CortexApp({
           key="b"
           d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"
         />
+      </>,
+    ],
+    [
+      "agents",
+      "Agents",
+      <>
+        <circle key="a" cx="9" cy="7" r="3" />
+        <circle key="b" cx="17" cy="9" r="2.4" />
+        <path key="c" d="M3 20a6 6 0 0 1 12 0M14.5 14.5a4.5 4.5 0 0 1 6.5 4.1" />
       </>,
     ],
     [
@@ -1482,8 +1489,7 @@ export function CortexApp({
       if (id) {
         setOpenLoopId(id);
         s.startLoop(id);
-        setView("home");
-        setHomeMode("agents");
+        setView("agents");
         flash("Loop running on the Agents page.");
       }
     } finally {
@@ -1782,48 +1788,6 @@ export function CortexApp({
               </svg>
               Add memory
             </button>
-            {searchOpen && (
-              <label className="tb-search">
-                <svg viewBox="0 0 24 24">
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="M21 21l-4.3-4.3" />
-                </svg>
-                <input
-                  autoFocus
-                  placeholder={
-                    view === "knowledge"
-                      ? "Search documents…"
-                      : "Search memories…"
-                  }
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onBlur={() => {
-                    if (!query) setSearchOpen(false);
-                  }}
-                />
-                {query && (
-                  <button
-                    type="button"
-                    className="tb-search-x"
-                    aria-label="Clear search"
-                    onClick={() => setQuery("")}
-                  >
-                    ×
-                  </button>
-                )}
-              </label>
-            )}
-            <button
-              className={"tb-icon" + (searchOpen ? " on" : "")}
-              onClick={() => setSearchOpen((o) => !o)}
-              aria-label="Search"
-              title="Search"
-            >
-              <svg viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="7" />
-                <path d="M21 21l-4.3-4.3" />
-              </svg>
-            </button>
             <div className="tb-profile" ref={profileRef}>
               <button
                 className={"tb-you" + (profileOpen ? " on" : "")}
@@ -1975,28 +1939,6 @@ export function CortexApp({
             </svg>
           </button>
         </div>
-        <div className="cr-tabs">
-          <button
-            className={"cr-tab" + (homeMode === "chat" ? " on" : "")}
-            onClick={() => setHomeMode("chat")}
-          >
-            <svg viewBox="0 0 24 24">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            <span>Chat</span>
-          </button>
-          <button
-            className={"cr-tab" + (homeMode === "agents" ? " on" : "")}
-            onClick={() => setHomeMode("agents")}
-          >
-            <svg viewBox="0 0 24 24">
-              <circle cx="9" cy="7" r="3" />
-              <circle cx="17" cy="9" r="2.4" />
-              <path d="M3 20a6 6 0 0 1 12 0M14.5 14.5a4.5 4.5 0 0 1 6.5 4.1" />
-            </svg>
-            <span>Agents</span>
-          </button>
-        </div>
         <button className="cr-new" onClick={() => s.newSession()}>
           <svg viewBox="0 0 24 24">
             <path d="M12 5v14M5 12h14" />
@@ -2043,11 +1985,8 @@ export function CortexApp({
           )}
         </div>
         <button
-          className="cr-log"
-          onClick={() =>
-            setHomeMode(homeMode === "agents" ? "chat" : "agents")
-          }
-          aria-expanded={homeMode === "agents"}
+          className={"cr-log" + (view === "agents" ? " on" : "")}
+          onClick={() => setView("agents")}
         >
           <span className="cr-log-l">
             <svg viewBox="0 0 24 24">
@@ -2057,11 +1996,8 @@ export function CortexApp({
             </svg>
             <span className="cr-log-t">Agent log</span>
           </span>
-          <svg
-            className={"cr-log-chev" + (homeMode === "agents" ? " up" : "")}
-            viewBox="0 0 24 24"
-          >
-            <path d="M6 15l6-6 6 6" />
+          <svg className="cr-log-chev" viewBox="0 0 24 24">
+            <path d="M9 6l6 6-6 6" />
           </svg>
         </button>
       </aside>
@@ -2070,8 +2006,7 @@ export function CortexApp({
         <div className="wrap">
           {/* HOME */}
           <section className={"view" + (view === "home" ? " on" : "")}>
-            {homeMode === "chat" &&
-              (!hasChat ? (
+            {(!hasChat ? (
                 <div className="home-intro">
                 <div className="ov-hero">
                   <h1 className="ov-hello">
@@ -2541,10 +2476,7 @@ export function CortexApp({
 
           {/* AGENTS — a team of specialists over one shared, durable memory */}
           <section
-            className={
-              "view" +
-              (view === "home" && homeMode === "agents" ? " on" : "")
-            }
+            className={"view" + (view === "agents" ? " on" : "")}
           >
             <div className="cards" style={{ marginTop: 16 }}>
               {AGENTS.map((a: AgentDef) => (
@@ -4814,7 +4746,7 @@ export function CortexApp({
         {view !== "studio" &&
           view !== "integrations" &&
           view !== "settings" &&
-          !(view === "home" && homeMode === "agents") && (
+          view !== "agents" && (
             <div className="composer-dock">
               <div className="capture" ref={composerRef}>
                 <div className="ask-docs">
