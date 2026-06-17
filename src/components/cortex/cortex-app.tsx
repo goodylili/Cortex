@@ -2029,7 +2029,11 @@ export function CortexApp({
                     setView("home");
                   }}
                 >
-                  {se.title || "New chat"}
+                  <svg className="cr-check" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M8.4 12.2l2.4 2.4 4.7-5.2" />
+                  </svg>
+                  <span className="cr-item-t">{se.title || "New chat"}</span>
                 </button>
               ))
           ) : (
@@ -2038,19 +2042,28 @@ export function CortexApp({
             </div>
           )}
         </div>
-        <div className="cr-foot">
-          <span className="avatar">
-            {(walletState?.label?.[0] ?? "G").toUpperCase()}
+        <button
+          className="cr-log"
+          onClick={() =>
+            setHomeMode(homeMode === "agents" ? "chat" : "agents")
+          }
+          aria-expanded={homeMode === "agents"}
+        >
+          <span className="cr-log-l">
+            <svg viewBox="0 0 24 24">
+              <path d="M4.5 16.5c-1.5 1.5-2 5-2 5s3.5-.5 5-2a2.1 2.1 0 0 0-3-3z" />
+              <path d="M12 15l-3-3a11 11 0 0 1 7-7 11 11 0 0 1 0 7l-4 3z" />
+              <path d="M9 12a3 3 0 0 1 3 3" />
+            </svg>
+            <span className="cr-log-t">Agent log</span>
           </span>
-          <span className="cr-foot-meta">
-            <span className="cr-foot-name">
-              {walletState?.label ?? "Guest"}
-            </span>
-            <span className="cr-foot-sub">
-              {sess ? claimedName || "Signed in" : "Free · just you"}
-            </span>
-          </span>
-        </div>
+          <svg
+            className={"cr-log-chev" + (homeMode === "agents" ? " up" : "")}
+            viewBox="0 0 24 24"
+          >
+            <path d="M6 15l6-6 6 6" />
+          </svg>
+        </button>
       </aside>
 
       <main className="main">
