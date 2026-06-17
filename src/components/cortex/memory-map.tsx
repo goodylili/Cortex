@@ -56,18 +56,32 @@ export function MemoryMap({
       veil: (a: number) => (dark ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a})`),
     };
     const PI2 = Math.PI * 2;
-    const PALETTE = [
-      "#f0a73c",
-      "#4d9bff",
-      "#2fd0c8",
-      "#b07bff",
-      "#44d27e",
-      "#ff5fa8",
-      "#5fb8d6",
-      "#ffaa3c",
-      "#7c83ff",
-      "#5fd29a",
-    ];
+    const SEAL = dark ? "228,228,228" : "120,120,120";
+    const PALETTE = dark
+      ? [
+          "#ededed",
+          "#cfcfcf",
+          "#b5b5b5",
+          "#dcdcdc",
+          "#c2c2c2",
+          "#a6a6a6",
+          "#d2d2d2",
+          "#bcbcbc",
+          "#9e9e9e",
+          "#cacaca",
+        ]
+      : [
+          "#3c3c3c",
+          "#565656",
+          "#6c6c6c",
+          "#484848",
+          "#5e5e5e",
+          "#787878",
+          "#505050",
+          "#666666",
+          "#828282",
+          "#5a5a5a",
+        ];
     const LBL: Record<string, string> = {
       work: "Work",
       travel: "Travel",
@@ -112,14 +126,23 @@ export function MemoryMap({
       s?: number;
       pulse?: number;
     };
-    const EMO: Record<string, { c: string }> = {
-      calm: { c: "#5fb8d6" },
-      focused: { c: "#7c83ff" },
-      excited: { c: "#ffaa3c" },
-      joyful: { c: "#ff7eb0" },
-      curious: { c: "#5fd29a" },
-      anxious: { c: "#ff6b6b" },
-    };
+    const EMO: Record<string, { c: string }> = dark
+      ? {
+          calm: { c: "#dadada" },
+          focused: { c: "#c8c8c8" },
+          excited: { c: "#e6e6e6" },
+          joyful: { c: "#d0d0d0" },
+          curious: { c: "#bebebe" },
+          anxious: { c: "#b2b2b2" },
+        }
+      : {
+          calm: { c: "#5a5a5a" },
+          focused: { c: "#6a6a6a" },
+          excited: { c: "#484848" },
+          joyful: { c: "#606060" },
+          curious: { c: "#727272" },
+          anxious: { c: "#7e7e7e" },
+        };
     const EMOK = Object.keys(EMO);
     const emoOf = (id: string) => {
       let h = 0;
@@ -746,9 +769,9 @@ export function MemoryMap({
       const N = MEM.filter((m) => vis(m)).length,
         sealed = MEM.filter((m) => m.seal && vis(m)).length;
       const gg = ctx.createRadialGradient(x, y, 0, x, y, 95 * cam.scale);
-      gg.addColorStop(0, "rgba(183,155,234,0.30)");
-      gg.addColorStop(0.5, "rgba(183,155,234,0.08)");
-      gg.addColorStop(1, "rgba(183,155,234,0)");
+      gg.addColorStop(0, `rgba(${SEAL},0.22)`);
+      gg.addColorStop(0.5, `rgba(${SEAL},0.06)`);
+      gg.addColorStop(1, `rgba(${SEAL},0)`);
       ctx.fillStyle = gg;
       ctx.beginPath();
       ctx.arc(x, y, 95 * cam.scale, 0, PI2);
@@ -855,7 +878,7 @@ export function MemoryMap({
         ctx.lineWidth = cd.hi ? 1.5 : 1;
         ctx.strokeStyle = cd.hi ? hexA(NEUT.line, 0.7) : NEUT.veil(0.1);
         if (cd.hi) {
-          ctx.shadowColor = "rgba(183,155,234,0.4)";
+          ctx.shadowColor = `rgba(${SEAL},0.4)`;
           ctx.shadowBlur = 12;
         }
         ctx.stroke();
