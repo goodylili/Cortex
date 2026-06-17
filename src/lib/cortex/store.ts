@@ -16,6 +16,20 @@ import {
   MODELS,
 } from "./logic";
 import {
+  type CustomModel,
+  providerInfo,
+} from "@/lib/llm/byok";
+import {
+  loadVault as loadByokVault,
+  addModel as addByokModel,
+  removeModel as removeByokModel,
+  unlockVault as unlockByokVault,
+  decryptKeys as decryptByokKeys,
+  enrollPasskey as enrollByokPasskeyVault,
+} from "@/lib/llm/byok-vault";
+import { completeByok } from "@/lib/llm/byok-client";
+import { ASK_MAX_TOKENS, askSystem, askUser } from "@/lib/llm/ask-prompt";
+import {
   type MemoryConfig,
   DEFAULT_CONFIG,
   normalizeConfig,
@@ -175,6 +189,11 @@ interface State {
   docs: string[];
   chat: ChatMsg[];
   ready: boolean;
+  // bring-your-own-key models (keys stay encrypted on-device)
+  customModels: CustomModel[];
+  byokUnlocked: boolean;
+  byokKeys: Record<string, string>;
+  byokError: string;
   // actions
   hydrate: () => void;
   live: () => Memory[];
@@ -199,6 +218,11 @@ interface State {
   setMode: (m: Mode) => void;
   setImportance: (i: Importance) => void;
   setModel: (name: string) => void;
+  loadCustomModels: () => void;
+  addCustomModel: (model: CustomModel, apiKey: string) => Promise<void>;
+  removeCustomModel: (id: string) => void;
+  unlockByok: () => Promise<boolean>;
+  enrollByokPasskey: () => Promise<boolean>;
   toggleWeb: () => void;
   attachDoc: (name: string) => void;
   removeDoc: (i: number) => void;
@@ -319,6 +343,10 @@ export const useCortex = create<State>((set, get) => ({
   docs: [],
   chat: [],
   ready: false,
+  customModels: [],
+  byokUnlocked: false,
+  byokKeys: {},
+  byokError: "",
 
   hydrate: () => {
     const data: SessionCache =
@@ -585,7 +613,67 @@ export const useCortex = create<State>((set, get) => ({
   setMode: (mode) => set({ mode }),
   setImportance: (importance) => set({ importance }),
   setModel: (name) =>
-    set({ model: MODELS.find((m) => m.name === name) || get().model }),
+    set((s) => {
+      const builtin = MODELS.find((m) => m.name === name);
+      if (builtin) return { model: builtin };
+      const custom = s.customModels.find((m) => m.label === name);
+      if (!custom) return {};
+      const label = providerInfo(custom.provider).label;
+      return {
+        model: {
+          name: custom.label,
+          prov: label,
+          price: "BYOK",
+          desc: `${label} · your key`,
+        },
+      };
+    }),
+  loadCustomModels: () => set({ customModels: loadByokVault().models }),
+  addCustomModel: async (model, apiKey) => {
+    await addByokModel(model, apiKey);
+    set((s) => ({
+      customModels: [
+        ...s.customModels.filter((m) => m.id !== model.id),
+        model,
+      ],
+      byokKeys: { ...s.byokKeys, [model.id]: apiKey },
+      byokUnlocked: true,
+    }));
+  },
+  removeCustomModel: (id) => {
+    removeByokModel(id);
+    set((s) => {
+      const byokKeys = { ...s.byokKeys };
+      delete byokKeys[id];
+      return {
+        customModels: s.customModels.filter((m) => m.id !== id),
+        byokKeys,
+      };
+    });
+  },
+  unlockByok: async () => {
+    try {
+      await unlockByokVault();
+      const keys = await decryptByokKeys();
+      set({ byokKeys: keys, byokUnlocked: true, byokError: "" });
+      return true;
+    } catch (err) {
+      set({ byokError: (err as Error).message });
+      return false;
+    }
+  },
+  enrollByokPasskey: async () => {
+    try {
+      if (!get().byokUnlocked) await unlockByokVault();
+      await enrollByokPasskeyVault();
+      const keys = await decryptByokKeys();
+      set({ byokKeys: keys, byokUnlocked: true, byokError: "" });
+      return true;
+    } catch (err) {
+      set({ byokError: (err as Error).message });
+      return false;
+    }
+  },
   toggleWeb: () => set((s) => ({ web: !s.web })),
   attachDoc: (name) => set((s) => ({ docs: [...s.docs, name] })),
   removeDoc: (i) => set((s) => ({ docs: s.docs.filter((_, j) => j !== i) })),
@@ -722,18 +810,36 @@ export const useCortex = create<State>((set, get) => ({
     };
 
     // Answer with the selected model, grounded in the retrieved memories.
+    const askMems = cites.map((c) => ({
+      text: c.text,
+      label: c.tags[0] || "note",
+      when: ago(c.ts),
+    }));
+    const selected = get().model;
+    const custom = get().customModels.find((m) => m.label === selected.name);
+    const byokKey = custom ? get().byokKeys[custom.id] : undefined;
+    if (custom && byokKey) {
+      completeByok({
+        provider: custom.provider,
+        apiId: custom.apiId,
+        baseUrl: custom.baseUrl,
+        apiKey: byokKey,
+        system: askSystem(get().web),
+        user: askUser(q, askMems),
+        maxTokens: ASK_MAX_TOKENS,
+      })
+        .then((r) => stream(r.ok ? r.text : fallback))
+        .catch(() => stream(fallback));
+      return;
+    }
     fetch("/api/ask", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         question: q,
-        memories: cites.map((c) => ({
-          text: c.text,
-          label: c.tags[0] || "note",
-          when: ago(c.ts),
-        })),
+        memories: askMems,
         web: get().web,
-        model: get().model.name,
+        model: selected.name,
       }),
     })
       .then((r) => r.json())
