@@ -584,6 +584,24 @@ export function CortexApp({
 
   // Share several of my OWN memories with a recipient in one go, bundling each
   // selected memory as a shared item, then refreshing my outbox of shares.
+  function bulkSetAside() {
+    const ids = [...shareSel];
+    ids.forEach((id) => s.setAside(id));
+    setShareSel(new Set());
+    flash(`Set aside ${ids.length} ${ids.length === 1 ? "memory" : "memories"}.`);
+  }
+  function bulkForget() {
+    const ids = [...shareSel];
+    ids.forEach((id) => s.forgetMem(id, true));
+    setShareSel(new Set());
+    flash(`Deleted ${ids.length} ${ids.length === 1 ? "memory" : "memories"}.`);
+  }
+  function bulkKeepClose() {
+    const ids = [...shareSel];
+    ids.forEach((id) => s.keepClose(id));
+    setShareSel(new Set());
+    flash(`Kept ${ids.length} ${ids.length === 1 ? "memory" : "memories"} close.`);
+  }
   async function shareSelected() {
     const w = walletState?.wallet;
     const recipient = shareRecipient.trim();
@@ -2090,12 +2108,23 @@ export function CortexApp({
                 >
                   Clear
                 </button>
-                <button
-                  className="pill-btn keep"
-                  onClick={() => setShareHubOpen(true)}
-                >
-                  Share selected
-                </button>
+                <div className="sel-actions">
+                  <button className="sel-act" onClick={bulkKeepClose}>
+                    Keep close
+                  </button>
+                  <button className="sel-act" onClick={bulkSetAside}>
+                    Set aside
+                  </button>
+                  <button className="sel-act danger" onClick={bulkForget}>
+                    Delete
+                  </button>
+                  <button
+                    className="pill-btn keep"
+                    onClick={() => setShareHubOpen(true)}
+                  >
+                    Share
+                  </button>
+                </div>
               </div>
             )}
 
