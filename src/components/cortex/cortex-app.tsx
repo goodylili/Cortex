@@ -2708,13 +2708,6 @@ export function CortexApp({
 
           {/* STUDIO — compile memory into a prompt */}
           <section className={"view" + (view === "studio" ? " on" : "")}>
-            <h1 className="h1">
-              Prompt <span className="em">studio</span>
-            </h1>
-            <p className="lede show">
-              Describe what you need. Cortex writes the prompt in your voice,
-              grounded in your memory.
-            </p>
             <div className="st2">
               <div className="composer-dock st2-dock">
                 <div className="st2-composer">
@@ -3608,12 +3601,6 @@ export function CortexApp({
 
           {/* INTEGRATIONS — MCP clients, storage backends, sources */}
           <section className={"view" + (view === "integrations" ? " on" : "")}>
-            <h1 className="h1">Integrations</h1>
-            <p className="lede show">
-              Give your AI tools one shared memory, kept by you on Walrus and
-              sealed so only you can open it. Everything runs locally until you
-              add testnet keys.
-            </p>
             <div className="int2">
               <div className="int2-filter">
                 {(
