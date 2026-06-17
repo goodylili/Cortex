@@ -280,7 +280,7 @@ export function CortexApp({
   >(null);
   const [studioMenu, setStudioMenu] = useState(false);
   const [intTab, setIntTab] = useState<
-    "all" | "mcp" | "frameworks" | "storage" | "sources"
+    "all" | "mcp" | "frameworks" | "sources"
   >("all");
   const [intOpen, setIntOpen] = useState<string | null>(null);
   const [mcpAuthBusy, setMcpAuthBusy] = useState(false);
@@ -1301,36 +1301,6 @@ export function CortexApp({
       </svg>
     );
   };
-  const STORAGE = [
-    {
-      key: "walrus",
-      letter: "W",
-      name: "Walrus",
-      role: "Blob storage",
-      desc: "Your documents and memories live here as content-addressed blobs, not on anyone's server.",
-    },
-    {
-      key: "seal",
-      letter: "S",
-      name: "Seal",
-      role: "Encryption",
-      desc: "Every memory is sealed in your browser before it's written to Walrus. Only you, and who you allow, can open it.",
-    },
-    {
-      key: "memwal",
-      letter: "M",
-      name: "MemWal",
-      role: "Memory layer",
-      desc: "Indexes and retrieves what you've stored on Walrus, so recall stays fast.",
-    },
-    {
-      key: "sui",
-      letter: "Su",
-      name: "Sui",
-      role: "Ownership",
-      desc: "An on-chain allowlist decides who can read your memory. You hold the keys.",
-    },
-  ];
   const SOURCES = [
     {
       key: "files",
@@ -3905,9 +3875,7 @@ export function CortexApp({
           <section className={"view" + (view === "integrations" ? " on" : "")}>
             <div className="int2">
               <div className="int2-filter">
-                {(
-                  ["all", "mcp", "frameworks", "storage", "sources"] as const
-                ).map((t) => (
+                {(["all", "mcp", "frameworks", "sources"] as const).map((t) => (
                   <button
                     key={t}
                     className={"int2-f" + (intTab === t ? " on" : "")}
@@ -3919,9 +3887,7 @@ export function CortexApp({
                         ? "AI tools"
                         : t === "frameworks"
                           ? "Frameworks"
-                          : t === "storage"
-                            ? "Storage"
-                            : "Sources"}
+                          : "Sources"}
                   </button>
                 ))}
               </div>
@@ -4132,41 +4098,6 @@ export function CortexApp({
                 </div>
               )}
 
-              {(intTab === "all" || intTab === "storage") && (
-                <div className="int2-group">
-                  <div className="int2-glabel">
-                    Storage <span>· you own it</span>
-                  </div>
-                  <div className="int2-list">
-                    {STORAGE.map((c) => (
-                      <div className="int2-item" key={c.key}>
-                        <div className="int2-row">
-                          <span className="int2-av store">{c.letter}</span>
-                          <div className="int2-meta">
-                            <div className="int2-name">
-                              {c.name}
-                              <span className="int2-role">{c.role}</span>
-                            </div>
-                            <div className="int2-desc">{c.desc}</div>
-                          </div>
-                          <span className="int2-tag">Managed</span>
-                          <button
-                            className="int2-btn ghost"
-                            onClick={() =>
-                              flash(
-                                "Provisioned with your managed Cortex — blobs on Walrus, allowlist on Sui, owned by your wallet. Nothing to configure.",
-                              )
-                            }
-                          >
-                            Details
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {(intTab === "all" || intTab === "sources") && (
                 <div className="int2-group">
                   <div className="int2-glabel">Sources</div>
@@ -4252,40 +4183,6 @@ export function CortexApp({
                   </div>
                 </div>
               )}
-            </div>
-
-            <div className="set-group">
-              <div className="set-gh">
-                <div className="set-gt">Storage</div>
-                <div className="set-gs">
-                  Where your memory lives — written once to Walrus and owned by
-                  you on Sui. Every memory is sealed and WORM: never stored
-                  locally, never overwritten.
-                </div>
-              </div>
-              <div className="set-store">
-                {STORAGE.map((c) => (
-                  <div className="set-srow" key={c.key}>
-                    <span className="set-av store">{c.letter}</span>
-                    <div className="set-acc-m">
-                      <div className="set-acc-n">
-                        {c.name} <span className="int-role">{c.role}</span>
-                      </div>
-                      <div className="set-acc-s">{c.desc}</div>
-                    </div>
-                    <span className="int-pill worm">WORM</span>
-                  </div>
-                ))}
-              </div>
-              <button
-                className="pill-btn"
-                onClick={() => {
-                  setView("integrations");
-                  setIntTab("storage");
-                }}
-              >
-                Configure storage
-              </button>
             </div>
 
             <div className="set-group">
