@@ -371,6 +371,37 @@ export function MemoryMap({
       ctx.arc(x, y, r, 0, PI2);
       ctx.fill();
     }
+    const LOGO_PETAL = new Path2D(
+      "M54 43 L54 27 L49 17 L60 24 L71 17 L66 27 L66 43 L60 48 Z",
+    );
+    const LOGO_TIP = 43;
+    const LOGO_CORE = 9;
+    function centerGlow(x: number, y: number, r: number) {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, "rgba(167,139,250,0.5)");
+      g.addColorStop(0.45, "rgba(139,92,246,0.16)");
+      g.addColorStop(1, "rgba(139,92,246,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, PI2);
+      ctx.fill();
+    }
+    function drawLogo(x: number, y: number, tip: number, color: string) {
+      const s = tip / LOGO_TIP;
+      ctx.fillStyle = color;
+      for (let a = 0; a < 360; a += 45) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate((a * Math.PI) / 180);
+        ctx.scale(s, s);
+        ctx.translate(-60, -60);
+        ctx.fill(LOGO_PETAL);
+        ctx.restore();
+      }
+      ctx.beginPath();
+      ctx.arc(x, y, LOGO_CORE * s, 0, PI2);
+      ctx.fill();
+    }
     function ring(
       x: number,
       y: number,
@@ -733,22 +764,21 @@ export function MemoryMap({
       ctx.globalAlpha = 1;
     }
     function drawSeal(x: number, y: number) {
-      const N = MEM.filter((m) => vis(m)).length,
-        sealed = MEM.filter((m) => m.seal && vis(m)).length;
-      orb(x, y, 11 * cam.scale, NEUT.label, 1);
-      ctx.textAlign = "left";
+      const N = MEM.filter((m) => vis(m)).length;
+      const tip = 30 * cam.scale;
+      centerGlow(x, y, 150 * cam.scale);
+      drawLogo(x, y, tip, NEUT.spark);
+      ctx.textAlign = "center";
       ctx.fillStyle = hexA(NEUT.label, 0.95);
       ctx.font = "600 15px " + HEAD;
-      ctx.fillText("your memory", x + 24 * cam.scale, y - 1 * cam.scale);
-      ctx.font = "10px " + MONO;
-      const pct = Math.round((sealed / Math.max(N, 1)) * 100) + "%";
-      const pw = ctx.measureText(pct).width + 12;
-      rr(x + 24 * cam.scale, y + 7, pw, 15, 5);
-      ctx.fillStyle = NEUT.veil(0.08);
-      ctx.fill();
-      ctx.fillStyle = hexA(NEUT.dim, 0.9);
-      ctx.textAlign = "center";
-      ctx.fillText(pct, x + 24 * cam.scale + pw / 2, y + 17.5);
+      ctx.fillText("your memory", x, y + tip + 22 * cam.scale);
+      ctx.font = "11px " + MONO;
+      ctx.fillStyle = hexA(NEUT.dim, 0.85);
+      ctx.fillText(
+        `${N} ${N === 1 ? "memory" : "memories"}`,
+        x,
+        y + tip + 40 * cam.scale,
+      );
     }
     function buildFan() {
       fanItems = [];
