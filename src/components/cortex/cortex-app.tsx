@@ -311,6 +311,7 @@ export function CortexApp({
   const [kbFilter, setKbFilter] = useState<
     "all" | "pdf" | "markdown" | "walrus" | "shared"
   >("all");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [dreams, setDreams] = useState<{ title: string; body: string }[]>([]);
   const [dreamsLoading, setDreamsLoading] = useState(false);
   const dreamsTried = useRef(false);
@@ -1737,8 +1738,18 @@ export function CortexApp({
             </a>
           </div>
           <div className="tb-center">
+            <button
+              className={"tb-icon" + (view === "home" ? " on" : "")}
+              onClick={() => setView("home")}
+              aria-label="Home"
+              title="Home"
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M3 11l9-8 9 8M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10" />
+              </svg>
+            </button>
             <nav className="tb-nav" aria-label="Primary">
-              {NAV.map(([v, label, icon]) => (
+              {NAV.filter(([v]) => v !== "home").map(([v, label, icon]) => (
                 <a
                   key={v}
                   className={"tb-item" + (view === v ? " on" : "")}
@@ -1750,31 +1761,82 @@ export function CortexApp({
                 </a>
               ))}
             </nav>
-            <label className="tb-search">
+            <button
+              className={"tb-icon" + (railOn ? " on" : "")}
+              onClick={() => {
+                if (!onHome) setView("home");
+                toggleChatRail();
+              }}
+              aria-label="Chat"
+              title="Chat"
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </button>
+          </div>
+          <div className="tb-right">
+            <button
+              className="tb-upgrade"
+              onClick={() =>
+                flash(
+                  "Cortex is free while it's in preview — nothing to upgrade yet.",
+                )
+              }
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M12 3l2.4 5.4L20 11l-5.6 2.6L12 19l-2.4-5.4L4 11l5.6-2.6z" />
+              </svg>
+              Upgrade
+            </button>
+            <button className="tb-add" onClick={() => setCaptureOpen(true)}>
+              <svg viewBox="0 0 24 24">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Add memory
+            </button>
+            {searchOpen && (
+              <label className="tb-search">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="M21 21l-4.3-4.3" />
+                </svg>
+                <input
+                  autoFocus
+                  placeholder={
+                    view === "knowledge"
+                      ? "Search documents…"
+                      : "Search memories…"
+                  }
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onBlur={() => {
+                    if (!query) setSearchOpen(false);
+                  }}
+                />
+                {query && (
+                  <button
+                    type="button"
+                    className="tb-search-x"
+                    aria-label="Clear search"
+                    onClick={() => setQuery("")}
+                  >
+                    ×
+                  </button>
+                )}
+              </label>
+            )}
+            <button
+              className={"tb-icon" + (searchOpen ? " on" : "")}
+              onClick={() => setSearchOpen((o) => !o)}
+              aria-label="Search"
+              title="Search"
+            >
               <svg viewBox="0 0 24 24">
                 <circle cx="11" cy="11" r="7" />
                 <path d="M21 21l-4.3-4.3" />
               </svg>
-              <input
-                placeholder={
-                  view === "knowledge"
-                    ? "Search documents…"
-                    : "Search memories…"
-                }
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-              {query && (
-                <button
-                  type="button"
-                  className="tb-search-x"
-                  aria-label="Clear search"
-                  onClick={() => setQuery("")}
-                >
-                  ×
-                </button>
-              )}
-            </label>
+            </button>
             <div className="tb-profile" ref={profileRef}>
               <button
                 className={"tb-you" + (profileOpen ? " on" : "")}
