@@ -1078,3 +1078,7 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .kb2-browse{margin-top:8px;padding:9px 18px;border-radius:var(--r);border:1px solid var(--line2);color:var(--ink);font-size:13.5px;font-weight:500}
 .kb2-browse:hover{background:var(--surface2)}
 .kb2-mock{font-family:var(--mono,monospace);font-size:12px;line-height:1.5;color:var(--muted);background:repeating-linear-gradient(135deg,var(--surface2),var(--surface2) 8px,transparent 8px,transparent 16px);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;white-space:pre-wrap;overflow:hidden;max-height:96px}
+
+.cortex-boot{position:fixed;inset:0;display:grid;place-items:center;background:var(--paper);z-index:100}
+.cortex-boot-mark{width:32px;height:32px;border-radius:var(--r);border:2px solid var(--line2);border-top-color:var(--ink);animation:cortex-spin .8s linear infinite}
+@keyframes cortex-spin{to{transform:rotate(360deg)}}

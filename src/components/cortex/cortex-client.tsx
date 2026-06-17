@@ -9,8 +9,8 @@ const CortexShell = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div style={{ padding: 60, color: "var(--muted)" }}>
-        Loading your memory…
+      <div className="cortex-boot" aria-busy="true" aria-label="Loading">
+        <span className="cortex-boot-mark" />
       </div>
     ),
   },
