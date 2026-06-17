@@ -57,6 +57,10 @@ export function MemoryMap({
     };
     const PI2 = Math.PI * 2;
     const SEAL = dark ? "228,228,228" : "120,120,120";
+    const GRID_SPACING = 32;
+    const GRID_MIN_STEP = 10;
+    const GRID_DOT_R = 1.1;
+    const GRID_DOT_ALPHA = dark ? 0.16 : 0.22;
     const PALETTE = dark
       ? [
           "#ededed",
@@ -567,10 +571,27 @@ export function MemoryMap({
       ctx.textAlign = "center";
       ctx.fillText(text, x, y + 3);
     }
+    function drawGrid() {
+      const step = GRID_SPACING * cam.scale;
+      if (step < GRID_MIN_STEP) return;
+      const ox = W * 0.46 - cam.tx * cam.scale;
+      const oy = H / 2 - cam.ty * cam.scale;
+      const sx = ((ox % step) + step) % step;
+      const sy = ((oy % step) + step) % step;
+      ctx.fillStyle = hexA(NEUT.line, GRID_DOT_ALPHA);
+      ctx.beginPath();
+      for (let x = sx; x < W; x += step)
+        for (let y = sy; y < H; y += step) {
+          ctx.moveTo(x + GRID_DOT_R, y);
+          ctx.arc(x, y, GRID_DOT_R, 0, PI2);
+        }
+      ctx.fill();
+    }
     function draw() {
       const tnow = (performance.now() - t0) / 1000;
       ctx.fillStyle = vign!;
       ctx.fillRect(0, 0, W, H);
+      drawGrid();
       if (view === "detail") {
         drawDetail(tnow);
         return;
