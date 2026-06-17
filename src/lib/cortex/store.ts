@@ -630,7 +630,13 @@ export const useCortex = create<State>((set, get) => ({
     }),
   loadCustomModels: () => set({ customModels: loadByokVault().models }),
   addCustomModel: async (model, apiKey) => {
-    await addByokModel(model, apiKey);
+    try {
+      await addByokModel(model, apiKey);
+    } catch (err) {
+      if ((err as Error).message !== "vault-locked") throw err;
+      await unlockByokVault();
+      await addByokModel(model, apiKey);
+    }
     set((s) => ({
       customModels: [
         ...s.customModels.filter((m) => m.id !== model.id),

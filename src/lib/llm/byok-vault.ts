@@ -143,16 +143,19 @@ export const unlockVault = async (): Promise<void> => {
   sessionKek = vault.passkey ? await passkeyKek(vault.passkey) : await deviceKek();
 };
 
-const requireKek = (): CryptoKey => {
-  if (!sessionKek) throw new Error("vault-locked");
+const ensureKek = async (): Promise<CryptoKey> => {
+  if (sessionKek) return sessionKek;
+  if (loadVault().passkey) throw new Error("vault-locked");
+  sessionKek = await deviceKek();
   return sessionKek;
 };
 
 const encryptSecret = async (plain: string): Promise<string> => {
+  const kek = await ensureKek();
   const iv = randomBytes(IV_BYTES);
   const ct = await crypto.subtle.encrypt(
     { name: CIPHER, iv },
-    requireKek(),
+    kek,
     new TextEncoder().encode(plain),
   );
   const packed = new Uint8Array(iv.length + ct.byteLength);
@@ -162,14 +165,11 @@ const encryptSecret = async (plain: string): Promise<string> => {
 };
 
 const decryptSecret = async (blob: string): Promise<string> => {
+  const kek = await ensureKek();
   const packed = b64ToBytes(blob);
   const iv = packed.slice(0, IV_BYTES);
   const ct = packed.slice(IV_BYTES);
-  const plain = await crypto.subtle.decrypt(
-    { name: CIPHER, iv },
-    requireKek(),
-    ct,
-  );
+  const plain = await crypto.subtle.decrypt({ name: CIPHER, iv }, kek, ct);
   return new TextDecoder().decode(plain);
 };
 
