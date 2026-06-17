@@ -282,6 +282,7 @@ export function CortexApp({
   const [revokingShareId, setRevokingShareId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
   const [chatRailOpen, setChatRailOpen] = useState(true);
+  const [railSearch, setRailSearch] = useState(false);
   const [query, setQuery] = useState("");
   const [kbFilter, setKbFilter] = useState<"all" | "pdf" | "markdown" | "walrus">(
     "all",
@@ -292,7 +293,6 @@ export function CortexApp({
   const ta = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     s.hydrate();
@@ -1450,32 +1450,6 @@ export function CortexApp({
             ))}
           </nav>
           <div className="tb-right">
-            <label className="tb-search">
-              <svg viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="7" />
-                <path d="M21 21l-4.3-4.3" />
-              </svg>
-              <input
-                ref={searchRef}
-                placeholder="Search everything…"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  if (e.target.value && view !== "memories" && view !== "knowledge")
-                    setView("memories");
-                }}
-              />
-              {query && (
-                <button
-                  type="button"
-                  className="tb-search-x"
-                  aria-label="Clear search"
-                  onClick={() => setQuery("")}
-                >
-                  ×
-                </button>
-              )}
-            </label>
             <button
               className="tb-icon"
               aria-label="Notifications"
@@ -1642,10 +1616,10 @@ export function CortexApp({
             </svg>
           </button>
           <button
-            className="cr-icon"
+            className={"cr-icon" + (railSearch ? " on" : "")}
             onClick={() => {
               if (!chatRailOpen) toggleChatRail();
-              searchRef.current?.focus();
+              setRailSearch((o) => !o);
             }}
             aria-label="Search"
           >
@@ -1655,6 +1629,20 @@ export function CortexApp({
             </svg>
           </button>
         </div>
+        {railSearch && chatRailOpen && (
+          <label className="cr-search">
+            <svg viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+            <input
+              autoFocus
+              placeholder="Search chats & memories…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+        )}
         <div className="cr-tabs">
           <button
             className={"cr-tab" + (homeMode === "chat" ? " on" : "")}
