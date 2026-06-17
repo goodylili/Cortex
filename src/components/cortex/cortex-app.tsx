@@ -237,7 +237,6 @@ export function CortexApp({
   const readAloud = useReadAloud();
   const [modelOpen, setModelOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
-  const [brainLegendOpen, setBrainLegendOpen] = useState(false);
   const [kbMenu, setKbMenu] = useState<string | null>(null);
   const [drawer, setDrawer] = useState<Memory | "savings" | null>(null);
   const [studioTask, setStudioTask] = useState("");
@@ -4646,11 +4645,7 @@ export function CortexApp({
         {/* BRAIN — full-bleed memory map */}
         {view === "brain" && (
           <div className="brain-stage">
-            <MemoryMap
-              onOpen={(m) => setDrawer(m)}
-              theme={eff}
-              legendOpen={brainLegendOpen}
-            />
+            <MemoryMap onOpen={(m) => setDrawer(m)} theme={eff} />
           </div>
         )}
 
@@ -4720,23 +4715,6 @@ export function CortexApp({
                       Remember
                     </button>
                   </div>
-                  {view === "brain" && (
-                    <button
-                      className={
-                        "cap-tool legend-chip" + (brainLegendOpen ? " on" : "")
-                      }
-                      onClick={() => setBrainLegendOpen((o) => !o)}
-                      aria-pressed={brainLegendOpen}
-                    >
-                      <svg viewBox="0 0 24 24">
-                        <circle cx="5" cy="6" r="1.6" />
-                        <circle cx="5" cy="12" r="1.6" />
-                        <circle cx="5" cy="18" r="1.6" />
-                        <path d="M10 6h9M10 12h9M10 18h9" />
-                      </svg>
-                      Legend
-                    </button>
-                  )}
                   <div className="cap-tail">
                     <div className="model-anchor ask-only">
                       <button

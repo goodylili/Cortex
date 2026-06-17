@@ -11,11 +11,9 @@ import { type Memory } from "@/lib/cortex/logic";
 export function MemoryMap({
   onOpen,
   theme = "dark",
-  legendOpen = false,
 }: {
   onOpen: (m: Memory) => void;
   theme?: "light" | "dark";
-  legendOpen?: boolean;
 }) {
   const ownLive = useCortex((s) => s.live)();
   const sharedMemories = useCortex((s) => s.sharedMemories);
@@ -895,6 +893,8 @@ export function MemoryMap({
       }
       appear += (1 - appear) * (reduce ? 1 : 0.05);
       draw();
+      drawMini();
+      syncZoomLabel();
       raf = requestAnimationFrame(frame);
     }
     function hit(sx: number, sy: number): HitRes {
@@ -1007,6 +1007,261 @@ export function MemoryMap({
     window.addEventListener("mouseup", onUp);
     canvas.addEventListener("click", onClick);
     canvas.addEventListener("wheel", onWheel, { passive: false });
+
+    const ctl = <T extends Element = HTMLElement>(id: string) =>
+      root.querySelector("#" + id) as T | null;
+    const ctlAC = new AbortController();
+    const ctlSig = ctlAC.signal;
+    const clampScale = (s: number) => Math.max(0.6, Math.min(2.4, s));
+    const visibleLeaves = () => leaves.filter((l) => vis(l.mem!));
+    function fitNodes(ns: Node[]) {
+      if (!ns.length) {
+        camT = { tx: 0, ty: 0, scale: 1 };
+        return;
+      }
+      let minx = 1e9,
+        miny = 1e9,
+        maxx = -1e9,
+        maxy = -1e9;
+      ns.forEach((n) => {
+        minx = Math.min(minx, n.x);
+        maxx = Math.max(maxx, n.x);
+        miny = Math.min(miny, n.y);
+        maxy = Math.max(maxy, n.y);
+      });
+      const pad = 110;
+      const bw = maxx - minx + pad * 2,
+        bh = maxy - miny + pad * 2;
+      camT = {
+        tx: (minx + maxx) / 2,
+        ty: (miny + maxy) / 2,
+        scale: clampScale(Math.min((W * 0.9) / bw, (H * 0.86) / bh)),
+      };
+    }
+    function fitView() {
+      fitNodes(visibleLeaves());
+    }
+    function centerView() {
+      const vn = visibleLeaves();
+      if (!vn.length) {
+        camT = { tx: 0, ty: 0, scale: camT.scale };
+        return;
+      }
+      let cx = 0,
+        cy = 0;
+      vn.forEach((n) => {
+        cx += n.x;
+        cy += n.y;
+      });
+      camT = { tx: cx / vn.length, ty: cy / vn.length, scale: camT.scale };
+    }
+    function zoomBy(f: number) {
+      camT = { ...camT, scale: clampScale(camT.scale * f) };
+    }
+    function relayout() {
+      hubKeys.forEach((k, i) => {
+        const hub = hubs[k];
+        if (!hub) return;
+        const a = ((-90 + i * (360 / hubKeys.length)) * Math.PI) / 180;
+        hub.x = Math.cos(a) * 225;
+        hub.y = Math.sin(a) * 225;
+        hub.vx = 0;
+        hub.vy = 0;
+        MEM.filter((m) => m.cat === k).forEach((m, j, arr) => {
+          if (!m.node) return;
+          const la =
+            a + (j - (arr.length - 1) / 2) * 0.5 + (Math.random() - 0.5) * 0.5;
+          const rad = 80 + Math.random() * 50;
+          m.node.x = hub.x + Math.cos(la) * rad;
+          m.node.y = hub.y + Math.sin(la) * rad;
+          m.node.vx = 0;
+          m.node.vy = 0;
+        });
+      });
+      fitView();
+    }
+    function runSearch(termRaw: string): Node[] {
+      const term = termRaw.trim().toLowerCase();
+      if (!term) {
+        relevant = new Set();
+        return [];
+      }
+      const matches = MEM.filter(
+        (m) =>
+          vis(m) &&
+          (m.full.toLowerCase().includes(term) ||
+            m.cat.toLowerCase().includes(term) ||
+            m.emo.toLowerCase().includes(term) ||
+            m.by.toLowerCase().includes(term) ||
+            m.mem.tags.join(" ").toLowerCase().includes(term)),
+      );
+      relevant = new Set(matches.map((m) => "leaf_" + m.id));
+      return matches.map((m) => m.node!).filter(Boolean);
+    }
+    function exportPng() {
+      const a = document.createElement("a");
+      a.download = "cortex-brain.png";
+      a.href = canvas.toDataURL("image/png");
+      a.click();
+    }
+
+    const miniCanvas = ctl<HTMLCanvasElement>("mctlMini");
+    const miniCtx = miniCanvas?.getContext("2d") ?? null;
+    const MINI_W = 168,
+      MINI_H = 120;
+    if (miniCanvas) {
+      miniCanvas.width = MINI_W * DPR;
+      miniCanvas.height = MINI_H * DPR;
+      miniCtx?.scale(DPR, DPR);
+    }
+    let miniOn = false;
+    function drawMini() {
+      if (!miniOn || !miniCtx) return;
+      miniCtx.clearRect(0, 0, MINI_W, MINI_H);
+      const ns = visibleLeaves();
+      if (!ns.length) return;
+      let minx = 1e9,
+        miny = 1e9,
+        maxx = -1e9,
+        maxy = -1e9;
+      ns.forEach((n) => {
+        minx = Math.min(minx, n.x);
+        maxx = Math.max(maxx, n.x);
+        miny = Math.min(miny, n.y);
+        maxy = Math.max(maxy, n.y);
+      });
+      const pad = 40;
+      minx -= pad;
+      miny -= pad;
+      maxx += pad;
+      maxy += pad;
+      const sc = Math.min(MINI_W / (maxx - minx), MINI_H / (maxy - miny));
+      const ox = (MINI_W - (maxx - minx) * sc) / 2,
+        oy = (MINI_H - (maxy - miny) * sc) / 2;
+      const mx = (wx: number) => (wx - minx) * sc + ox,
+        my = (wy: number) => (wy - miny) * sc + oy;
+      ns.forEach((n) => {
+        const dim = relevant.size > 0 && !relevant.has("leaf_" + n.mem!.id);
+        miniCtx.globalAlpha = dim ? 0.22 : 0.92;
+        miniCtx.fillStyle = dim ? NEUT.dim : CATS[n.cat!]?.c ?? NEUT.label;
+        miniCtx.beginPath();
+        miniCtx.arc(mx(n.x), my(n.y), 1.7, 0, PI2);
+        miniCtx.fill();
+      });
+      const [w0x, w0y] = toWorld(0, 0),
+        [w1x, w1y] = toWorld(W, H);
+      miniCtx.globalAlpha = 0.5;
+      miniCtx.strokeStyle = NEUT.label;
+      miniCtx.lineWidth = 1;
+      miniCtx.strokeRect(
+        mx(Math.min(w0x, w1x)),
+        my(Math.min(w0y, w1y)),
+        Math.abs(w1x - w0x) * sc,
+        Math.abs(w1y - w0y) * sc,
+      );
+      miniCtx.globalAlpha = 1;
+    }
+
+    const zoomEl = ctl("ctlZoom");
+    let zoomShown = -1;
+    function syncZoomLabel() {
+      const pct = Math.round(cam.scale * 100);
+      if (pct !== zoomShown && zoomEl) {
+        zoomEl.textContent = pct + "%";
+        zoomShown = pct;
+      }
+    }
+
+    ctl("ctlFit")?.addEventListener("click", fitView, { signal: ctlSig });
+    ctl("ctlCenter")?.addEventListener("click", centerView, { signal: ctlSig });
+    ctl("ctlIn")?.addEventListener("click", () => zoomBy(1.15), {
+      signal: ctlSig,
+    });
+    ctl("ctlOut")?.addEventListener("click", () => zoomBy(1 / 1.15), {
+      signal: ctlSig,
+    });
+    ctl("ctlLayout")?.addEventListener("click", relayout, { signal: ctlSig });
+    ctl("ctlExport")?.addEventListener("click", exportPng, { signal: ctlSig });
+
+    const legBtn = ctl("ctlLegend");
+    legBtn?.addEventListener(
+      "click",
+      () => {
+        const open = q(".mesh-legends")?.classList.toggle("open");
+        legBtn.classList.toggle("on", !!open);
+      },
+      { signal: ctlSig },
+    );
+
+    const miniBtn = ctl("ctlMini");
+    miniBtn?.addEventListener(
+      "click",
+      () => {
+        miniOn = !miniOn;
+        miniBtn.classList.toggle("on", miniOn);
+        miniCanvas?.classList.toggle("on", miniOn);
+        if (!miniOn && miniCtx) miniCtx.clearRect(0, 0, MINI_W, MINI_H);
+      },
+      { signal: ctlSig },
+    );
+
+    const searchBtn = ctl("ctlSearch");
+    const searchBox = ctl("ctlSearchBox");
+    const searchInput = ctl<HTMLInputElement>("ctlSearchInput");
+    const searchCount = ctl("ctlSearchCount");
+    let searchHits: Node[] = [];
+    function setSearchOpen(open: boolean) {
+      searchBox?.classList.toggle("on", open);
+      searchBtn?.classList.toggle("on", open);
+      if (open) {
+        searchInput?.focus();
+      } else {
+        if (searchInput) searchInput.value = "";
+        if (searchCount) searchCount.textContent = "";
+        searchHits = [];
+        relevant = new Set();
+      }
+    }
+    searchBtn?.addEventListener(
+      "click",
+      () => setSearchOpen(!searchBox?.classList.contains("on")),
+      { signal: ctlSig },
+    );
+    searchInput?.addEventListener(
+      "input",
+      () => {
+        searchHits = runSearch(searchInput.value);
+        if (searchCount)
+          searchCount.textContent = searchInput.value.trim()
+            ? String(searchHits.length)
+            : "";
+      },
+      { signal: ctlSig },
+    );
+    searchInput?.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key === "Enter" && searchHits.length) fitNodes(searchHits);
+        else if (e.key === "Escape") setSearchOpen(false);
+      },
+      { signal: ctlSig },
+    );
+
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "z") fitView();
+      else if (k === "c") centerView();
+      else if (k === "+" || k === "=") zoomBy(1.15);
+      else if (k === "-" || k === "_") zoomBy(1 / 1.15);
+      else if (k === "/") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey, { signal: ctlSig });
 
     function enterDetail(cat: string) {
       killHint();
@@ -1273,6 +1528,7 @@ export function MemoryMap({
       window.removeEventListener("mouseup", onUp);
       canvas.removeEventListener("click", onClick);
       canvas.removeEventListener("wheel", onWheel);
+      ctlAC.abort();
     };
   }, [live, onOpen, theme]);
 
@@ -1280,8 +1536,74 @@ export function MemoryMap({
     <div ref={rootRef} className="mesh">
       <canvas id="mc" className="mesh-canvas" />
 
-      <div className={"mesh-legends" + (legendOpen ? " open" : "")}>
-        <div className="leg panel">
+      <canvas className="mctl-mini" id="mctlMini" />
+
+      <div className="mctl">
+        <button className="mctl-pill" id="ctlFit">
+          <span className="ml">Fit</span>
+          <kbd>Z</kbd>
+        </button>
+        <button className="mctl-pill" id="ctlCenter">
+          <span className="ml">Center</span>
+          <kbd>C</kbd>
+        </button>
+        <div className="mctl-pill mctl-zoom">
+          <button className="zb" id="ctlOut" aria-label="Zoom out">
+            −
+          </button>
+          <span className="zpct" id="ctlZoom">
+            100%
+          </span>
+          <button className="zb" id="ctlIn" aria-label="Zoom in">
+            +
+          </button>
+        </div>
+        <div className="mctl-tools">
+          <button className="mctl-ic" id="ctlSearch" aria-label="Search memories">
+            <svg viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+          </button>
+          <button className="mctl-ic" id="ctlLayout" aria-label="Re-arrange">
+            <svg viewBox="0 0 24 24">
+              <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+              <path d="M21 3v5h-5" />
+              <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+              <path d="M3 21v-5h5" />
+            </svg>
+          </button>
+          <button className="mctl-ic" id="ctlMini" aria-label="Toggle minimap">
+            <svg viewBox="0 0 24 24">
+              <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z" />
+              <path d="M9 4v14M15 6v14" />
+            </svg>
+          </button>
+          <button className="mctl-ic" id="ctlExport" aria-label="Export image">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 3v12" />
+              <path d="M8 11l4 4 4-4" />
+              <path d="M5 21h14" />
+            </svg>
+          </button>
+        </div>
+        <div className="mctl-search" id="ctlSearchBox">
+          <svg viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M21 21l-4.3-4.3" />
+          </svg>
+          <input id="ctlSearchInput" placeholder="Search memories…" />
+          <span className="sc" id="ctlSearchCount" />
+        </div>
+        <button className="mctl-pill mctl-legend" id="ctlLegend">
+          <svg className="caret" viewBox="0 0 24 24">
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+          <span className="ml">Legend</span>
+        </button>
+
+        <div className="mesh-legends">
+          <div className="leg panel">
           <div className="lh">legend</div>
           <div id="rowsCat" />
           <div className="ldiv" />
@@ -1324,6 +1646,7 @@ export function MemoryMap({
               0
             </span>
           </div>
+        </div>
         </div>
       </div>
 
