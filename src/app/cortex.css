@@ -820,6 +820,7 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .tb-menu-item:hover{background:var(--surface2)}
 .tb-menu-item svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;color:var(--muted);flex:none}
 .tb-menu-item.danger,.tb-menu-item.danger svg{color:var(--ink)}
+@media(max-width:1160px){.tb-item span{display:none}.tb-item{padding:9px}}
 @media(max-width:760px){.tb-brand b{display:none}.tb-you-name{display:none}.topbar-inner{gap:10px}}
 
 /* Center page headers/intros within every view, like the Home hero */
@@ -902,7 +903,7 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .app.home-rail .composer-dock{left:72px}
 .app.home-rail.rail-open .main{padding-left:280px}
 .app.home-rail.rail-open .composer-dock{left:280px}
-@media(max-width:900px){.app.home-rail .main,.app.home-rail.rail-open .main{padding-left:0}.app.home-rail .composer-dock,.app.home-rail.rail-open .composer-dock{left:0}.chat-rail.on-home:not(.open){transform:translateX(-100%)}.chat-rail.on-home.open{box-shadow:var(--shadow-lg);z-index:48}}
+@media(max-width:640px){.app.home-rail .main,.app.home-rail.rail-open .main{padding-left:0}.app.home-rail .composer-dock,.app.home-rail.rail-open .composer-dock{left:0}.chat-rail.on-home:not(.open){transform:translateX(-100%)}.chat-rail.on-home.open{box-shadow:var(--shadow-lg);z-index:48}}
 
 /* ── Carousels (home): one card at a time, auto-sliding ── */
 .carousel{position:relative;min-width:0}
