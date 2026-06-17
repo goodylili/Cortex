@@ -308,9 +308,9 @@ export function CortexApp({
   const [toast, setToast] = useState("");
   const [chatRailOpen, setChatRailOpen] = useState(true);
   const [query, setQuery] = useState("");
-  const [kbFilter, setKbFilter] = useState<"all" | "pdf" | "markdown" | "walrus">(
-    "all",
-  );
+  const [kbFilter, setKbFilter] = useState<
+    "all" | "pdf" | "markdown" | "walrus" | "shared"
+  >("all");
   const [dreams, setDreams] = useState<{ title: string; body: string }[]>([]);
   const [dreamsLoading, setDreamsLoading] = useState(false);
   const dreamsTried = useRef(false);
@@ -968,8 +968,10 @@ export function CortexApp({
       return {
         id: m.id,
         walrus: true,
+        shared: false,
+        sharedBy: null as string | null,
         badge,
-        key: "walrus" as "walrus" | "pdf" | "markdown" | "other",
+        key: "walrus" as "walrus" | "pdf" | "markdown" | "other" | "shared",
         title: m.text,
         desc: `${m.mime || "file"} · sealed on Walrus`,
         foot: m.url ? "Download" : "On Walrus",
@@ -990,7 +992,7 @@ export function CortexApp({
             : e
               ? e.toUpperCase()
               : "TEXT";
-      const key: "walrus" | "pdf" | "markdown" | "other" =
+      const key: "walrus" | "pdf" | "markdown" | "other" | "shared" =
         e === "pdf"
           ? "pdf"
           : e === "md" || e === "markdown"
@@ -999,6 +1001,8 @@ export function CortexApp({
       return {
         id: "src:" + src.name,
         walrus: false,
+        shared: false,
+        sharedBy: null as string | null,
         badge,
         key,
         title: src.name,
@@ -1013,6 +1017,37 @@ export function CortexApp({
         body: src.mems.map((x) => x.text).join("\n\n"),
       };
     }),
+    ...(() => {
+      const by: Record<string, Memory[]> = {};
+      s.sharedMemories.forEach((m) => {
+        (by[m.sharedFrom || m.sharedBy || "shared"] ||= []).push(m);
+      });
+      return Object.entries(by).map(([gid, mems]) => {
+        const owner = mems[0]?.sharedBy || "someone";
+        const lead = mems[0]?.text || "";
+        return {
+          id: "shared:" + gid,
+          walrus: false,
+          shared: true,
+          sharedBy: owner as string | null,
+          badge: "SHARED",
+          key: "shared" as "walrus" | "pdf" | "markdown" | "other" | "shared",
+          title:
+            mems.length === 1
+              ? lead.length > 60
+                ? lead.slice(0, 60) + "…"
+                : lead
+              : `${mems.length} memories from ${owner}`,
+          desc: lead,
+          foot: `${mems.length} ${mems.length === 1 ? "memory" : "memories"}`,
+          date: ago(Math.max(...mems.map((x) => x.ts))),
+          url: null as string | null,
+          name: null as string | null,
+          memIds: mems.map((x) => x.id),
+          body: mems.map((x) => x.text).join("\n\n"),
+        };
+      });
+    })(),
   ];
   const kbFiltered = kbItems.filter(
     (it) =>
@@ -3308,6 +3343,16 @@ export function CortexApp({
                     {label}
                   </button>
                 ))}
+                {kbItems.some((it) => it.shared) && (
+                  <button
+                    className={
+                      "kb2-chip shared" + (kbFilter === "shared" ? " on" : "")
+                    }
+                    onClick={() => setKbFilter("shared")}
+                  >
+                    Shared
+                  </button>
+                )}
                 <button
                   className="kb2-add"
                   onClick={() => fileRef.current?.click()}
@@ -3348,7 +3393,11 @@ export function CortexApp({
                   <div className="kb2-top">
                     <div className="kb2-badges">
                       <span
-                        className={"kb2-badge" + (it.walrus ? " walrus" : "")}
+                        className={
+                          "kb2-badge" +
+                          (it.walrus ? " walrus" : "") +
+                          (it.shared ? " shared" : "")
+                        }
                       >
                         {it.walrus && (
                           <svg
@@ -3366,7 +3415,9 @@ export function CortexApp({
                             <path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1.5A3.5 3.5 0 0 1 18 18z" />
                           </svg>
                         )}
-                        {it.badge}
+                        {it.shared
+                          ? `Shared${it.sharedBy ? ` · ${it.sharedBy}` : ""}`
+                          : it.badge}
                       </span>
                       <span className="kb2-dot ok" />
                     </div>
@@ -3401,6 +3452,24 @@ export function CortexApp({
                             </svg>
                             Add to memory
                           </button>
+                          {!it.shared && it.memIds.length > 0 && (
+                            <button
+                              onClick={() => {
+                                setShareSel(new Set(it.memIds));
+                                setKbMenu(null);
+                                setView("memories");
+                                flash("Pick who to share this with.");
+                              }}
+                            >
+                              <svg viewBox="0 0 24 24">
+                                <circle cx="18" cy="5" r="2.5" />
+                                <circle cx="6" cy="12" r="2.5" />
+                                <circle cx="18" cy="19" r="2.5" />
+                                <path d="M8.2 10.8l7.6-4.6M8.2 13.2l7.6 4.6" />
+                              </svg>
+                              Share
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               downloadKb(it);
@@ -3412,19 +3481,21 @@ export function CortexApp({
                             </svg>
                             Download
                           </button>
-                          <button
-                            className="danger"
-                            onClick={() => {
-                              it.memIds.forEach((id) => s.forgetMem(id));
-                              setKbMenu(null);
-                              flash("Deleted from your memory.");
-                            }}
-                          >
-                            <svg viewBox="0 0 24 24">
-                              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" />
-                            </svg>
-                            Delete
-                          </button>
+                          {!it.shared && (
+                            <button
+                              className="danger"
+                              onClick={() => {
+                                it.memIds.forEach((id) => s.forgetMem(id));
+                                setKbMenu(null);
+                                flash("Deleted from your memory.");
+                              }}
+                            >
+                              <svg viewBox="0 0 24 24">
+                                <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" />
+                              </svg>
+                              Delete
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -3452,7 +3523,10 @@ export function CortexApp({
                       <button
                         className="l"
                         onClick={() => {
-                          if (it.name) {
+                          if (it.shared) {
+                            setMemFilter("__shared");
+                            setView("memories");
+                          } else if (it.name) {
                             setQuery(it.name);
                             setView("memories");
                           }
