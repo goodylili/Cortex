@@ -248,6 +248,7 @@ export function CortexApp({
   const readAloud = useReadAloud();
   const [modelOpen, setModelOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
+  const [impOpen, setImpOpen] = useState(false);
   const [addModelOpen, setAddModelOpen] = useState(false);
   const [amProvider, setAmProvider] = useState<Provider | "">("");
   const [amApiId, setAmApiId] = useState("");
@@ -4922,20 +4923,42 @@ export function CortexApp({
                       </svg>{" "}
                       Web
                     </button>
-                    <div className="importance remember-only">
-                      {(["low", "normal", "high"] as const).map((lv) => (
-                        <button
-                          key={lv}
-                          className={s.importance === lv ? "on" : ""}
-                          onClick={() => s.setImportance(lv)}
-                        >
-                          {lv === "low"
-                            ? "Passing"
-                            : lv === "normal"
-                              ? "Normal"
-                              : "Keep close"}
-                        </button>
-                      ))}
+                    <div className="imp-anchor remember-only">
+                      <button
+                        className={"cap-tool imp-chip" + (impOpen ? " on" : "")}
+                        onClick={() => setImpOpen((o) => !o)}
+                        aria-haspopup="true"
+                        aria-expanded={impOpen}
+                      >
+                        {s.importance === "low"
+                          ? "Passing"
+                          : s.importance === "normal"
+                            ? "Normal"
+                            : "Keep close"}
+                        <span className="mchev">▾</span>
+                      </button>
+                      {impOpen && (
+                        <div className="imp-pop">
+                          <div className="importance">
+                            {(["low", "normal", "high"] as const).map((lv) => (
+                              <button
+                                key={lv}
+                                className={s.importance === lv ? "on" : ""}
+                                onClick={() => {
+                                  s.setImportance(lv);
+                                  setImpOpen(false);
+                                }}
+                              >
+                                {lv === "low"
+                                  ? "Passing"
+                                  : lv === "normal"
+                                    ? "Normal"
+                                    : "Keep close"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     {dictation.supported && (
                       <button
