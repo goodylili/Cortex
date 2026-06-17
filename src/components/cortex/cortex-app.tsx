@@ -1,5 +1,5 @@
 "use client";
-import { Children, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useCortex } from "@/lib/cortex/store";
 import {
