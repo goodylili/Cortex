@@ -81,6 +81,7 @@ input,textarea{font:inherit;color:inherit}
 @media(min-width:1024px){.composer-dock{padding-left:64px;padding-right:64px}}
 @media(max-width:880px){.composer-dock{left:0;padding:12px 18px 16px}}
 .capture-bar{flex-wrap:nowrap}
+.capture-bar.studio-bar{flex-wrap:wrap;row-gap:8px}
 .cap-tool{white-space:nowrap;flex-shrink:0}
 .model-chip span,.web-chip{white-space:nowrap}
 /* segmented controls: mode + importance */
@@ -123,6 +124,7 @@ body.mode-ask .remember-only{display:none!important}
 /* web toggle + attach + sources */
 .web-chip svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6}
 .web-chip.on{color:var(--accent-ink);background:var(--accent-soft)}
+.legend-chip.on{color:var(--accent-ink);background:var(--accent-soft)}
 .ask-docs{display:flex;flex-wrap:wrap;gap:7px;padding:8px 8px 0}
 .ask-docs:empty{display:none}
 .ask-doc{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);background:var(--surface2);border:1px solid var(--line);border-radius:var(--r);padding:5px 6px 5px 10px}
@@ -487,7 +489,8 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .mesh-canvas{display:block;width:100%;height:100%;cursor:grab}
 .mesh-canvas.grabbing{cursor:grabbing}.mesh-canvas.pointer{cursor:pointer}
 .mesh .panel{background:var(--glass2);border:1px solid var(--mline2);border-top-color:var(--medge);box-shadow:0 18px 50px rgba(0,0,0,.5);backdrop-filter:blur(22px) saturate(140%);-webkit-backdrop-filter:blur(22px) saturate(140%)}
-.mesh-legends{position:absolute;left:18px;bottom:158px;z-index:7}
+.mesh-legends{position:absolute;left:18px;bottom:158px;z-index:7;opacity:0;visibility:hidden;transform:translateY(10px);transition:opacity .2s ease,transform .2s ease,visibility .2s}
+.mesh-legends.open{opacity:1;visibility:visible;transform:none}
 .mesh .leg{border-radius:var(--r);padding:14px;min-width:184px;background:var(--mleg);border:1px solid var(--mline2);box-shadow:0 18px 50px rgba(0,0,0,.5)}
 .mesh .leg .lh{font-family:var(--mesh-sans);font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--fnt);margin-bottom:9px}
 .mesh .li{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:var(--r);font-size:12.5px;color:var(--mut);cursor:pointer;transition:background .16s,color .16s,opacity .16s;user-select:none}

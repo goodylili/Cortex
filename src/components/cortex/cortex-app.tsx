@@ -237,8 +237,10 @@ export function CortexApp({
   const readAloud = useReadAloud();
   const [modelOpen, setModelOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
+  const [brainLegendOpen, setBrainLegendOpen] = useState(false);
   const [drawer, setDrawer] = useState<Memory | "savings" | null>(null);
   const [studioTask, setStudioTask] = useState("");
+  const [studioMode, setStudioMode] = useState<"prompt" | "loop">("prompt");
   const [studioStyle, setStudioStyle] = useState<PromptStyle>(DEFAULT_STYLE);
   const [studioType, setStudioType] = useState<PromptType>(DEFAULT_TYPE);
   const [studioSel, setStudioSel] = useState<Set<string> | null>(null);
@@ -2692,16 +2694,48 @@ export function CortexApp({
           {/* STUDIO — compile memory into a prompt */}
           <section className={"view" + (view === "studio" ? " on" : "")}>
             <div className="st2">
-              <div className="composer-dock st2-dock">
-                <div className="st2-composer">
+              <div className="composer-dock">
+                <div className="capture">
                   <textarea
-                    className="st2-task"
                     rows={3}
-                    placeholder="What do you need a prompt for? e.g. a hero image for my notes app"
+                    placeholder={
+                      studioMode === "loop"
+                        ? "What should the loop work toward? e.g. keep my reading list summarized"
+                        : "What do you need a prompt for? e.g. a hero image for my notes app"
+                    }
                     value={studioTask}
                     onChange={(e) => setStudioTask(e.target.value)}
                   />
-                  <div className="st2-bar">
+                  <div className="capture-bar studio-bar">
+                    <button
+                      className="cap-tool icon"
+                      onClick={() => fileRef.current?.click()}
+                      aria-label="Attach"
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M21.4 11 12 20.4a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 1 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 1 1-2.6-2.6l7.8-7.8" />
+                      </svg>
+                    </button>
+                    <div className="mode-toggle">
+                      <button
+                        className={studioMode === "prompt" ? "on" : ""}
+                        onClick={() => setStudioMode("prompt")}
+                      >
+                        <svg viewBox="0 0 24 24">
+                          <path d="M12 3l1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6z" />
+                        </svg>
+                        Prompt
+                      </button>
+                      <button
+                        className={studioMode === "loop" ? "on" : ""}
+                        onClick={() => setStudioMode("loop")}
+                      >
+                        <svg viewBox="0 0 24 24">
+                          <path d="M3 12a9 9 0 1 1 3 6.7M3 21v-5h5" />
+                        </svg>
+                        Loop
+                      </button>
+                    </div>
                     <div className="st2-dd">
                       <button
                         className="st2-dd-btn"
@@ -2843,44 +2877,47 @@ export function CortexApp({
                       )}
                     </div>
                     <button
-                      className="st2-pill"
-                      onClick={() => fileRef.current?.click()}
-                      title="Attach documents"
-                    >
-                      <svg viewBox="0 0 24 24">
-                        <path d="M21.4 11 12 20.4a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 1 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 1 1-2.6-2.6l7.8-7.8" />
-                      </svg>
-                      <span>Attach</span>
-                    </button>
-                    <button
-                      className={"st2-pill web" + (s.web ? " on" : "")}
+                      className={"cap-tool web-chip" + (s.web ? " on" : "")}
                       onClick={() => s.toggleWeb()}
                       title="Search the web"
                     >
                       <svg viewBox="0 0 24 24">
                         <circle cx="12" cy="12" r="9" />
                         <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
-                      </svg>
-                      <span>Web</span>
+                      </svg>{" "}
+                      Web
                     </button>
-                    <button
-                      className="st2-gen"
-                      onClick={() => void makeLoopFromStudio()}
-                      disabled={studioLoading || loopBusy || !studioTask.trim()}
-                      title="Generate a self-correcting loop spec from this task + your memory, and run it"
-                    >
-                      {loopBusy ? "Writing the loop…" : "Make a loop"}
-                    </button>
-                    <button
-                      className="st2-gen"
-                      onClick={generateStudio}
-                      disabled={studioLoading}
-                    >
-                      {studioLoading ? "Generating…" : "Generate"}
-                      <svg viewBox="0 0 24 24">
-                        <path d="M5 12h14M13 6l6 6-6 6" />
-                      </svg>
-                    </button>
+                    <div className="cap-tail">
+                      <button
+                        className="st2-gen"
+                        onClick={() =>
+                          studioMode === "loop"
+                            ? void makeLoopFromStudio()
+                            : void generateStudio()
+                        }
+                        disabled={
+                          studioMode === "loop"
+                            ? loopBusy || !studioTask.trim()
+                            : studioLoading
+                        }
+                        title={
+                          studioMode === "loop"
+                            ? "Write a self-correcting loop from this goal and your memory, then run it"
+                            : "Generate a prompt from this task and your memory"
+                        }
+                      >
+                        {studioMode === "loop"
+                          ? loopBusy
+                            ? "Writing the loop…"
+                            : "Generate loop"
+                          : studioLoading
+                            ? "Generating…"
+                            : "Generate"}
+                        <svg viewBox="0 0 24 24">
+                          <path d="M5 12h14M13 6l6 6-6 6" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   {studioDrop && (
                     <div
@@ -4381,20 +4418,12 @@ export function CortexApp({
         {/* BRAIN — full-bleed memory map */}
         {view === "brain" && (
           <div className="brain-stage">
-            <MemoryMap onOpen={(m) => setDrawer(m)} theme={eff} />
+            <MemoryMap
+              onOpen={(m) => setDrawer(m)}
+              theme={eff}
+              legendOpen={brainLegendOpen}
+            />
             <span className="brain-mark">{MARK}</span>
-            <button
-              className="brain-share"
-              onClick={() => setShareHubOpen(true)}
-            >
-              <svg viewBox="0 0 24 24">
-                <circle cx="18" cy="5" r="2.6" />
-                <circle cx="6" cy="12" r="2.6" />
-                <circle cx="18" cy="19" r="2.6" />
-                <path d="M8.3 10.7l7.4-4.4M8.3 13.3l7.4 4.4" />
-              </svg>
-              Share
-            </button>
           </div>
         )}
 
@@ -4464,6 +4493,23 @@ export function CortexApp({
                       Remember
                     </button>
                   </div>
+                  {view === "brain" && (
+                    <button
+                      className={
+                        "cap-tool legend-chip" + (brainLegendOpen ? " on" : "")
+                      }
+                      onClick={() => setBrainLegendOpen((o) => !o)}
+                      aria-pressed={brainLegendOpen}
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <circle cx="5" cy="6" r="1.6" />
+                        <circle cx="5" cy="12" r="1.6" />
+                        <circle cx="5" cy="18" r="1.6" />
+                        <path d="M10 6h9M10 12h9M10 18h9" />
+                      </svg>
+                      Legend
+                    </button>
+                  )}
                   <div className="cap-tail">
                     <div className="model-anchor ask-only">
                       <button

@@ -11,9 +11,11 @@ import { type Memory } from "@/lib/cortex/logic";
 export function MemoryMap({
   onOpen,
   theme = "dark",
+  legendOpen = false,
 }: {
   onOpen: (m: Memory) => void;
   theme?: "light" | "dark";
+  legendOpen?: boolean;
 }) {
   const ownLive = useCortex((s) => s.live)();
   const sharedMemories = useCortex((s) => s.sharedMemories);
@@ -1295,7 +1297,7 @@ export function MemoryMap({
     <div ref={rootRef} className="mesh">
       <canvas id="mc" className="mesh-canvas" />
 
-      <div className="mesh-legends">
+      <div className={"mesh-legends" + (legendOpen ? " open" : "")}>
         <div className="leg panel">
           <div className="lh">legend</div>
           <div id="rowsCat" />
