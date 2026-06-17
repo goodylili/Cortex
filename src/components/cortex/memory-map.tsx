@@ -1211,6 +1211,8 @@ export function MemoryMap({
     const searchCount = ctl("ctlSearchCount");
     let searchHits: Node[] = [];
     function setSearchOpen(open: boolean) {
+      if (open && searchBox && searchBtn)
+        searchBox.style.top = (searchBtn as HTMLElement).offsetTop + "px";
       searchBox?.classList.toggle("on", open);
       searchBtn?.classList.toggle("on", open);
       if (open) {
@@ -1539,33 +1541,67 @@ export function MemoryMap({
       <canvas className="mctl-mini" id="mctlMini" />
 
       <div className="mctl">
-        <button className="mctl-pill" id="ctlFit">
-          <span className="ml">Fit</span>
-          <kbd>Z</kbd>
-        </button>
-        <button className="mctl-pill" id="ctlCenter">
-          <span className="ml">Center</span>
-          <kbd>C</kbd>
-        </button>
-        <div className="mctl-pill mctl-zoom">
-          <button className="zb" id="ctlOut" aria-label="Zoom out">
-            −
+        <div className="mctl-bar">
+          <button className="mctl-ic" id="ctlFit" title="Fit (Z)" aria-label="Fit">
+            <svg viewBox="0 0 24 24">
+              <path d="M4 9V5a1 1 0 0 1 1-1h4" />
+              <path d="M20 9V5a1 1 0 0 0-1-1h-4" />
+              <path d="M4 15v4a1 1 0 0 0 1 1h4" />
+              <path d="M20 15v4a1 1 0 0 1-1 1h-4" />
+            </svg>
           </button>
-          <span className="zpct" id="ctlZoom">
+          <button
+            className="mctl-ic"
+            id="ctlCenter"
+            title="Center (C)"
+            aria-label="Center"
+          >
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="3.4" />
+              <path d="M12 2v3.4M12 18.6V22M2 12h3.4M18.6 12H22" />
+            </svg>
+          </button>
+          <button
+            className="mctl-ic"
+            id="ctlIn"
+            title="Zoom in"
+            aria-label="Zoom in"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </button>
+          <span className="mctl-z" id="ctlZoom">
             100%
           </span>
-          <button className="zb" id="ctlIn" aria-label="Zoom in">
-            +
+          <button
+            className="mctl-ic"
+            id="ctlOut"
+            title="Zoom out"
+            aria-label="Zoom out"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M5 12h14" />
+            </svg>
           </button>
-        </div>
-        <div className="mctl-tools">
-          <button className="mctl-ic" id="ctlSearch" aria-label="Search memories">
+          <div className="mctl-div" />
+          <button
+            className="mctl-ic"
+            id="ctlSearch"
+            title="Search (/)"
+            aria-label="Search memories"
+          >
             <svg viewBox="0 0 24 24">
               <circle cx="11" cy="11" r="7" />
               <path d="M21 21l-4.3-4.3" />
             </svg>
           </button>
-          <button className="mctl-ic" id="ctlLayout" aria-label="Re-arrange">
+          <button
+            className="mctl-ic"
+            id="ctlLayout"
+            title="Re-arrange"
+            aria-label="Re-arrange"
+          >
             <svg viewBox="0 0 24 24">
               <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
               <path d="M21 3v5h-5" />
@@ -1573,17 +1609,41 @@ export function MemoryMap({
               <path d="M3 21v-5h5" />
             </svg>
           </button>
-          <button className="mctl-ic" id="ctlMini" aria-label="Toggle minimap">
+          <button
+            className="mctl-ic"
+            id="ctlMini"
+            title="Minimap"
+            aria-label="Toggle minimap"
+          >
             <svg viewBox="0 0 24 24">
               <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z" />
               <path d="M9 4v14M15 6v14" />
             </svg>
           </button>
-          <button className="mctl-ic" id="ctlExport" aria-label="Export image">
+          <button
+            className="mctl-ic"
+            id="ctlExport"
+            title="Export PNG"
+            aria-label="Export image"
+          >
             <svg viewBox="0 0 24 24">
               <path d="M12 3v12" />
               <path d="M8 11l4 4 4-4" />
               <path d="M5 21h14" />
+            </svg>
+          </button>
+          <div className="mctl-div" />
+          <button
+            className="mctl-ic"
+            id="ctlLegend"
+            title="Legend"
+            aria-label="Toggle legend"
+          >
+            <svg viewBox="0 0 24 24">
+              <circle cx="5" cy="7" r="1.4" />
+              <circle cx="5" cy="12" r="1.4" />
+              <circle cx="5" cy="17" r="1.4" />
+              <path d="M10 7h9M10 12h9M10 17h9" />
             </svg>
           </button>
         </div>
@@ -1595,12 +1655,6 @@ export function MemoryMap({
           <input id="ctlSearchInput" placeholder="Search memories…" />
           <span className="sc" id="ctlSearchCount" />
         </div>
-        <button className="mctl-pill mctl-legend" id="ctlLegend">
-          <svg className="caret" viewBox="0 0 24 24">
-            <path d="M9 6l6 6-6 6" />
-          </svg>
-          <span className="ml">Legend</span>
-        </button>
 
         <div className="mesh-legends">
           <div className="leg panel">
