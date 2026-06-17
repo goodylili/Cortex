@@ -262,6 +262,10 @@ export function CortexApp({
     "all" | "mcp" | "frameworks" | "storage" | "sources"
   >("all");
   const [intOpen, setIntOpen] = useState<string | null>(null);
+  const [intSel, setIntSel] = useState<string | null>(null);
+  const [intSetupTab, setIntSetupTab] = useState<"manual" | "oneclick">(
+    "manual",
+  );
   const [mcpAuthBusy, setMcpAuthBusy] = useState(false);
   const [delegates, setDelegates] = useState<
     { publicKey: string; isThisDevice: boolean }[]
@@ -1094,54 +1098,192 @@ export function CortexApp({
   };
 
   // integrations: MCP clients, storage backends, import sources
-  const mcpSnippet = (key: string) =>
-    key === "claude-code"
-      ? "claude mcp add cortex -- npx tsx ./mcp/server.ts"
-      : JSON.stringify(
-          {
-            mcpServers: {
-              cortex: {
-                command: "npx",
-                args: ["tsx", "./mcp/server.ts"],
-                env: { CORTEX_CONFIG: "./config/config.yaml" },
-              },
-            },
-          },
-          null,
-          2,
-        );
-  const MCP_CLIENTS = [
+  const CORTEX_MCP_URL =
+    process.env.NEXT_PUBLIC_CORTEX_MCP_URL || "https://mcp.cortex.id/mcp";
+  const mcpSnippet = (kind: "url" | "cli" | "config") =>
+    kind === "url"
+      ? CORTEX_MCP_URL
+      : kind === "cli"
+        ? `claude mcp add --transport http cortex ${CORTEX_MCP_URL}`
+        : JSON.stringify(
+            { mcpServers: { cortex: { url: CORTEX_MCP_URL } } },
+            null,
+            2,
+          );
+  const SNIPPET_LABEL: Record<"url" | "cli" | "config", string> = {
+    url: "Your Cortex connector URL",
+    cli: "Run this once",
+    config: "Add to your MCP config",
+  };
+  const MCP_TOOLS = [
+    "recall",
+    "remember",
+    "ingest",
+    "forget",
+    "consolidate",
+    "verify",
+    "run-agent",
+    "store-blob",
+    "read-context",
+  ];
+  const MCP_CLIENTS: {
+    key: string;
+    name: string;
+    kind: "url" | "cli" | "config";
+    blurb: string;
+    steps: string[];
+  }[] = [
     {
-      key: "claude-desktop",
-      letter: "C",
-      name: "Claude Desktop",
-      desc: "Let Claude read and write your Cortex memory in any chat.",
+      key: "chatgpt",
+      name: "ChatGPT",
+      kind: "url",
+      blurb:
+        "Reach your Cortex memory from ChatGPT — and let every chat build it.",
+      steps: [
+        "In ChatGPT, open Settings → Connectors (enable developer mode if prompted).",
+        "Choose “Add connector” and pick a custom MCP server.",
+        "Paste your Cortex connector URL below, then authorize the connection.",
+        "Just chat — Cortex reads your prompts over MCP and grows your memory on its own.",
+      ],
+    },
+    {
+      key: "claude",
+      name: "Claude",
+      kind: "url",
+      blurb:
+        "Add Cortex as a connector in Claude to recall and write memory in any chat.",
+      steps: [
+        "In Claude, open Settings → Connectors → Add custom connector.",
+        "Paste your Cortex connector URL below.",
+        "Click Connect and approve the Cortex tools.",
+        "Ask Claude to recall or keep anything — it flows straight through your memory.",
+      ],
     },
     {
       key: "claude-code",
-      letter: "C",
       name: "Claude Code",
-      desc: "Your conventions, decisions and project context, remembered in the CLI.",
+      kind: "cli",
+      blurb:
+        "Your conventions, decisions and project context, remembered in the CLI.",
+      steps: [
+        "Open a terminal in the project you work in.",
+        "Run the command below to register Cortex as an MCP server.",
+        "Restart Claude Code — the Cortex tools appear automatically.",
+      ],
     },
     {
       key: "cursor",
-      letter: "Cu",
       name: "Cursor",
-      desc: "Persistent memory and MCP tools inside the editor.",
+      kind: "config",
+      blurb: "Persistent memory and MCP tools inside the editor.",
+      steps: [
+        "Open Cursor → Settings → MCP.",
+        "Add a new server and paste the config below.",
+        "Reload Cursor — Cortex tools are now available to the agent.",
+      ],
     },
     {
-      key: "chatgpt",
-      letter: "G",
-      name: "ChatGPT",
-      desc: "Reach your memory through ChatGPT developer mode.",
+      key: "vscode",
+      name: "VS Code",
+      kind: "config",
+      blurb: "Bring Cortex memory into Copilot Chat and MCP-aware extensions.",
+      steps: [
+        "Open the MCP servers view, or your settings JSON.",
+        "Add the Cortex server config below.",
+        "Reload the window to connect.",
+      ],
     },
     {
       key: "codex",
-      letter: "Co",
       name: "Codex",
-      desc: "Persistent memory for the Codex CLI.",
+      kind: "config",
+      blurb: "Persistent memory for the Codex CLI.",
+      steps: [
+        "Open your Codex MCP configuration.",
+        "Add the Cortex server config below.",
+        "Restart Codex to load the tools.",
+      ],
+    },
+    {
+      key: "windsurf",
+      name: "Windsurf",
+      kind: "config",
+      blurb: "Cortex memory and tools inside Windsurf.",
+      steps: [
+        "Open Windsurf → Settings → MCP / Plugins.",
+        "Add the Cortex server config below.",
+        "Reload to connect.",
+      ],
+    },
+    {
+      key: "cline",
+      name: "Cline",
+      kind: "config",
+      blurb: "Give Cline a durable memory across sessions.",
+      steps: [
+        "Open Cline’s MCP settings.",
+        "Add the Cortex server config below.",
+        "Reload to connect.",
+      ],
     },
   ];
+  const clientLogo = (key: string) => {
+    const inner: Record<string, React.ReactNode> = {
+      chatgpt: (
+        <>
+          <path d="M12 2l8.5 4.9v9.8L12 22l-8.5-4.9V6.9z" />
+          <circle cx="12" cy="12" r="3.2" />
+        </>
+      ),
+      claude: (
+        <path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4" />
+      ),
+      "claude-code": (
+        <>
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <path d="M7 10l3 2.5L7 15M12.5 15.5H16" />
+        </>
+      ),
+      cursor: (
+        <>
+          <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" />
+          <path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" />
+        </>
+      ),
+      vscode: (
+        <>
+          <path d="M16 3l5 2.5v13L16 21 4 12z" />
+          <path d="M16 3v18" />
+        </>
+      ),
+      codex: (
+        <path d="M9 5H7a2 2 0 0 0-2 2v3l-2 2 2 2v3a2 2 0 0 0 2 2h2M15 5h2a2 2 0 0 1 2 2v3l2 2-2 2v3a2 2 0 0 1-2 2h-2" />
+      ),
+      windsurf: <path d="M5 20h14M7 20V5l10 9z" />,
+      cline: (
+        <>
+          <rect x="4" y="5" width="16" height="13" rx="3" />
+          <circle cx="9.5" cy="11" r="1" />
+          <circle cx="14.5" cy="11" r="1" />
+          <path d="M9 15h6" />
+        </>
+      ),
+    };
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {inner[key] ?? (
+          <path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0zM12 17v5" />
+        )}
+      </svg>
+    );
+  };
   const STORAGE = [
     {
       key: "walrus",
@@ -1233,8 +1375,8 @@ export function CortexApp({
   function intConnect(key: string) {
     setIntOpen((o) => (o === key ? null : key));
   }
-  function copySnippet(key: string) {
-    navigator.clipboard?.writeText(mcpSnippet(key));
+  function copySnippet(kind: "url" | "cli" | "config") {
+    navigator.clipboard?.writeText(mcpSnippet(kind));
     flash("Setup copied to clipboard");
   }
   function copyText(text: string, label = "Setup copied to clipboard") {
@@ -3736,6 +3878,13 @@ export function CortexApp({
                       read and write memory, drive the agent team, and (once you
                       authorize it) read your details, memory and context.
                     </div>
+                    <div className="int2-tools">
+                      {MCP_TOOLS.map((t) => (
+                        <span className="int2-tool" key={t}>
+                          {t}
+                        </span>
+                      ))}
+                    </div>
                     {(
                       [
                         [
@@ -3780,10 +3929,12 @@ export function CortexApp({
                     {MCP_CLIENTS.map((c) => (
                       <div className="int2-item" key={c.key}>
                         <div className="int2-row">
-                          <span className="int2-av">{c.letter}</span>
+                          <span className="int2-av logo">
+                            {clientLogo(c.key)}
+                          </span>
                           <div className="int2-meta">
                             <div className="int2-name">{c.name}</div>
-                            <div className="int2-desc">{c.desc}</div>
+                            <div className="int2-desc">{c.blurb}</div>
                           </div>
                           <button
                             className={
@@ -3796,23 +3947,25 @@ export function CortexApp({
                         </div>
                         {intOpen === c.key && (
                           <div className="int2-snip">
+                            <ol className="int2-steps">
+                              {c.steps.map((step, i) => (
+                                <li key={i}>{step}</li>
+                              ))}
+                            </ol>
                             <div className="int2-snip-h">
-                              <span>
-                                {c.key === "claude-code"
-                                  ? "Run this once"
-                                  : "Add to your MCP config"}
-                              </span>
+                              <span>{SNIPPET_LABEL[c.kind]}</span>
                               <button
                                 className="int2-copy"
-                                onClick={() => copySnippet(c.key)}
+                                onClick={() => copySnippet(c.kind)}
                               >
                                 Copy
                               </button>
                             </div>
-                            <pre>{mcpSnippet(c.key)}</pre>
+                            <pre>{mcpSnippet(c.kind)}</pre>
                             <div className="int2-snip-n">
-                              Runs entirely on your machine. Nothing leaves your
-                              device.
+                              {c.kind === "url"
+                                ? "Connects to your managed Cortex over an encrypted channel — no local server to run."
+                                : "Points the client at your managed Cortex over an encrypted channel."}
                             </div>
                           </div>
                         )}
