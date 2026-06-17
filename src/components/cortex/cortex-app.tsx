@@ -952,14 +952,6 @@ export function CortexApp({
   const added7 = live.filter(
     (m) => now - (m.createdAt ?? m.ts) < 7 * 86_400_000,
   ).length;
-  const growthPct = live.length ? Math.round((added7 / live.length) * 100) : 0;
-  const intact = live.filter((m) => {
-    const st = memState(m);
-    return st !== "forgotten" && st !== "purged";
-  }).length;
-  const confidence = live.length
-    ? Math.round((intact / live.length) * 1000) / 10
-    : 100;
   const recentMems = [...live]
     .sort((a, b) => (b.createdAt ?? b.ts) - (a.createdAt ?? a.ts))
     .slice(0, 8);
@@ -2018,202 +2010,147 @@ export function CortexApp({
                     .
                   </h1>
                   <p className="ov-sub">
-                    Cortex has processed {live.length.toLocaleString()}{" "}
-                    {live.length === 1 ? "memory" : "memories"} since your last
-                    session. Ready to expand your neural workspace?
+                    Cortex has processed{" "}
+                    {(added24 || live.length).toLocaleString()}{" "}
+                    {(added24 || live.length) === 1 ? "memory" : "memories"}{" "}
+                    since your last session. Ready to expand your neural
+                    workspace?
                   </p>
                 </div>
 
                 {live.length > 0 && (
                   <>
-                    <div className="ov-dreams">
-                      <Carousel
-                        big
-                        title="Dreams"
-                        action="What Cortex noticed"
-                        onAction={() => {
-                          setMemTab("timeline");
-                          setView("memories");
-                        }}
-                      >
-                        {dreams.length
-                          ? dreams.map((d, i) => (
-                              <div className="dream-slide" key={i}>
-                                <div className="dream-head">
-                                  <svg className="dream-spark" viewBox="0 0 24 24">
-                                    <path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9z" />
-                                    <path d="M19 13l.7 2.3L22 16l-2.3.7L19 19l-.7-2.3L16 16l2.3-.7z" />
-                                  </svg>
-                                  <span>{d.title}</span>
-                                </div>
-                                <div className="ds">{d.body}</div>
-                                <div className="dream-acts">
-                                  <button
-                                    className="dream-go"
-                                    onClick={() => {
-                                      s.setMode("ask");
-                                      s.ask(
-                                        `Synthesise what I know about this: ${d.title}. ${d.body}`,
-                                      );
-                                    }}
-                                  >
-                                    Synthesize Now
-                                  </button>
-                                  <button
-                                    className="dream-x"
-                                    onClick={() =>
-                                      setDreams((ds) =>
-                                        ds.filter((_, k) => k !== i),
-                                      )
-                                    }
-                                  >
-                                    Dismiss
-                                  </button>
-                                </div>
-                              </div>
-                            ))
-                          : (dreamsLoading ? [0, 1, 2] : [0, 1]).map((i) => (
-                              <div className="dream-slide skeleton" key={i}>
-                                <div className="dream-head">
-                                  <svg className="dream-spark" viewBox="0 0 24 24">
-                                    <path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9z" />
-                                  </svg>
-                                  <span>
-                                    {dreamsLoading
-                                      ? "Dreaming…"
-                                      : "Nothing surfaced yet"}
-                                  </span>
-                                </div>
-                                <div className="ds">
-                                  {dreamsLoading
-                                    ? "Cortex is looking across your memories for connections."
-                                    : "Keep a few more memories and patterns will appear here."}
-                                </div>
-                              </div>
-                            ))}
-                      </Carousel>
+                    <div className="hc-duo">
+                      <div className="hc-stat">
+                        <div className="hc-label">
+                          <svg className="hc-ico" viewBox="0 0 24 24">
+                            <rect x="6" y="6" width="12" height="12" rx="2" />
+                            <path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" />
+                          </svg>
+                          Total memories
+                        </div>
+                        <div className="hc-big">
+                          {live.length.toLocaleString()}
+                        </div>
+                        <div className="hc-subs">
+                          <div className="hc-sub">
+                            <span className="hc-sub-k">Added Today</span>
+                            <span className="hc-sub-v">+{added24}</span>
+                          </div>
+                          <div className="hc-sub">
+                            <span className="hc-sub-k">Tokens Saved</span>
+                            <span className="hc-sub-v">
+                              {fmtTokens(sav.realizedTok)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="hc-reflect">
+                        <div className="hc-label">
+                          <svg className="hc-ico" viewBox="0 0 24 24">
+                            <path d="M9 18h6M10 21h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2h6c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z" />
+                          </svg>
+                          Reflection
+                        </div>
+                        <p className="hc-insight">
+                          {dreams[0]
+                            ? `${dreams[0].title} — ${dreams[0].body}`
+                            : dreamsLoading
+                              ? "Cortex is looking across your memories for connections."
+                              : `You've added ${added7} ${
+                                  added7 === 1 ? "memory" : "memories"
+                                } this week across ${live.length.toLocaleString()} total. Synthesize them into a clearer picture.`}
+                        </p>
+                        <button
+                          className="hc-synth"
+                          onClick={() => {
+                            s.setMode("ask");
+                            s.ask(
+                              dreams[0]
+                                ? `Synthesise what I know about this: ${dreams[0].title}. ${dreams[0].body}`
+                                : "Synthesise the most important things I've stored recently into a clear summary.",
+                            );
+                          }}
+                        >
+                          Synthesize Now
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="ov-duo">
-                      <Carousel
-                        title="Recent memories"
-                        action="View all"
-                        onAction={() => setView("memories")}
+                    <div className="hc-recent-head">
+                      <h2 className="hc-recent-title">Recent Memories</h2>
+                      <button
+                        className="hc-viewall"
+                        onClick={() => setView("memories")}
                       >
-                        {recentMems.map((m) => {
-                            const pinned = !!(m.kept || m.lock === "pinned");
-                            const fromFile = !!(m.origin || m.docId);
-                            const cat = pinned
-                              ? "Pinned"
-                              : m.tags[0]
-                                ? m.tags[0]
-                                : fromFile
-                                  ? "File"
-                                  : "Memory";
-                            return (
-                              <button
-                                key={m.id}
-                                className={"ov-card" + (pinned ? " pinned" : "")}
-                                onClick={() => setDrawer(m)}
-                              >
-                                <div className="ov-card-top">
-                                  <span className="ov-tag">
-                                    {pinned && (
-                                      <svg
-                                        className="ov-heart"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
-                                      </svg>
-                                    )}
-                                    {cat}
-                                  </span>
-                                  <span className="ov-ago">{ago(m.ts)}</span>
+                        View All
+                      </button>
+                    </div>
+
+                    <div className="hc-grid">
+                      {recentMems.map((m) => {
+                        const pinned = !!(m.kept || m.lock === "pinned");
+                        const isFile = !!(m.blobId || m.mime);
+                        const cat = pinned
+                          ? "Pinned"
+                          : m.tags[0]
+                            ? m.tags[0]
+                            : isFile
+                              ? "File"
+                              : "Memory";
+                        const fileName =
+                          (m.origin
+                            ? m.origin.split(/[\\/]/).pop()
+                            : null) ||
+                          m.text.slice(0, 40) ||
+                          "Untitled";
+                        const fileMeta = (m.mime || "file").split("/").pop();
+                        return (
+                          <button
+                            key={m.id}
+                            className={"hc-card" + (pinned ? " pinned" : "")}
+                            onClick={() => setDrawer(m)}
+                          >
+                            <div className="hc-card-top">
+                              <span className="hc-tag">
+                                {pinned && (
+                                  <svg
+                                    className="hc-heart"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
+                                  </svg>
+                                )}
+                                {cat}
+                              </span>
+                              <span className="hc-ago">{ago(m.ts)}</span>
+                            </div>
+                            {isFile ? (
+                              <div className="hc-file">
+                                <span className="hc-file-ico">
+                                  <svg viewBox="0 0 24 24">
+                                    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                                    <path d="M14 3v5h5" />
+                                  </svg>
+                                </span>
+                                <div className="hc-file-meta">
+                                  <div className="hc-card-title">
+                                    {fileName}
+                                  </div>
+                                  <div className="hc-file-sub">{fileMeta}</div>
                                 </div>
-                                <div className="ov-card-text">{m.text}</div>
-                              </button>
-                            );
-                          })}
-                      </Carousel>
-                      <Carousel
-                        title="At a glance"
-                        action="Details"
-                        onAction={() => setDrawer("savings")}
-                      >
-                          <div className="stat-slide">
-                            <div className="stat-top">
-                              <span className="stat-label">Total memories</span>
-                              <svg className="stat-ico" viewBox="0 0 24 24">
-                                <ellipse cx="12" cy="6" rx="8" ry="3" />
-                                <path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" />
-                              </svg>
-                            </div>
-                            <div className="stat-body">
-                              <span className="stat-num">
-                                {live.length.toLocaleString()}
-                              </span>
-                              {growthPct > 0 && (
-                                <span className="stat-delta">+{growthPct}%</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="stat-slide">
-                            <div className="stat-top">
-                              <span className="stat-label">Last 24 hours</span>
-                              <svg className="stat-ico" viewBox="0 0 24 24">
-                                <path d="M13 2 4 14h7l-1 8 9-12h-7z" />
-                              </svg>
-                            </div>
-                            <div className="stat-body">
-                              <span className="stat-num">{added24}</span>
-                              <span className="stat-sub">New additions</span>
-                            </div>
-                          </div>
-                          <div className="stat-slide">
-                            <div className="stat-top">
-                              <span className="stat-label">Confidence score</span>
-                              <svg className="stat-ico" viewBox="0 0 24 24">
-                                <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
-                              </svg>
-                            </div>
-                            <div className="stat-body">
-                              <span className="stat-num">{confidence}%</span>
-                              <span className="stat-spark" />
-                            </div>
-                          </div>
-                          <div className="stat-slide">
-                            <div className="stat-top">
-                              <span className="stat-label">Tokens saved</span>
-                              <svg className="stat-ico" viewBox="0 0 24 24">
-                                <path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9l4.3-1.4z" />
-                              </svg>
-                            </div>
-                            <div className="stat-body">
-                              <span className="stat-num">
-                                {fmtTokens(sav.realizedTok)}
-                              </span>
-                              <span className="stat-sub">
-                                via distill + dedup
-                              </span>
-                            </div>
-                          </div>
-                          <div className="stat-slide">
-                            <div className="stat-top">
-                              <span className="stat-label">Saved so far</span>
-                              <svg className="stat-ico" viewBox="0 0 24 24">
-                                <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                              </svg>
-                            </div>
-                            <div className="stat-body">
-                              <span className="stat-num">
-                                {fmtMoney(sav.realized$)}
-                              </span>
-                              <span className="stat-sub">
-                                prompt improvements
-                              </span>
-                            </div>
-                          </div>
-                      </Carousel>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="hc-card-title">{m.text}</div>
+                                <div className="hc-card-snip">
+                                  {m.note || m.content || m.text}
+                                </div>
+                              </>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </>
                 )}
