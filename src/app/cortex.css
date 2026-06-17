@@ -95,11 +95,11 @@ body.mode-ask .ask-only{display:inline-flex!important}
 body.mode-ask .remember-only{display:none!important}
 
 /* model picker, toggle any model for prompts */
-.model-chip{position:relative}
+.model-anchor{position:relative;display:inline-flex}
 .model-chip .mdot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
 .model-chip .mchev{color:var(--faint);font-size:11px}
 .capture{position:relative}
-.model-pop{position:absolute;left:8px;bottom:calc(100% + 10px);width:min(420px,calc(100vw - 56px));background:var(--surface);border:1px solid var(--line2);border-radius:var(--r);box-shadow:var(--shadow-lg);z-index:40;overflow:hidden}
+.model-pop{position:absolute;right:0;left:auto;bottom:calc(100% + 10px);width:min(420px,calc(100vw - 56px));background:var(--surface);border:1px solid var(--line2);border-radius:var(--r);box-shadow:var(--shadow-lg);z-index:40;overflow:hidden}
 .mp-up{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;background:linear-gradient(135deg,var(--accent-soft),var(--surface))}
 .mp-up-t{font-family:var(--serif);font-size:16px;font-weight:600}
 .mp-up-s{font-size:12.5px;color:var(--muted);margin-top:2px}
@@ -834,8 +834,8 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .tb-rail-toggle:hover{background:var(--surface2);color:var(--ink)}
 .tb-rail-toggle.on{color:var(--ink)}
 .tb-rail-toggle svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.tb-search{display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:var(--r);border:1px solid var(--line2);background:var(--surface);color:var(--muted);width:280px;transition:border-color .15s,width .2s,background .15s}
-.tb-search:focus-within{border-color:var(--faint);background:var(--paper);width:340px}
+.tb-search{display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:var(--r);border:1px solid var(--line2);background:var(--surface);color:var(--muted);width:360px;transition:border-color .15s,width .2s,background .15s}
+.tb-search:focus-within{border-color:var(--faint);background:var(--paper);width:420px}
 .tb-search svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .tb-search input{flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:13.5px;color:var(--ink)}
 .tb-search input::placeholder{color:var(--faint)}
