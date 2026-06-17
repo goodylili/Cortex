@@ -834,8 +834,8 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .tb-rail-toggle:hover{background:var(--surface2);color:var(--ink)}
 .tb-rail-toggle.on{color:var(--ink)}
 .tb-rail-toggle svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.tb-search{display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:var(--r);border:1px solid var(--line2);background:var(--surface);color:var(--muted);width:210px;transition:border-color .15s,width .2s,background .15s}
-.tb-search:focus-within{border-color:var(--faint);background:var(--paper);width:260px}
+.tb-search{display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:var(--r);border:1px solid var(--line2);background:var(--surface);color:var(--muted);width:280px;transition:border-color .15s,width .2s,background .15s}
+.tb-search:focus-within{border-color:var(--faint);background:var(--paper);width:340px}
 .tb-search svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .tb-search input{flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:13.5px;color:var(--ink)}
 .tb-search input::placeholder{color:var(--faint)}
