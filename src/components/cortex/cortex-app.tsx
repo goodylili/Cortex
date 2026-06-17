@@ -1746,7 +1746,11 @@ export function CortexApp({
                     setView("home");
                   }}
                 >
-                  {se.title || "New chat"}
+                  <svg className="cr-check" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M8.5 12.2l2.4 2.4 4.6-5" />
+                  </svg>
+                  <span className="cr-item-t">{se.title || "New chat"}</span>
                 </button>
               ))
           ) : (
@@ -1755,19 +1759,18 @@ export function CortexApp({
             </div>
           )}
         </div>
-        <div className="cr-foot">
-          <span className="avatar">
-            {(walletState?.label?.[0] ?? "G").toUpperCase()}
+        <button className="cr-log" onClick={() => setView("agents")}>
+          <span className="cr-log-l">
+            <svg viewBox="0 0 24 24">
+              <path d="M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2 2 0 0 0-2.9-.1zM12 15l-3-3a11 11 0 0 1 8-8c2.5 0 3 .5 3 .5s.5.5.5 3a11 11 0 0 1-8 8z" />
+              <circle cx="15" cy="9" r="1.4" />
+            </svg>
+            <span className="cr-log-t">Agent log</span>
           </span>
-          <span className="cr-foot-meta">
-            <span className="cr-foot-name">
-              {walletState?.label ?? "Guest"}
-            </span>
-            <span className="cr-foot-sub">
-              {sess ? claimedName || "Signed in" : "Free · just you"}
-            </span>
-          </span>
-        </div>
+          <svg className="cr-log-chev" viewBox="0 0 24 24">
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        </button>
       </aside>
 
       <main className="main">
