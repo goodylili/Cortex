@@ -173,6 +173,8 @@ export function CortexApp({
   const [captureOpen, setCaptureOpen] = useState(false);
   const [agentGoal, setAgentGoal] = useState("");
   const [agentAssignee, setAgentAssignee] = useState<string>(AGENTS[0]!.id);
+  const [awActive, setAwActive] = useState(true);
+  const [awLogs, setAwLogs] = useState(false);
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
   const [autoTaskId, setAutoTaskId] = useState<string | null>(null);
   const autoStop = useRef(false);
@@ -1899,10 +1901,7 @@ export function CortexApp({
                     setView("home");
                   }}
                 >
-                  <svg className="cr-check" viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="9" />
-                    <path d="M8.4 12.2l2.4 2.4 4.7-5.2" />
-                  </svg>
+                  <span className="cr-node" aria-hidden="true" />
                   <span className="cr-item-t">{se.title || "New chat"}</span>
                 </button>
               ))
