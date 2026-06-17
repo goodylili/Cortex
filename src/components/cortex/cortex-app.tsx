@@ -229,6 +229,8 @@ export function CortexApp({
   const [agentGoal, setAgentGoal] = useState("");
   const [agentAssignee, setAgentAssignee] = useState<string>(AGENTS[0]!.id);
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
+  const [autoTaskId, setAutoTaskId] = useState<string | null>(null);
+  const autoStop = useRef(false);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [loopBusy, setLoopBusy] = useState(false);
   const [openLoopId, setOpenLoopId] = useState<string | null>(null);
@@ -1236,13 +1238,34 @@ export function CortexApp({
       setRunningTaskId(null);
     }
   }
+  // Auto-run a task like a chat thread: keep stepping until the user stops it,
+  // the task is marked done, or a safety cap is reached.
+  const AUTO_STEP_CAP = 8;
+  async function autoRunTask(taskId: string) {
+    if (autoTaskId) return;
+    autoStop.current = false;
+    setAutoTaskId(taskId);
+    setOpenTaskId(taskId);
+    try {
+      for (let i = 0; i < AUTO_STEP_CAP; i++) {
+        if (autoStop.current) break;
+        await runStep(taskId);
+        const t = useCortex.getState().tasks.find((x) => x.id === taskId);
+        if (!t || t.status === "done") break;
+      }
+    } finally {
+      setAutoTaskId(null);
+    }
+  }
+  function stopAutoRun() {
+    autoStop.current = true;
+  }
   async function createAndRun() {
     const goal = agentGoal.trim();
     if (!goal) return;
     const id = s.createTask(goal, agentAssignee);
     setAgentGoal("");
-    setOpenTaskId(id);
-    if (id) await runStep(id);
+    if (id) await autoRunTask(id);
   }
   async function makeLoopFromStudio() {
     const goal = studioTask.trim();
@@ -2276,9 +2299,13 @@ export function CortexApp({
                 <button
                   className="pill-btn keep"
                   onClick={() => void createAndRun()}
-                  disabled={!agentGoal.trim() || runningTaskId !== null}
+                  disabled={
+                    !agentGoal.trim() ||
+                    runningTaskId !== null ||
+                    autoTaskId !== null
+                  }
                 >
-                  Assign &amp; run once
+                  Assign &amp; run
                 </button>
                 <button
                   className="pill-btn"
@@ -2499,12 +2526,36 @@ export function CortexApp({
                           className="filters"
                           style={{ marginTop: 10, gap: 6 }}
                         >
+                          {autoTaskId === t.id ? (
+                            <button
+                              className="pill-btn"
+                              onClick={stopAutoRun}
+                            >
+                              {running ? "Working…" : "Stopping…"} · Stop
+                            </button>
+                          ) : (
+                            <button
+                              className="pill-btn keep"
+                              onClick={() => void autoRunTask(t.id)}
+                              disabled={
+                                autoTaskId !== null || runningTaskId !== null
+                              }
+                            >
+                              Run
+                            </button>
+                          )}
                           <button
-                            className="pill-btn keep"
+                            className="fchip"
                             onClick={() => void runStep(t.id)}
-                            disabled={running || runningTaskId !== null}
+                            disabled={
+                              running ||
+                              runningTaskId !== null ||
+                              autoTaskId !== null
+                            }
                           >
-                            {running ? "Working…" : "Run step"}
+                            {running && autoTaskId !== t.id
+                              ? "Working…"
+                              : "Step once"}
                           </button>
                           <button
                             className="fchip"
