@@ -1526,16 +1526,6 @@ export function CortexApp({
                 </button>
               )}
             </label>
-            <button
-              className="tb-icon"
-              aria-label="Notifications"
-              onClick={() => flash("You're all caught up.")}
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.7 21a2 2 0 0 1-3.4 0" />
-              </svg>
-            </button>
             <div className="tb-profile" ref={profileRef}>
               <button
                 className={"tb-you" + (profileOpen ? " on" : "")}
@@ -4455,65 +4445,6 @@ export function CortexApp({
           !(view === "home" && homeMode === "agents") && (
             <div className="composer-dock">
               <div className="capture" ref={composerRef}>
-                {modelOpen && (
-                  <div className="model-pop">
-                    <div className="mp-up">
-                      <div>
-                        <div className="mp-up-t">Use any model</div>
-                        <div className="mp-up-s">
-                          Free while Cortex is in preview
-                        </div>
-                      </div>
-                      <span className="mp-badge">Preview</span>
-                    </div>
-                    <label className="mp-search">
-                      <svg viewBox="0 0 24 24">
-                        <circle cx="11" cy="11" r="7" />
-                        <path d="M21 21l-4.3-4.3" />
-                      </svg>
-                      <input
-                        placeholder="Search models…"
-                        value={modelSearch}
-                        onChange={(e) => setModelSearch(e.target.value)}
-                        autoFocus
-                      />
-                    </label>
-                    <div className="mp-list">
-                      {modelList.map((m) => (
-                        <button
-                          key={m.name}
-                          className={
-                            "mp-item" + (m.name === s.model.name ? " on" : "")
-                          }
-                          onClick={() => {
-                            s.setModel(m.name);
-                            setModelOpen(false);
-                          }}
-                        >
-                          <span className="mp-av">{m.prov[0]}</span>
-                          <span className="mp-meta">
-                            <span className="mp-name">
-                              {m.name}{" "}
-                              <span
-                                className={
-                                  "mp-price" + (m.price.length > 2 ? " hi" : "")
-                                }
-                              >
-                                {m.price}
-                              </span>
-                            </span>
-                            <span className="mp-desc">
-                              {m.prov} · {m.desc}
-                            </span>
-                          </span>
-                          {m.name === s.model.name && (
-                            <span className="mp-check">✓</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
                 <div className="ask-docs">
                   {s.docs.map((d, i) => (
                     <span className="ask-doc" key={i}>
@@ -4573,33 +4504,81 @@ export function CortexApp({
                       Remember
                     </button>
                   </div>
-                  <div className="importance remember-only">
-                    {(["low", "normal", "high"] as const).map((lv) => (
-                      <button
-                        key={lv}
-                        className={s.importance === lv ? "on" : ""}
-                        onClick={() => s.setImportance(lv)}
-                      >
-                        {lv === "low"
-                          ? "Passing"
-                          : lv === "normal"
-                            ? "Normal"
-                            : "Keep close"}
-                      </button>
-                    ))}
-                  </div>
                   <div className="cap-tail">
-                    <button
-                      className="cap-tool model-chip ask-only"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setModelOpen((o) => !o);
-                      }}
-                    >
-                      <span className="mdot" />
-                      <span>{s.model.name}</span>{" "}
-                      <span className="mchev">▾</span>
-                    </button>
+                    <div className="model-anchor ask-only">
+                      <button
+                        className="cap-tool model-chip"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setModelOpen((o) => !o);
+                        }}
+                      >
+                        <span className="mdot" />
+                        <span>{s.model.name}</span>{" "}
+                        <span className="mchev">▾</span>
+                      </button>
+                      {modelOpen && (
+                        <div className="model-pop">
+                          <div className="mp-up">
+                            <div>
+                              <div className="mp-up-t">Use any model</div>
+                              <div className="mp-up-s">
+                                Free while Cortex is in preview
+                              </div>
+                            </div>
+                            <span className="mp-badge">Preview</span>
+                          </div>
+                          <label className="mp-search">
+                            <svg viewBox="0 0 24 24">
+                              <circle cx="11" cy="11" r="7" />
+                              <path d="M21 21l-4.3-4.3" />
+                            </svg>
+                            <input
+                              placeholder="Search models…"
+                              value={modelSearch}
+                              onChange={(e) => setModelSearch(e.target.value)}
+                              autoFocus
+                            />
+                          </label>
+                          <div className="mp-list">
+                            {modelList.map((m) => (
+                              <button
+                                key={m.name}
+                                className={
+                                  "mp-item" +
+                                  (m.name === s.model.name ? " on" : "")
+                                }
+                                onClick={() => {
+                                  s.setModel(m.name);
+                                  setModelOpen(false);
+                                }}
+                              >
+                                <span className="mp-av">{m.prov[0]}</span>
+                                <span className="mp-meta">
+                                  <span className="mp-name">
+                                    {m.name}{" "}
+                                    <span
+                                      className={
+                                        "mp-price" +
+                                        (m.price.length > 2 ? " hi" : "")
+                                      }
+                                    >
+                                      {m.price}
+                                    </span>
+                                  </span>
+                                  <span className="mp-desc">
+                                    {m.prov} · {m.desc}
+                                  </span>
+                                </span>
+                                {m.name === s.model.name && (
+                                  <span className="mp-check">✓</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     <button
                       className={
                         "cap-tool web-chip ask-only" + (s.web ? " on" : "")
@@ -4612,6 +4591,21 @@ export function CortexApp({
                       </svg>{" "}
                       Web
                     </button>
+                    <div className="importance remember-only">
+                      {(["low", "normal", "high"] as const).map((lv) => (
+                        <button
+                          key={lv}
+                          className={s.importance === lv ? "on" : ""}
+                          onClick={() => s.setImportance(lv)}
+                        >
+                          {lv === "low"
+                            ? "Passing"
+                            : lv === "normal"
+                              ? "Normal"
+                              : "Keep close"}
+                        </button>
+                      ))}
+                    </div>
                     {dictation.supported && (
                       <button
                         className={
