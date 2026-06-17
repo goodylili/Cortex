@@ -8,7 +8,13 @@ import { type Memory } from "@/lib/cortex/logic";
 // fan-out and a detail card. Asking is handled by the app's global composer.
 // Ported to run on the app's live memories. Self-contained dark immersive view.
 
-export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
+export function MemoryMap({
+  onOpen,
+  theme = "dark",
+}: {
+  onOpen: (m: Memory) => void;
+  theme?: "light" | "dark";
+}) {
   const ownLive = useCortex((s) => s.live)();
   const sharedMemories = useCortex((s) => s.sharedMemories);
   // Memories shared with you are part of your brain too — graph them alongside your
@@ -28,6 +34,25 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
       root.querySelector(sel) as T | null;
     const css = (k: string) =>
       getComputedStyle(root).getPropertyValue(k).trim();
+    const dark = theme !== "light";
+    const NEUT = {
+      vIn: dark ? "#0c0c0d" : "#ffffff",
+      vMid: dark ? "#060607" : "#f6f6f7",
+      vOut: dark ? "#000000" : "#ececed",
+      line: dark ? "#c4c4c4" : "#8c8c8c",
+      faintRing: dark ? "#3a3550" : "#d4d0de",
+      link: dark ? "#7a7596" : "#b6b2c4",
+      glow: dark ? "#efefef" : "#5a5a5a",
+      spark: dark ? "#ffffff" : "#1c1c1c",
+      label: dark ? "#dfe6e3" : "#2a2a2a",
+      hubLabel: dark ? "#eef2f0" : "#161616",
+      dim: dark ? "#9fb0ab" : "#6b6b6b",
+      tagBg: dark ? "rgba(4,10,12,0.85)" : "rgba(255,255,255,0.92)",
+      tagBorder: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)",
+      tagText: dark ? "#cdd6d3" : "#3a3a3a",
+      cardBg: dark ? "rgba(10,22,24,0.7)" : "rgba(255,255,255,0.86)",
+      veil: (a: number) => (dark ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a})`),
+    };
     const PI2 = Math.PI * 2;
     const PALETTE = [
       "#f0a73c",
@@ -166,9 +191,9 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         H * 0.5,
         Math.max(W, H) * 0.8,
       );
-      vign.addColorStop(0, "#0c0c0d");
-      vign.addColorStop(0.5, "#060607");
-      vign.addColorStop(1, "#000000");
+      vign.addColorStop(0, NEUT.vIn);
+      vign.addColorStop(0.5, NEUT.vMid);
+      vign.addColorStop(1, NEUT.vOut);
     }
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
@@ -531,15 +556,15 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
       ctx.beginPath();
       ctx.moveTo(p0[0]!, p0[1]!);
       ctx.quadraticCurveTo(c[0]!, c[1]!, p1[0]!, p1[1]!);
-      ctx.strokeStyle = hexA("#c4c4c4", 0.13 * intensity);
+      ctx.strokeStyle = hexA(NEUT.line, 0.13 * intensity);
       ctx.lineWidth = 6;
-      ctx.shadowColor = hexA("#dcdcdc", 0.55 * intensity);
+      ctx.shadowColor = hexA(NEUT.glow, 0.55 * intensity);
       ctx.shadowBlur = 14;
       ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(p0[0]!, p0[1]!);
       ctx.quadraticCurveTo(c[0]!, c[1]!, p1[0]!, p1[1]!);
-      ctx.strokeStyle = hexA("#efefef", 0.6 * intensity);
+      ctx.strokeStyle = hexA(NEUT.glow, 0.6 * intensity);
       ctx.lineWidth = 1.2;
       ctx.shadowBlur = 0;
       ctx.stroke();
@@ -549,8 +574,8 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         gy = u * u * p0[1]! + 2 * u * tt * c[1]! + tt * tt * p1[1]!;
       ctx.beginPath();
       ctx.arc(gx, gy, 2, 0, PI2);
-      ctx.fillStyle = hexA("#fff", 0.85 * intensity);
-      ctx.shadowColor = hexA("#efefef", 0.9 * intensity);
+      ctx.fillStyle = hexA(NEUT.spark, 0.85 * intensity);
+      ctx.shadowColor = hexA(NEUT.glow, 0.9 * intensity);
       ctx.shadowBlur = 8;
       ctx.fill();
       ctx.shadowBlur = 0;
@@ -560,12 +585,12 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
       ctx.font = "9px " + MONO;
       const w = ctx.measureText(text).width + 10;
       rr(x - w / 2, y - 8, w, 16, 5);
-      ctx.fillStyle = "rgba(4,10,12,0.85)";
+      ctx.fillStyle = NEUT.tagBg;
       ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.12)";
+      ctx.strokeStyle = NEUT.tagBorder;
       ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.fillStyle = "#cdd6d3";
+      ctx.fillStyle = NEUT.tagText;
       ctx.textAlign = "center";
       ctx.fillText(text, x, y + 3);
     }
@@ -580,7 +605,7 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
       ctx.globalAlpha = appear;
       const [cx0, cy0] = toScreen(0, 0);
       [160, 250, 360].forEach((r) =>
-        ring(cx0, cy0, r * cam.scale, "#3a3550", 0.09, 1),
+        ring(cx0, cy0, r * cam.scale, NEUT.faintRing, 0.09, 1),
       );
       hubKeys.forEach((k, i) => {
         const h = hubs[k]!;
@@ -596,7 +621,7 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         const h = hubs[lf.cat!]!;
         const [ax, ay] = toScreen(h.x, h.y),
           [bx, by] = toScreen(lf.x, lf.y);
-        ctx.strokeStyle = hexA("#c4c4c4", 0.09 * lf.a!);
+        ctx.strokeStyle = hexA(NEUT.line, 0.09 * lf.a!);
         ctx.lineWidth = 1;
         ctx.setLineDash([1, 3]);
         ctx.beginPath();
@@ -622,7 +647,7 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         ctx.quadraticCurveTo(mx, my, bx, by);
         ctx.strokeStyle = hot
           ? hexA(CATS[l.a.cat]!.c, al)
-          : hexA("#7a7596", al);
+          : hexA(NEUT.link, al);
         ctx.lineWidth = hot ? 1.4 : 1;
         if (hot) {
           ctx.shadowColor = hexA(CATS[l.a.cat]!.c, 0.4);
@@ -663,8 +688,8 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         if (lf.pulse! > 0.01)
           ring(x, y, r + 7 + lf.pulse! * 12, cc, lf.pulse! * 0.6, 1.4);
         orb(x, y, r, cc, Math.max(al, 0.25));
-        ring(x, y, r + 4, "#ffffff", Math.max(al, 0.25) * 0.3, 1.3);
-        if (m.pinned) ring(x, y, r + 7.5, "#ffffff", 0.6 * al, 1);
+        ring(x, y, r + 4, NEUT.spark, Math.max(al, 0.25) * 0.3, 1.3);
+        if (m.pinned) ring(x, y, r + 7.5, NEUT.spark, 0.6 * al, 1);
         const showL =
           relevant.has("leaf_" + m.id) ||
           hoverMem === m ||
@@ -676,7 +701,7 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
           ctx.textAlign = right ? "left" : "right";
           const lx = right ? x + r + 8 : x - r - 8;
           ctx.font = "10.5px " + MONO;
-          ctx.fillStyle = hexA("#dfe6e3", Math.min(al, 0.95));
+          ctx.fillStyle = hexA(NEUT.label, Math.min(al, 0.95));
           ctx.fillText(
             trunc(
               m.full,
@@ -700,15 +725,15 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         const r = 16 * cam.scale;
         orb(x, y, r, CATS[k]!.c, 0.5 + h.a! * 0.5);
         ctx.textAlign = "left";
-        ctx.fillStyle = hexA("#eef2f0", 0.95 * h.a!);
+        ctx.fillStyle = hexA(NEUT.hubLabel, 0.95 * h.a!);
         ctx.font = "600 14px " + HEAD;
         ctx.fillText(CATS[k]!.label, x + r + 12, y - 2);
         ctx.font = "10px " + MONO;
         const pw = ctx.measureText(pct + "%").width + 12;
         rr(x + r + 12, y + 5, pw, 15, 5);
-        ctx.fillStyle = hexA("#ffffff", 0.07 * h.a!);
+        ctx.fillStyle = NEUT.veil(0.07 * h.a!);
         ctx.fill();
-        ctx.fillStyle = hexA("#cbd4d1", 0.85 * h.a!);
+        ctx.fillStyle = hexA(NEUT.dim, 0.85 * h.a!);
         ctx.textAlign = "center";
         ctx.fillText(pct + "%", x + r + 12 + pw / 2, y + 15.5);
       });
@@ -734,7 +759,7 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         const a = (i / 80) * PI2,
           r1 = 34,
           r2 = i % 4 === 0 ? 41 : 37;
-        ctx.strokeStyle = hexA("#c4c4c4", i % 4 === 0 ? 0.6 : 0.25);
+        ctx.strokeStyle = hexA(NEUT.line, i % 4 === 0 ? 0.6 : 0.25);
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1);
@@ -742,20 +767,20 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         ctx.stroke();
       }
       ctx.restore();
-      ring(x, y, 44 * cam.scale, "#c4c4c4", 0.45, 1);
-      ring(x, y, 31 * cam.scale, "#efefef", 0.5, 1);
+      ring(x, y, 44 * cam.scale, NEUT.line, 0.45, 1);
+      ring(x, y, 31 * cam.scale, NEUT.glow, 0.5, 1);
       orb(x, y, 22 * cam.scale, "#9b7fd6", 1);
       ctx.textAlign = "left";
-      ctx.fillStyle = hexA("#e9e0fb", 0.95);
+      ctx.fillStyle = hexA(NEUT.label, 0.95);
       ctx.font = "600 15px " + HEAD;
       ctx.fillText("your memory", x + 54 * cam.scale, y - 1 * cam.scale);
       ctx.font = "10px " + MONO;
       const pct = Math.round((sealed / Math.max(N, 1)) * 100) + "%";
       const pw = ctx.measureText(pct).width + 12;
       rr(x + 54 * cam.scale, y + 7, pw, 15, 5);
-      ctx.fillStyle = "rgba(255,255,255,0.08)";
+      ctx.fillStyle = NEUT.veil(0.08);
       ctx.fill();
-      ctx.fillStyle = hexA("#cbb8ec", 0.9);
+      ctx.fillStyle = hexA(NEUT.dim, 0.9);
       ctx.textAlign = "center";
       ctx.fillText(pct, x + 54 * cam.scale + pw / 2, y + 17.5);
     }
@@ -778,7 +803,7 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         col = CATS[cat]!.c;
       const ox = W * 0.2,
         oy = H * 0.5;
-      [120, 200].forEach((r) => ring(ox, oy, r, "#3a3550", 0.1, 1));
+      [120, 200].forEach((r) => ring(ox, oy, r, NEUT.faintRing, 0.1, 1));
       const cards = [
         {
           n: fanItems.length,
@@ -823,12 +848,10 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         cd._w = cw;
         cd._h = chh;
         rr(cx, y, cw, chh, 13);
-        ctx.fillStyle = "rgba(10,22,24,0.7)";
+        ctx.fillStyle = NEUT.cardBg;
         ctx.fill();
         ctx.lineWidth = cd.hi ? 1.5 : 1;
-        ctx.strokeStyle = cd.hi
-          ? hexA("#c4c4c4", 0.7)
-          : "rgba(255,255,255,0.1)";
+        ctx.strokeStyle = cd.hi ? hexA(NEUT.line, 0.7) : NEUT.veil(0.1);
         if (cd.hi) {
           ctx.shadowColor = "rgba(183,155,234,0.4)";
           ctx.shadowBlur = 12;
@@ -839,7 +862,7 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         ctx.fillStyle = hexA(col, 0.9);
         ctx.font = "600 24px " + HEAD;
         ctx.fillText(String(cd.n), cx + 16, y + 30);
-        ctx.fillStyle = "#9fb0ab";
+        ctx.fillStyle = NEUT.dim;
         ctx.font = "11px " + MONO;
         ctx.fillText(cd.l, cx + 16, y + 48);
       });
@@ -850,7 +873,7 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
       fanItems.forEach((it, i) => {
         const frac = fanItems.length > 1 ? i / (fanItems.length - 1) : 0.5;
         const ec = EMO[it.m.emo]!.c;
-        const col2 = mixHex("#c4c4c4", ec, frac);
+        const col2 = mixHex(NEUT.line, ec, frac);
         const mx = (fx0 + it.x) / 2;
         const hot = hoverFan === it;
         ctx.beginPath();
@@ -864,16 +887,16 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
         ctx.shadowBlur = 0;
         orb(it.x, it.y, 5, ec, hot ? 1 : 0.7);
         ctx.textAlign = "left";
-        ctx.fillStyle = "#e7edea";
+        ctx.fillStyle = NEUT.label;
         ctx.font = "12px " + SANS;
         ctx.fillText(trunc(it.m.full, 26), it.x + 12, it.y - 2);
         ctx.font = "9px " + MONO;
         const pillT = "#" + it.m.day;
         const pw = ctx.measureText(pillT).width + 10;
         rr(it.x + 12, it.y + 6, pw, 14, 4);
-        ctx.fillStyle = "rgba(255,255,255,0.06)";
+        ctx.fillStyle = NEUT.veil(0.06);
         ctx.fill();
-        ctx.fillStyle = "#aeb8b5";
+        ctx.fillStyle = NEUT.dim;
         ctx.textAlign = "center";
         ctx.fillText(pillT, it.x + 12 + pw / 2, it.y + 16);
       });
@@ -881,11 +904,11 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
       spikyAura(ox, oy, 52, 16, col, 0.25, tnow * 1.3 + 1, cat.length + 3);
       orb(ox, oy, 30, col, 1);
       ctx.textAlign = "center";
-      ctx.fillStyle = "#eef2f0";
+      ctx.fillStyle = NEUT.hubLabel;
       ctx.font = "600 16px " + HEAD;
       ctx.fillText(CATS[cat]!.label, ox, oy - 78);
       ctx.font = "10px " + MONO;
-      ctx.fillStyle = "#9fb0ab";
+      ctx.fillStyle = NEUT.dim;
       ctx.fillText(fanItems.length + " memories", ox, oy - 62);
       ctx.globalAlpha = 1;
     }
@@ -1266,7 +1289,7 @@ export function MemoryMap({ onOpen }: { onOpen: (m: Memory) => void }) {
       canvas.removeEventListener("click", onClick);
       canvas.removeEventListener("wheel", onWheel);
     };
-  }, [live, onOpen]);
+  }, [live, onOpen, theme]);
 
   return (
     <div ref={rootRef} className="mesh">
