@@ -4651,7 +4651,6 @@ export function CortexApp({
               theme={eff}
               legendOpen={brainLegendOpen}
             />
-            <span className="brain-mark">{MARK}</span>
           </div>
         )}
 

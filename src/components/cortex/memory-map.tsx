@@ -334,17 +334,11 @@ export function MemoryMap({
         parseInt(hex.slice(4, 6), 16),
       ];
     };
-    const mix = (hex: string, t: number[], amt: number) => {
-      const a = rgb(hex);
-      return `rgb(${Math.round(a[0]! + (t[0]! - a[0]!) * amt)},${Math.round(a[1]! + (t[1]! - a[1]!) * amt)},${Math.round(a[2]! + (t[2]! - a[2]!) * amt)})`;
-    };
     const mixHex = (h1: string, h2: string, amt: number) => {
       const a = rgb(h1),
         b = rgb(h2);
       return `rgb(${Math.round(a[0]! + (b[0]! - a[0]!) * amt)},${Math.round(a[1]! + (b[1]! - a[1]!) * amt)},${Math.round(a[2]! + (b[2]! - a[2]!) * amt)})`;
     };
-    const WHITE = [255, 255, 255],
-      BLACK = [0, 0, 0];
     const SANS = css("--mesh-sans") || "system-ui, sans-serif";
     const MONO = css("--mesh-mono") || "ui-monospace, monospace";
     const HEAD = css("--mesh-head") || SANS;
@@ -370,55 +364,9 @@ export function MemoryMap({
       return true;
     }
     function orb(x: number, y: number, r: number, hex: string, bright: number) {
-      const gg = ctx.createRadialGradient(x, y, 0, x, y, r * 3.6);
-      gg.addColorStop(0, hexA(hex, 0.4 * bright));
-      gg.addColorStop(0.4, hexA(hex, 0.13 * bright));
-      gg.addColorStop(1, hexA(hex, 0));
-      ctx.fillStyle = gg;
-      ctx.beginPath();
-      ctx.arc(x, y, r * 3.6, 0, PI2);
-      ctx.fill();
-      ctx.strokeStyle = hexA(mix(hex, WHITE, 0.4), 0.28 * bright);
-      ctx.lineWidth = Math.max(1.5, r * 0.18);
-      ctx.shadowColor = hexA(hex, 0.6 * bright);
-      ctx.shadowBlur = r * 0.7;
-      ctx.beginPath();
-      ctx.arc(x, y, r * 1.28, 0, PI2);
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      const g = ctx.createRadialGradient(
-        x - r * 0.38,
-        y - r * 0.44,
-        r * 0.08,
-        x + r * 0.15,
-        y + r * 0.2,
-        r * 1.1,
-      );
-      g.addColorStop(0, mix(hex, WHITE, 0.65));
-      g.addColorStop(0.45, hex);
-      g.addColorStop(1, mix(hex, BLACK, 0.55));
-      ctx.fillStyle = g;
+      ctx.fillStyle = hexA(hex, Math.min(1, 0.85 * bright + 0.15));
       ctx.beginPath();
       ctx.arc(x, y, r, 0, PI2);
-      ctx.fill();
-      ctx.strokeStyle = hexA(mix(hex, WHITE, 0.55), 0.55 * bright);
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, PI2);
-      ctx.stroke();
-      const sp = ctx.createRadialGradient(
-        x - r * 0.34,
-        y - r * 0.42,
-        0,
-        x - r * 0.34,
-        y - r * 0.42,
-        r * 0.5,
-      );
-      sp.addColorStop(0, "rgba(255,255,255," + 0.75 * bright + ")");
-      sp.addColorStop(1, "rgba(255,255,255,0)");
-      ctx.fillStyle = sp;
-      ctx.beginPath();
-      ctx.ellipse(x - r * 0.32, y - r * 0.4, r * 0.34, r * 0.22, -0.6, 0, PI2);
       ctx.fill();
     }
     function ring(
@@ -762,52 +710,26 @@ export function MemoryMap({
         ctx.textAlign = "center";
         ctx.fillText(pct + "%", x + r + 12 + pw / 2, y + 15.5);
       });
-      drawSeal(cx0, cy0, tnow);
+      drawSeal(cx0, cy0);
       ctx.globalAlpha = 1;
     }
-    function drawSeal(x: number, y: number, tnow: number) {
+    function drawSeal(x: number, y: number) {
       const N = MEM.filter((m) => vis(m)).length,
         sealed = MEM.filter((m) => m.seal && vis(m)).length;
-      const gg = ctx.createRadialGradient(x, y, 0, x, y, 95 * cam.scale);
-      gg.addColorStop(0, `rgba(${SEAL},0.22)`);
-      gg.addColorStop(0.5, `rgba(${SEAL},0.06)`);
-      gg.addColorStop(1, `rgba(${SEAL},0)`);
-      ctx.fillStyle = gg;
-      ctx.beginPath();
-      ctx.arc(x, y, 95 * cam.scale, 0, PI2);
-      ctx.fill();
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.scale(cam.scale, cam.scale);
-      ctx.rotate(tnow * 0.06);
-      for (let i = 0; i < 80; i++) {
-        const a = (i / 80) * PI2,
-          r1 = 34,
-          r2 = i % 4 === 0 ? 41 : 37;
-        ctx.strokeStyle = hexA(NEUT.line, i % 4 === 0 ? 0.6 : 0.25);
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1);
-        ctx.lineTo(Math.cos(a) * r2, Math.sin(a) * r2);
-        ctx.stroke();
-      }
-      ctx.restore();
-      ring(x, y, 44 * cam.scale, NEUT.line, 0.45, 1);
-      ring(x, y, 31 * cam.scale, NEUT.glow, 0.5, 1);
-      orb(x, y, 22 * cam.scale, "#9b7fd6", 1);
+      orb(x, y, 11 * cam.scale, NEUT.label, 1);
       ctx.textAlign = "left";
       ctx.fillStyle = hexA(NEUT.label, 0.95);
       ctx.font = "600 15px " + HEAD;
-      ctx.fillText("your memory", x + 54 * cam.scale, y - 1 * cam.scale);
+      ctx.fillText("your memory", x + 24 * cam.scale, y - 1 * cam.scale);
       ctx.font = "10px " + MONO;
       const pct = Math.round((sealed / Math.max(N, 1)) * 100) + "%";
       const pw = ctx.measureText(pct).width + 12;
-      rr(x + 54 * cam.scale, y + 7, pw, 15, 5);
+      rr(x + 24 * cam.scale, y + 7, pw, 15, 5);
       ctx.fillStyle = NEUT.veil(0.08);
       ctx.fill();
       ctx.fillStyle = hexA(NEUT.dim, 0.9);
       ctx.textAlign = "center";
-      ctx.fillText(pct, x + 54 * cam.scale + pw / 2, y + 17.5);
+      ctx.fillText(pct, x + 24 * cam.scale + pw / 2, y + 17.5);
     }
     function buildFan() {
       fanItems = [];
