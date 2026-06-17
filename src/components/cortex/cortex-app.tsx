@@ -678,6 +678,10 @@ export function CortexApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, s.ready]);
 
+  useEffect(() => {
+    if (view === "knowledge" && s.mode === "remember") s.setMode("ask");
+  }, [view, s.mode, s]);
+
   function toggleChatRail() {
     setChatRailOpen((o) => {
       const n = !o;
@@ -4522,15 +4526,17 @@ export function CortexApp({
                       </svg>
                       Ask
                     </button>
-                    <button
-                      className={s.mode === "remember" ? "on" : ""}
-                      onClick={() => s.setMode("remember")}
-                    >
-                      <svg viewBox="0 0 24 24">
-                        <path d="M12 3l1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6z" />
-                      </svg>
-                      Remember
-                    </button>
+                    {view !== "knowledge" && (
+                      <button
+                        className={s.mode === "remember" ? "on" : ""}
+                        onClick={() => s.setMode("remember")}
+                      >
+                        <svg viewBox="0 0 24 24">
+                          <path d="M12 3l1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6z" />
+                        </svg>
+                        Remember
+                      </button>
+                    )}
                   </div>
                   <div className="cap-tail">
                     <div className="model-anchor ask-only">
