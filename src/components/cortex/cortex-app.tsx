@@ -1534,16 +1534,11 @@ export function CortexApp({
                 onClick={() => setProfileOpen((o) => !o)}
                 aria-haspopup="menu"
                 aria-expanded={profileOpen}
+                aria-label="Account"
               >
                 <span className="avatar">
                   {(walletState?.label?.[0] ?? "G").toUpperCase()}
                 </span>
-                <span className="tb-you-name">
-                  {walletState?.label ?? "Guest"}
-                </span>
-                <svg className="tb-chev" viewBox="0 0 24 24">
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
               </button>
               {profileOpen && (
                 <div className="tb-menu" role="menu">
@@ -4388,7 +4383,8 @@ export function CortexApp({
         {/* BRAIN — full-bleed memory map */}
         {view === "brain" && (
           <div className="brain-stage">
-            <MemoryMap onOpen={(m) => setDrawer(m)} />
+            <MemoryMap onOpen={(m) => setDrawer(m)} theme={eff} />
+            <span className="brain-mark">{MARK}</span>
             <button
               className="brain-share"
               onClick={() => setShareHubOpen(true)}
