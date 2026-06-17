@@ -2010,7 +2010,10 @@ export function CortexApp({
                 <div className="home-intro">
                 <div className="ov-hero">
                   <h1 className="ov-hello">
-                    Hello, {claimedName ? claimedName.split(/[.@]/)[0] : "there"}
+                    Hello,{" "}
+                    {claimedName
+                      ? claimedName.split(/[.@]/)[0]
+                      : username || "User"}
                     .
                   </h1>
                   <p className="ov-sub">
