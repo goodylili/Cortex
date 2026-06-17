@@ -222,7 +222,6 @@ export function CortexApp({
   const [dev, setDev] = useState(false);
   const [input, setInput] = useState("");
   const [memFilter, setMemFilter] = useState("all");
-  const [memQuery, setMemQuery] = useState("");
   const [memTab, setMemTab] = useState<"cards" | "timeline">("cards");
   const [homeMode, setHomeMode] = useState<"chat" | "agents">("chat");
   const [captureOpen, setCaptureOpen] = useState(false);
@@ -284,7 +283,6 @@ export function CortexApp({
   const [revokingShareId, setRevokingShareId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
   const [chatRailOpen, setChatRailOpen] = useState(true);
-  const [railSearch, setRailSearch] = useState(false);
   const [query, setQuery] = useState("");
   const [kbFilter, setKbFilter] = useState<"all" | "pdf" | "markdown" | "walrus">(
     "all",
@@ -1442,6 +1440,7 @@ export function CortexApp({
   const brainMemories = [...live, ...s.sharedMemories].sort(
     (a, b) => b.ts - a.ts,
   );
+  const q = query.trim().toLowerCase();
   const memList = brainMemories.filter((m) => {
     const hay = (m.text + " " + m.tags.join(" ")).toLowerCase();
     return (
@@ -1449,10 +1448,21 @@ export function CortexApp({
         (memFilter === "__shared"
           ? !!m.shared
           : m.tags.includes(memFilter))) &&
-      hay.includes(memQuery.toLowerCase()) &&
-      hay.includes(query.toLowerCase())
+      hay.includes(q)
     );
   });
+  // Cross-page fallback: how many memories / documents match the global search,
+  // so an empty page can point you to where the matches actually live.
+  const memMatchCount = q
+    ? brainMemories.filter((m) =>
+        (m.text + " " + m.tags.join(" ")).toLowerCase().includes(q),
+      ).length
+    : 0;
+  const docMatchCount = q
+    ? kbItems.filter((it) =>
+        (it.title + " " + it.desc).toLowerCase().includes(q),
+      ).length
+    : 0;
   const sharedCount = brainMemories.filter((m) => m.shared).length;
   const tags = [...new Set(brainMemories.flatMap((m) => m.tags))];
   const modelList = MODELS.filter((m) =>
@@ -1491,6 +1501,31 @@ export function CortexApp({
             ))}
           </nav>
           <div className="tb-right">
+            <label className="tb-search">
+              <svg viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M21 21l-4.3-4.3" />
+              </svg>
+              <input
+                placeholder={
+                  view === "knowledge"
+                    ? "Search documents…"
+                    : "Search memories…"
+                }
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              {query && (
+                <button
+                  type="button"
+                  className="tb-search-x"
+                  aria-label="Clear search"
+                  onClick={() => setQuery("")}
+                >
+                  ×
+                </button>
+              )}
+            </label>
             <button
               className="tb-icon"
               aria-label="Notifications"
@@ -1656,34 +1691,7 @@ export function CortexApp({
               <path d="M9 4v16" />
             </svg>
           </button>
-          <button
-            className={"cr-icon" + (railSearch ? " on" : "")}
-            onClick={() => {
-              if (!chatRailOpen) toggleChatRail();
-              setRailSearch((o) => !o);
-            }}
-            aria-label="Search"
-          >
-            <svg viewBox="0 0 24 24">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M21 21l-4.3-4.3" />
-            </svg>
-          </button>
         </div>
-        {railSearch && chatRailOpen && (
-          <label className="cr-search">
-            <svg viewBox="0 0 24 24">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M21 21l-4.3-4.3" />
-            </svg>
-            <input
-              autoFocus
-              placeholder="Search chats & memories…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </label>
-        )}
         <div className="cr-tabs">
           <button
             className={"cr-tab" + (homeMode === "chat" ? " on" : "")}
@@ -2153,18 +2161,7 @@ export function CortexApp({
 
             {memTab === "cards" ? (
               <>
-                <label className="search" style={{ marginTop: 16 }}>
-                  <svg viewBox="0 0 24 24">
-                    <circle cx="11" cy="11" r="7" />
-                    <path d="M21 21l-4.3-4.3" />
-                  </svg>
-                  <input
-                    placeholder="Search your memories…"
-                    value={memQuery}
-                    onChange={(e) => setMemQuery(e.target.value)}
-                  />
-                </label>
-                <div className="filters">
+                <div className="filters" style={{ marginTop: 16 }}>
                   {["all", ...tags].map((f) => (
                     <button
                       key={f}
@@ -2188,6 +2185,31 @@ export function CortexApp({
                 <div className="cards">
                   {memList.length ? (
                     memList.map(memCard)
+                  ) : q ? (
+                    <div className="empty">
+                      <div className="et">No memories match “{query}”</div>
+                      {docMatchCount > 0 ? (
+                        <>
+                          <div className="es">
+                            But {docMatchCount}{" "}
+                            {docMatchCount === 1 ? "document" : "documents"}{" "}
+                            match. Were you looking in your knowledge base?
+                          </div>
+                          <button
+                            className="pill-btn keep"
+                            style={{ marginTop: 14 }}
+                            onClick={() => setView("knowledge")}
+                          >
+                            View {docMatchCount} in Knowledge
+                          </button>
+                        </>
+                      ) : (
+                        <div className="es">
+                          Nothing in memories or documents matched. Try a
+                          different word.
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="empty">
                       <div className="et">Nothing here yet</div>
@@ -3065,17 +3087,6 @@ export function CortexApp({
               Cortex.
             </p>
             <div className="kb2-bar">
-              <label className="kb2-search">
-                <svg viewBox="0 0 24 24">
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="M21 21l-4.3-4.3" />
-                </svg>
-                <input
-                  placeholder="Search documents, entities, or tags…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </label>
               <div className="kb2-filters">
                 {(
                   [
@@ -3187,7 +3198,7 @@ export function CortexApp({
                         className="l"
                         onClick={() => {
                           if (it.name) {
-                            setMemQuery(it.name);
+                            setQuery(it.name);
                             setView("memories");
                           }
                         }}
@@ -3206,10 +3217,37 @@ export function CortexApp({
             </div>
             {kbFiltered.length === 0 && (
               <div className="empty" style={{ marginTop: 24 }}>
-                <div className="et">
-                  No documents{query ? " match your search" : " yet"}
-                </div>
-                <div className="es">Drop a file above to get started.</div>
+                {q ? (
+                  <>
+                    <div className="et">No documents match “{query}”</div>
+                    {memMatchCount > 0 ? (
+                      <>
+                        <div className="es">
+                          But {memMatchCount}{" "}
+                          {memMatchCount === 1 ? "memory" : "memories"} match.
+                          Were you looking in your memories?
+                        </div>
+                        <button
+                          className="pill-btn keep"
+                          style={{ marginTop: 14 }}
+                          onClick={() => setView("memories")}
+                        >
+                          View {memMatchCount} in Memories
+                        </button>
+                      </>
+                    ) : (
+                      <div className="es">
+                        Nothing in documents or memories matched. Try a
+                        different word.
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="et">No documents yet</div>
+                    <div className="es">Drop a file above to get started.</div>
+                  </>
+                )}
               </div>
             )}
           </section>
