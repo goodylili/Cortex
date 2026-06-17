@@ -161,7 +161,7 @@ export function Hero() {
               transition={{ duration: 0.6, delay: 0.4 }}
               className="relative w-full"
             >
-              <div className="aspect-video w-full overflow-hidden rounded-2xl border border-ink/20 shadow-2xl md:aspect-[16/9]">
+              <div className="aspect-video w-full overflow-hidden rounded-[var(--r)] border border-ink/20 shadow-2xl md:aspect-[16/9]">
                 <Image
                   src="/cortex-app.png"
                   alt="Cortex memory map"
@@ -172,7 +172,7 @@ export function Hero() {
                 />
               </div>
 
-              <div className="absolute -inset-1 -z-10 rounded-2xl bg-gradient-to-r from-ink/10 via-transparent to-ink/10 opacity-50 blur-2xl" />
+              <div className="absolute -inset-1 -z-10 rounded-[var(--r)] bg-gradient-to-r from-ink/10 via-transparent to-ink/10 opacity-50 blur-2xl" />
             </motion.div>
           </div>
         </div>
