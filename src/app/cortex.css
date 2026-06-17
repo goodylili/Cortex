@@ -95,7 +95,8 @@ input,textarea{font:inherit;color:inherit}
 .imp-anchor{position:relative;flex-shrink:0}
 .imp-chip{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .imp-pop{position:absolute;bottom:calc(100% + 8px);left:0;z-index:30;background:var(--paper);border:1px solid var(--line2);border-radius:var(--r);box-shadow:var(--shadow-lg);padding:6px;animation:rise .16s ease}
-.imp-pop .importance{border:none;background:transparent;padding:0}
+.imp-pop .importance{border:none;background:transparent;padding:0;flex-direction:column;gap:2px;min-width:140px}
+.imp-pop .importance button{width:100%;text-align:left;justify-content:flex-start}
 .ask-only{display:none!important}
 body.mode-ask .ask-only{display:inline-flex!important}
 body.mode-ask .remember-only{display:none!important}
