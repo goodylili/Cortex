@@ -2240,18 +2240,6 @@ export function CortexApp({
               (view === "home" && homeMode === "agents" ? " on" : "")
             }
           >
-            <div className="rr-head">
-              <h1 className="h1">
-                Agent <span className="em">team</span>
-              </h1>
-            </div>
-            <p className="lede show">
-              Four specialists share one durable memory on Walrus. Assign a goal,
-              watch them work, hand a task off so another continues it, and keep
-              the best findings. Tasks and the message bus persist to
-              Walrus + Sui, so the team picks up exactly where it left off.
-            </p>
-
             <div className="cards" style={{ marginTop: 16 }}>
               {AGENTS.map((a: AgentDef) => (
                 <div
@@ -3058,17 +3046,6 @@ export function CortexApp({
           </section>
           {/* KNOWLEDGE — document library (card grid) */}
           <section className={"view" + (view === "knowledge" ? " on" : "")}>
-            <h1 className="h1" style={{ textAlign: "left" }}>
-              Knowledge Base
-            </h1>
-            <p
-              className="lede show"
-              style={{ textAlign: "left", marginLeft: 0, marginRight: 0 }}
-            >
-              Access, organize, and query your integrated documents. All files
-              are securely processed and vectorized for instant retrieval by
-              Cortex.
-            </p>
             <div className="kb2-bar">
               <div className="kb2-filters">
                 {(
