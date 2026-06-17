@@ -4573,28 +4573,6 @@ export function CortexApp({
                       Remember
                     </button>
                   </div>
-                  <button
-                    className="cap-tool model-chip ask-only"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setModelOpen((o) => !o);
-                    }}
-                  >
-                    <span className="mdot" />
-                    <span>{s.model.name}</span> <span className="mchev">▾</span>
-                  </button>
-                  <button
-                    className={
-                      "cap-tool web-chip ask-only" + (s.web ? " on" : "")
-                    }
-                    onClick={() => s.toggleWeb()}
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <circle cx="12" cy="12" r="9" />
-                      <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
-                    </svg>{" "}
-                    Web
-                  </button>
                   <div className="importance remember-only">
                     {(["low", "normal", "high"] as const).map((lv) => (
                       <button
@@ -4611,6 +4589,29 @@ export function CortexApp({
                     ))}
                   </div>
                   <div className="cap-tail">
+                    <button
+                      className="cap-tool model-chip ask-only"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setModelOpen((o) => !o);
+                      }}
+                    >
+                      <span className="mdot" />
+                      <span>{s.model.name}</span>{" "}
+                      <span className="mchev">▾</span>
+                    </button>
+                    <button
+                      className={
+                        "cap-tool web-chip ask-only" + (s.web ? " on" : "")
+                      }
+                      onClick={() => s.toggleWeb()}
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+                      </svg>{" "}
+                      Web
+                    </button>
                     {dictation.supported && (
                       <button
                         className={
