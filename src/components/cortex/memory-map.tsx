@@ -1392,6 +1392,10 @@ export function MemoryMap({
       const seal = q("#cSeal")!;
       seal.className = "badge2 " + (m.seal ? "sealed" : "plain");
       seal.innerHTML = m.seal ? '<span class="d"></span>Kept close' : "Passing";
+      const cShared = q("#cShared")! as HTMLElement;
+      const isShared = !!m.mem.shared;
+      cShared.style.display = isShared ? "" : "none";
+      cShared.innerHTML = isShared ? '<span class="d"></span>Shared' : "";
       q("#cSrc")!.textContent = m.by;
       (q("#cFeel") as HTMLElement).style.borderColor = hexA(EMO[m.emo]!.c, 0.4);
       const cEmo = q("#cEmo")!;
@@ -1734,6 +1738,7 @@ export function MemoryMap({
           <div className="ttl" id="cTtl" />
           <div className="badges">
             <span className="badge2" id="cSeal" />
+            <span className="badge2 shared" id="cShared" />
             <span className="src" id="cSrc" />
           </div>
         </div>
