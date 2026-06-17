@@ -63,7 +63,6 @@ import {
   hasBoardConflict,
 } from "./loops";
 
-const KEY = "cortex.db.v3";
 const STEP_MEMORY_LIMIT = 6;
 const ITERATION_DELAY_MS = 1200;
 const REVIEW_PASS_PREFIX = /^\s*pass\b/i;
@@ -134,14 +133,13 @@ export interface CortexDocument {
   url?: string; // durable copy (Walrus aggregator) when stored
 }
 
-interface Persisted {
+interface SessionCache {
   memories: Memory[];
   events: CortexEvent[];
   cost: Cost;
   config?: Partial<MemoryConfig>;
   lastSweep?: number;
   documents?: CortexDocument[];
-  chat?: ChatMsg[];
   sessions?: SessionMeta[];
   activeId?: string;
   chatsById?: Record<string, ChatMsg[]>;
@@ -251,6 +249,13 @@ interface State {
   setShares: (shares: ShareSummary[]) => void;
 }
 
+const sessionCache: SessionCache = {
+  memories: [],
+  events: [],
+  cost: { rawIngestedTokens: 0, dedupTokens: 0, retrievalTokens: 0, asks: 0 },
+  chatsById: {},
+};
+
 function persist(s: {
   memories: Memory[];
   events: CortexEvent[];
@@ -265,44 +270,23 @@ function persist(s: {
   agentMessages?: AgentMessage[];
   loops?: LoopRun[];
 }) {
-  try {
-    const cur = (() => {
-      try {
-        return JSON.parse(localStorage.getItem(KEY) || "{}");
-      } catch {
-        return {};
-      }
-    })();
-    const config = s.config ? serializeConfig(s.config) : cur.config;
-    const lastSweep = s.lastSweep ?? cur.lastSweep;
-    const documents = s.documents ?? cur.documents ?? [];
-    const sessions = s.sessions ?? cur.sessions ?? [];
-    const activeId = s.activeId ?? cur.activeId ?? "";
-    const tasks = s.tasks ?? cur.tasks ?? [];
-    const agentMessages = s.agentMessages ?? cur.agentMessages ?? [];
-    const loops = s.loops ?? cur.loops ?? [];
-    // The active session's messages live under its id; a single chat passed in is
-    // committed to the active bucket so existing call sites keep working.
-    const chatsById: Record<string, ChatMsg[]> = { ...(cur.chatsById ?? {}) };
-    if (s.chat !== undefined && activeId) chatsById[activeId] = s.chat;
-    localStorage.setItem(
-      KEY,
-      JSON.stringify({
-        memories: s.memories,
-        events: s.events,
-        cost: s.cost,
-        config,
-        lastSweep,
-        documents,
-        sessions,
-        activeId,
-        chatsById,
-        tasks,
-        agentMessages,
-        loops,
-      }),
-    );
-  } catch {}
+  sessionCache.memories = s.memories;
+  sessionCache.events = s.events;
+  sessionCache.cost = s.cost;
+  if (s.config) sessionCache.config = serializeConfig(s.config);
+  if (s.lastSweep !== undefined) sessionCache.lastSweep = s.lastSweep;
+  if (s.documents !== undefined) sessionCache.documents = s.documents;
+  if (s.sessions !== undefined) sessionCache.sessions = s.sessions;
+  if (s.activeId !== undefined) sessionCache.activeId = s.activeId;
+  if (s.tasks !== undefined) sessionCache.tasks = s.tasks;
+  if (s.agentMessages !== undefined) sessionCache.agentMessages = s.agentMessages;
+  if (s.loops !== undefined) sessionCache.loops = s.loops;
+  const activeId = sessionCache.activeId ?? "";
+  if (s.chat !== undefined && activeId) {
+    const chatsById = sessionCache.chatsById ?? {};
+    chatsById[activeId] = s.chat;
+    sessionCache.chatsById = chatsById;
+  }
 }
 function logEvent(
   events: CortexEvent[],
@@ -337,21 +321,8 @@ export const useCortex = create<State>((set, get) => ({
   ready: false,
 
   hydrate: () => {
-    let data: Persisted | null = null;
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) data = JSON.parse(raw);
-    } catch {}
-    if (!data || !data.memories?.length) {
-      data = emptyState();
-    }
-    if (!data.cost)
-      data.cost = {
-        rawIngestedTokens: data.memories.reduce((s, m) => s + toks(m.text), 0),
-        dedupTokens: 0,
-        retrievalTokens: 0,
-        asks: 0,
-      };
+    const data: SessionCache =
+      sessionCache.memories.length > 0 ? sessionCache : emptyState();
     const config = normalizeConfig(data.config);
     const now = Date.now();
     // backfill the memory model onto any legacy / seed memory
@@ -374,7 +345,6 @@ export const useCortex = create<State>((set, get) => ({
       }
     }
     const documents = data.documents ?? [];
-    // Multi-session: sessions index + per-id chats. Migrate a legacy single chat.
     let sessions: SessionMeta[] = data.sessions ?? [];
     let activeId = data.activeId ?? "";
     const chatsById: Record<string, ChatMsg[]> = data.chatsById ?? {};
@@ -382,7 +352,6 @@ export const useCortex = create<State>((set, get) => ({
       const id = uid("ses");
       sessions = [{ id, title: "New chat", updatedAt: now }];
       activeId = id;
-      if (data.chat?.length) chatsById[id] = data.chat;
     }
     if (!sessions.some((x) => x.id === activeId)) activeId = sessions[0]!.id;
     const chat = chatsById[activeId] ?? [];
@@ -732,7 +701,6 @@ export const useCortex = create<State>((set, get) => ({
             }
             return { chat };
           });
-          // history survives reloads (local cache); chain sync happens in the app
           persist({
             memories: get().memories,
             events: get().events,
@@ -1047,14 +1015,7 @@ export const useCortex = create<State>((set, get) => ({
         cost: s.cost,
         chat: s.chat,
       });
-      const stored = (() => {
-        try {
-          return JSON.parse(localStorage.getItem(KEY) || "{}");
-        } catch {
-          return {};
-        }
-      })();
-      const chat: ChatMsg[] = stored.chatsById?.[id] ?? [];
+      const chat: ChatMsg[] = sessionCache.chatsById?.[id] ?? [];
       persist({
         memories: s.memories,
         events: s.events,
@@ -1074,8 +1035,8 @@ export const useCortex = create<State>((set, get) => ({
     }),
   // ---- multi-agent collaboration ----
   // A small team of specialist agents share this same memory store. Tasks and the
-  // agent message bus live in the local cache and sync to Walrus/Sui (agents:tasks,
-  // agents:bus) exactly like sessions/timeline/documents.
+  // agent message bus live in the in-session store and sync to Walrus/Sui
+  // (agents:tasks, agents:bus) exactly like sessions/timeline/documents.
   createTask: (goal, assignTo) => {
     const g = goal.trim();
     if (!g) return "";
