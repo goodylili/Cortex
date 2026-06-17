@@ -1,12 +1,10 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { Children, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useCortex } from "@/lib/cortex/store";
 import {
   ago,
   computeSavings,
-  findClusters,
-  findPattern,
   fmtMoney,
   fmtTokens,
   MODELS,
@@ -90,6 +88,73 @@ const MemoryMap = dynamic(
     loading: () => <div className="brain-loading">Mapping your memory…</div>,
   },
 );
+
+// One-card-at-a-time slider: auto-advances every 3s (pauses on hover), with a
+// "x of n" counter and prev/next arrows. Used for the overview carousels.
+function Carousel({
+  title,
+  action,
+  onAction,
+  big,
+  children,
+}: {
+  title: string;
+  action?: string;
+  onAction?: () => void;
+  big?: boolean;
+  children: React.ReactNode;
+}) {
+  const cells = Children.toArray(children);
+  const n = cells.length;
+  const [i, setI] = useState(0);
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    if (n <= 1 || paused) return;
+    const t = setInterval(() => setI((p) => (p + 1) % n), 3000);
+    return () => clearInterval(t);
+  }, [n, paused]);
+  const idx = n ? i % n : 0;
+  const go = (d: number) => setI((p) => (((p + d) % n) + n) % n);
+  return (
+    <div
+      className={"carousel" + (big ? " big" : "")}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      <div className="car-head">
+        <div className="car-title">{title}</div>
+        <div className="car-ctrls">
+          {action && (
+            <button className="ov-viewall" onClick={onAction}>
+              {action}
+            </button>
+          )}
+          <span className="car-count">
+            {n ? idx + 1 : 0} of {n}
+          </span>
+          <button className="car-arr" onClick={() => go(-1)} aria-label="Previous">
+            ‹
+          </button>
+          <button className="car-arr" onClick={() => go(1)} aria-label="Next">
+            ›
+          </button>
+        </div>
+      </div>
+      <div className="car-viewport">
+        <div
+          className="car-rail"
+          style={{ transform: `translateX(-${idx * 100}%)` }}
+        >
+          {cells.map((c, k) => (
+            <div className="car-cell" key={k}>
+              {c}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type View =
   | "home"
@@ -215,6 +280,15 @@ export function CortexApp({
   const [sharedRefreshing, setSharedRefreshing] = useState(false);
   const [revokingShareId, setRevokingShareId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
+  const [chatRailOpen, setChatRailOpen] = useState(true);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [kbFilter, setKbFilter] = useState<"all" | "pdf" | "markdown" | "walrus">(
+    "all",
+  );
+  const [dreams, setDreams] = useState<{ title: string; body: string }[]>([]);
+  const [dreamsLoading, setDreamsLoading] = useState(false);
+  const dreamsTried = useRef(false);
   const ta = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -231,6 +305,8 @@ export function CortexApp({
       if (ss) setSession(JSON.parse(ss));
       const cn = localStorage.getItem("cortex-username");
       if (cn) setClaimedName(cn);
+      const cr = localStorage.getItem("cortex-chatrail");
+      if (cr !== null) setChatRailOpen(cr === "1");
     } catch {}
     const apply = () => {
       const h = location.hash.slice(1) as View;
@@ -615,6 +691,39 @@ export function CortexApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, walletState?.wallet]);
 
+  // Dreams (offline insight pass) power the wide carousel on the overview. Fetch
+  // once, lazily, when the overview is in view and there's enough to reflect on.
+  useEffect(() => {
+    if (!s.ready || view !== "home" || dreamsTried.current) return;
+    const mems = s.live();
+    if (mems.length < 2) return;
+    if (s.chat.length > 0 && s.mode === "ask") return;
+    dreamsTried.current = true;
+    setDreamsLoading(true);
+    fetch("/api/dream", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ memories: mems.slice(0, 40) }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.dreams)) setDreams(d.dreams);
+      })
+      .catch(() => {})
+      .finally(() => setDreamsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, s.ready]);
+
+  function toggleChatRail() {
+    setChatRailOpen((o) => {
+      const n = !o;
+      try {
+        localStorage.setItem("cortex-chatrail", n ? "1" : "0");
+      } catch {}
+      return n;
+    });
+  }
+
   if (!s.ready)
     return (
       <div style={{ padding: 60, color: "var(--muted)" }}>
@@ -788,31 +897,85 @@ export function CortexApp({
   })();
   // Files stored on Walrus (KbFile nodes synced from chain).
   const walrusFiles = live.filter((m) => m.blobId);
-  const recommendations = (() => {
-    const recs: string[] = [];
-    findClusters(live)
-      .slice(0, 2)
-      .forEach((g) => {
-        const t = g[0]!.tags[0];
-        if (t) recs.push(`What do I know about ${t}?`);
-      });
-    const p = findPattern(live);
-    if (p) recs.push(`Summarize everything I've kept about ${p.tag}`);
-    const tg = [...new Set(live.flatMap((m) => m.tags))].filter(
-      (t) => t !== "note",
-    );
-    tg.slice(0, 2).forEach((t) => {
-      if (!recs.some((r) => r.includes(t)))
-        recs.push(`What should I remember about ${t}?`);
-    });
-    return [...new Set(recs)].slice(0, 5);
-  })();
-  function runRec(q: string) {
-    setView("home");
-    s.setMode("ask");
-    s.ask(q);
-  }
-
+  // Overview stats (5-slide carousel) + the recent-memories carousel.
+  const added24 = live.filter(
+    (m) => now - (m.createdAt ?? m.ts) < 86_400_000,
+  ).length;
+  const added7 = live.filter(
+    (m) => now - (m.createdAt ?? m.ts) < 7 * 86_400_000,
+  ).length;
+  const growthPct = live.length ? Math.round((added7 / live.length) * 100) : 0;
+  const intact = live.filter((m) => {
+    const st = memState(m);
+    return st !== "forgotten" && st !== "purged";
+  }).length;
+  const confidence = live.length
+    ? Math.round((intact / live.length) * 1000) / 10
+    : 100;
+  const recentMems = [...live]
+    .sort((a, b) => (b.createdAt ?? b.ts) - (a.createdAt ?? a.ts))
+    .slice(0, 8);
+  // Knowledge base cards — Walrus blobs + document sources, unified + filterable
+  // by the general search bar in the top navigation.
+  const ext = (n: string) => (n.split(".").pop() || "").toLowerCase();
+  const kbItems = [
+    ...walrusFiles.map((m) => {
+      const e = (m.mime || "").toLowerCase();
+      const badge = e.includes("pdf")
+        ? "PDF"
+        : e.includes("markdown") || e.includes("md")
+          ? "MARKDOWN"
+          : "WALRUS";
+      return {
+        id: m.id,
+        walrus: true,
+        badge,
+        key: "walrus" as "walrus" | "pdf" | "markdown" | "other",
+        title: m.text,
+        desc: `${m.mime || "file"} · sealed on Walrus`,
+        foot: m.url ? "Download" : "On Walrus",
+        date: ago(m.ts),
+        url: m.url ?? null,
+        name: null as string | null,
+      };
+    }),
+    ...sources.map((src) => {
+      const e = ext(src.name);
+      const badge =
+        e === "pdf"
+          ? "PDF"
+          : e === "md" || e === "markdown"
+            ? "MARKDOWN"
+            : e
+              ? e.toUpperCase()
+              : "TEXT";
+      const key: "walrus" | "pdf" | "markdown" | "other" =
+        e === "pdf"
+          ? "pdf"
+          : e === "md" || e === "markdown"
+            ? "markdown"
+            : "other";
+      return {
+        id: "src:" + src.name,
+        walrus: false,
+        badge,
+        key,
+        title: src.name,
+        desc: src.mems[0]?.text || "",
+        foot: `${src.mems.length} ${
+          src.mems.length === 1 ? "memory" : "memories"
+        }`,
+        date: ago(Math.max(...src.mems.map((x) => x.ts))),
+        url: null as string | null,
+        name: src.name as string | null,
+      };
+    }),
+  ];
+  const kbFiltered = kbItems.filter(
+    (it) =>
+      (kbFilter === "all" || it.key === kbFilter) &&
+      (it.title + " " + it.desc).toLowerCase().includes(query.toLowerCase()),
+  );
   // studio
   const studioSelected =
     studioSel ??
@@ -1167,8 +1330,33 @@ export function CortexApp({
           ? Math.round(n / 30) + "mo"
           : n + "d";
 
-  const memCard = (m: Memory) => (
-    <div className="mcard" key={m.id} onClick={() => setDrawer(m)}>
+  const memCard = (m: Memory) => {
+    const selected = shareSel.has(m.id);
+    return (
+    <div
+      className={"mcard" + (selected ? " selected" : "")}
+      key={m.id}
+      onClick={() => setDrawer(m)}
+    >
+      {!m.shared && (
+        <button
+          className={"mcard-check" + (selected ? " on" : "")}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShareSel((prev) => {
+              const next = new Set(prev);
+              if (next.has(m.id)) next.delete(m.id);
+              else next.add(m.id);
+              return next;
+            });
+          }}
+          aria-label={selected ? "Deselect memory" : "Select memory to share"}
+        >
+          <svg viewBox="0 0 24 24">
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
+        </button>
+      )}
       <div className="mtext">{m.text}</div>
       <div className="mfoot">
         {m.shared && (
@@ -1215,7 +1403,8 @@ export function CortexApp({
         <span className="mwhen">{ago(m.ts)}</span>
       </div>
     </div>
-  );
+    );
+  };
 
   // Memories others shared with me sit alongside my own in the Memories view,
   // newest first, but never mingle with my own retention model (see the store).
@@ -1236,14 +1425,17 @@ export function CortexApp({
     (m.name + " " + m.prov).toLowerCase().includes(modelSearch.toLowerCase()),
   );
 
+  const railOn = view === "home" && chatRailOpen;
   return (
-    <div className="app">
+    <div className={"app" + (railOn ? " chatrail-on" : "")}>
       <header className="topbar">
         <div className="topbar-inner">
-          <a className="tb-brand" href="#home" onClick={() => setView("home")}>
-            <span className="mark">{MARK}</span>
-            <b>Cortex</b>
-          </a>
+          <div className="tb-left">
+            <a className="tb-brand" href="#home" onClick={() => setView("home")}>
+              <span className="mark">{MARK}</span>
+              <b>Cortex</b>
+            </a>
+          </div>
           <nav className="tb-nav" aria-label="Primary">
             {NAV.map(([v, label, icon]) => (
               <a
@@ -1258,16 +1450,6 @@ export function CortexApp({
             ))}
           </nav>
           <div className="tb-right">
-            <button
-              className="tb-icon"
-              aria-label="Search memories"
-              onClick={() => setView("memories")}
-            >
-              <svg viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="7" />
-                <path d="M21 21l-4.3-4.3" />
-              </svg>
-            </button>
             <button
               className="tb-icon"
               aria-label="Notifications"
@@ -1418,34 +1600,97 @@ export function CortexApp({
         </div>
       </header>
 
+      {view === "home" && !chatRailOpen && (
+        <button
+          className="rail-reopen"
+          onClick={toggleChatRail}
+          aria-label="Open chat history"
+        >
+          <svg viewBox="0 0 24 24">
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M9 4v16" />
+          </svg>
+        </button>
+      )}
+      <aside className={"chat-rail" + (railOn ? " open" : "")} aria-hidden={!railOn}>
+        <div className="cr-top">
+          <button
+            className="cr-icon"
+            onClick={toggleChatRail}
+            aria-label="Collapse chat history"
+          >
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="16" rx="2" />
+              <path d="M9 4v16" />
+            </svg>
+          </button>
+          <button
+            className={"cr-icon" + (searchOpen ? " on" : "")}
+            onClick={() => setSearchOpen((o) => !o)}
+            aria-label="Search"
+          >
+            <svg viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+          </button>
+        </div>
+        {searchOpen && (
+          <label className="cr-search">
+            <svg viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+            <input
+              autoFocus
+              placeholder="Search chats & memories…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+        )}
+        <button className="cr-new" onClick={() => s.newSession()}>
+          <svg viewBox="0 0 24 24">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          New chat
+        </button>
+        <div className="cr-label">Recents</div>
+        <div className="cr-recents">
+          {s.sessions.length ? (
+            s.sessions
+              .filter(
+                (se) =>
+                  !query ||
+                  (se.title || "New chat")
+                    .toLowerCase()
+                    .includes(query.toLowerCase()),
+              )
+              .map((se) => (
+                <button
+                  key={se.id}
+                  className={"cr-item" + (se.id === s.activeId ? " on" : "")}
+                  onClick={() => {
+                    s.switchSession(se.id);
+                    s.setMode("ask");
+                    setView("home");
+                  }}
+                >
+                  {se.title || "New chat"}
+                </button>
+              ))
+          ) : (
+            <div className="cr-empty">
+              Your conversations will show up here. Start one below.
+            </div>
+          )}
+        </div>
+      </aside>
+
       <main className="main">
         <div className="wrap">
           {/* HOME */}
           <section className={"view" + (view === "home" ? " on" : "")}>
-            <div className="sessbar">
-              <select
-                className="sess-select"
-                value={s.activeId}
-                onChange={(e) => s.switchSession(e.target.value)}
-                aria-label="Conversation"
-              >
-                {s.sessions.map((se) => (
-                  <option key={se.id} value={se.id}>
-                    {se.title || "New chat"}
-                  </option>
-                ))}
-              </select>
-              <button
-                className="sess-new"
-                onClick={() => s.newSession()}
-                title="New conversation"
-              >
-                <svg viewBox="0 0 24 24">
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                New chat
-              </button>
-            </div>
             {!hasChat ? (
               <div className="home-intro">
                 <div className="ov-hero">
@@ -1461,64 +1706,197 @@ export function CortexApp({
                 </div>
 
                 {live.length > 0 && (
-                  <div className="ov-recent">
-                    <div className="ov-recent-head">
-                      <div className="ov-recent-title">Recent Memories</div>
-                      <button
-                        className="ov-viewall"
-                        onClick={() => setView("memories")}
+                  <>
+                    <div className="ov-dreams">
+                      <Carousel
+                        big
+                        title="Dreams"
+                        action="What Cortex noticed"
+                        onAction={() => {
+                          setMemTab("timeline");
+                          setView("memories");
+                        }}
                       >
-                        View All
-                      </button>
-                    </div>
-                    <div className="ov-cards">
-                      {live.slice(0, 4).map((m) => {
-                        const pinned = !!(m.kept || m.lock === "pinned");
-                        const fromFile = !!(m.origin || m.docId);
-                        const related = m.edges?.length ?? 0;
-                        const cat = pinned
-                          ? "Pinned Interaction"
-                          : m.tags[0]
-                            ? m.tags[0]
-                            : fromFile
-                              ? "File"
-                              : "Memory";
-                        return (
-                          <button
-                            key={m.id}
-                            className={
-                              "ov-card" +
-                              (pinned ? " pinned" : "") +
-                              (fromFile ? " file" : "")
-                            }
-                            onClick={() => setDrawer(m)}
-                          >
-                            <div className="ov-card-top">
-                              <span className="ov-tag">
-                                {pinned && (
-                                  <svg className="ov-heart" viewBox="0 0 24 24">
-                                    <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
+                        {dreams.length
+                          ? dreams.map((d, i) => (
+                              <div className="dream-slide" key={i}>
+                                <div className="dream-head">
+                                  <svg className="dream-spark" viewBox="0 0 24 24">
+                                    <path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9z" />
+                                    <path d="M19 13l.7 2.3L22 16l-2.3.7L19 19l-.7-2.3L16 16l2.3-.7z" />
                                   </svg>
-                                )}
-                                {cat}
-                              </span>
-                              <span className="ov-ago">{ago(m.ts)}</span>
-                            </div>
-                            <div className="ov-card-text">{m.text}</div>
-                            {related > 0 && (
-                              <div className="ov-card-foot">
-                                <svg className="ov-link" viewBox="0 0 24 24">
-                                  <path d="M9 12h6M10 9l-3 3 3 3M14 9l3 3-3 3" />
-                                </svg>
-                                {related} related{" "}
-                                {related === 1 ? "node" : "nodes"}
+                                  <span>{d.title}</span>
+                                </div>
+                                <div className="ds">{d.body}</div>
+                                <div className="dream-acts">
+                                  <button
+                                    className="dream-go"
+                                    onClick={() => {
+                                      s.setMode("ask");
+                                      s.ask(
+                                        `Synthesise what I know about this: ${d.title}. ${d.body}`,
+                                      );
+                                    }}
+                                  >
+                                    Synthesize Now
+                                  </button>
+                                  <button
+                                    className="dream-x"
+                                    onClick={() =>
+                                      setDreams((ds) =>
+                                        ds.filter((_, k) => k !== i),
+                                      )
+                                    }
+                                  >
+                                    Dismiss
+                                  </button>
+                                </div>
                               </div>
-                            )}
-                          </button>
-                        );
-                      })}
+                            ))
+                          : (dreamsLoading ? [0, 1, 2] : [0, 1]).map((i) => (
+                              <div className="dream-slide skeleton" key={i}>
+                                <div className="dream-head">
+                                  <svg className="dream-spark" viewBox="0 0 24 24">
+                                    <path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9z" />
+                                  </svg>
+                                  <span>
+                                    {dreamsLoading
+                                      ? "Dreaming…"
+                                      : "Nothing surfaced yet"}
+                                  </span>
+                                </div>
+                                <div className="ds">
+                                  {dreamsLoading
+                                    ? "Cortex is looking across your memories for connections."
+                                    : "Keep a few more memories and patterns will appear here."}
+                                </div>
+                              </div>
+                            ))}
+                      </Carousel>
                     </div>
-                  </div>
+
+                    <div className="ov-duo">
+                      <Carousel
+                        title="Recent memories"
+                        action="View all"
+                        onAction={() => setView("memories")}
+                      >
+                        {recentMems.map((m) => {
+                            const pinned = !!(m.kept || m.lock === "pinned");
+                            const fromFile = !!(m.origin || m.docId);
+                            const cat = pinned
+                              ? "Pinned"
+                              : m.tags[0]
+                                ? m.tags[0]
+                                : fromFile
+                                  ? "File"
+                                  : "Memory";
+                            return (
+                              <button
+                                key={m.id}
+                                className={"ov-card" + (pinned ? " pinned" : "")}
+                                onClick={() => setDrawer(m)}
+                              >
+                                <div className="ov-card-top">
+                                  <span className="ov-tag">
+                                    {pinned && (
+                                      <svg
+                                        className="ov-heart"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
+                                      </svg>
+                                    )}
+                                    {cat}
+                                  </span>
+                                  <span className="ov-ago">{ago(m.ts)}</span>
+                                </div>
+                                <div className="ov-card-text">{m.text}</div>
+                              </button>
+                            );
+                          })}
+                      </Carousel>
+                      <Carousel
+                        title="At a glance"
+                        action="Details"
+                        onAction={() => setDrawer("savings")}
+                      >
+                          <div className="stat-slide">
+                            <div className="stat-top">
+                              <span className="stat-label">Total memories</span>
+                              <svg className="stat-ico" viewBox="0 0 24 24">
+                                <ellipse cx="12" cy="6" rx="8" ry="3" />
+                                <path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" />
+                              </svg>
+                            </div>
+                            <div className="stat-body">
+                              <span className="stat-num">
+                                {live.length.toLocaleString()}
+                              </span>
+                              {growthPct > 0 && (
+                                <span className="stat-delta">+{growthPct}%</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="stat-slide">
+                            <div className="stat-top">
+                              <span className="stat-label">Last 24 hours</span>
+                              <svg className="stat-ico" viewBox="0 0 24 24">
+                                <path d="M13 2 4 14h7l-1 8 9-12h-7z" />
+                              </svg>
+                            </div>
+                            <div className="stat-body">
+                              <span className="stat-num">{added24}</span>
+                              <span className="stat-sub">New additions</span>
+                            </div>
+                          </div>
+                          <div className="stat-slide">
+                            <div className="stat-top">
+                              <span className="stat-label">Confidence score</span>
+                              <svg className="stat-ico" viewBox="0 0 24 24">
+                                <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+                              </svg>
+                            </div>
+                            <div className="stat-body">
+                              <span className="stat-num">{confidence}%</span>
+                              <span className="stat-spark" />
+                            </div>
+                          </div>
+                          <div className="stat-slide">
+                            <div className="stat-top">
+                              <span className="stat-label">Tokens saved</span>
+                              <svg className="stat-ico" viewBox="0 0 24 24">
+                                <path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9l4.3-1.4z" />
+                              </svg>
+                            </div>
+                            <div className="stat-body">
+                              <span className="stat-num">
+                                {fmtTokens(sav.realizedTok)}
+                              </span>
+                              <span className="stat-sub">
+                                via distill + dedup
+                              </span>
+                            </div>
+                          </div>
+                          <div className="stat-slide">
+                            <div className="stat-top">
+                              <span className="stat-label">Saved so far</span>
+                              <svg className="stat-ico" viewBox="0 0 24 24">
+                                <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                              </svg>
+                            </div>
+                            <div className="stat-body">
+                              <span className="stat-num">
+                                {fmtMoney(sav.realized$)}
+                              </span>
+                              <span className="stat-sub">
+                                prompt improvements
+                              </span>
+                            </div>
+                          </div>
+                      </Carousel>
+                    </div>
+                  </>
                 )}
               </div>
             ) : (
@@ -1636,13 +2014,30 @@ export function CortexApp({
           <section className={"view" + (view === "memories" ? " on" : "")}>
             <div className="rr-head">
               <h1 className="h1">Your memories</h1>
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  className="pill-btn"
-                  onClick={() => setShareHubOpen(true)}
-                >
-                  Share
-                </button>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <div className="seg-toggle">
+                  <button
+                    className={"seg-btn" + (memTab === "cards" ? " on" : "")}
+                    onClick={() => setMemTab("cards")}
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                    </svg>
+                    Grid
+                  </button>
+                  <button
+                    className={"seg-btn" + (memTab === "timeline" ? " on" : "")}
+                    onClick={() => setMemTab("timeline")}
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M3 17l5-6 4 4 4-7 5 6" />
+                    </svg>
+                    Timeline
+                  </button>
+                </div>
                 <button
                   className="pill-btn keep"
                   onClick={() => setCaptureOpen(true)}
@@ -1651,20 +2046,23 @@ export function CortexApp({
                 </button>
               </div>
             </div>
-            <div className="filters" style={{ marginTop: 20 }}>
-              <button
-                className={"fchip" + (memTab === "cards" ? " on" : "")}
-                onClick={() => setMemTab("cards")}
-              >
-                Memories
-              </button>
-              <button
-                className={"fchip" + (memTab === "timeline" ? " on" : "")}
-                onClick={() => setMemTab("timeline")}
-              >
-                Looking back
-              </button>
-            </div>
+            {shareSel.size > 0 && (
+              <div className="sel-bar">
+                <span className="sel-n">{shareSel.size} selected</span>
+                <button
+                  className="sel-clear"
+                  onClick={() => setShareSel(new Set())}
+                >
+                  Clear
+                </button>
+                <button
+                  className="pill-btn keep"
+                  onClick={() => setShareHubOpen(true)}
+                >
+                  Share selected
+                </button>
+              </div>
+            )}
 
             {memTab === "cards" ? (
               <>
@@ -2533,139 +2931,167 @@ export function CortexApp({
               )}
             </div>
           </section>
-          {/* KNOWLEDGE — sources + recommendations */}
+          {/* KNOWLEDGE — document library (card grid) */}
           <section className={"view" + (view === "knowledge" ? " on" : "")}>
-            <h1 className="h1">Knowledge base</h1>
-            <p className="lede show">
-              The documents you&apos;ve given Cortex, and what it learned from
-              them. Add more, or pick up a thread it suggests.
+            <h1 className="h1" style={{ textAlign: "left" }}>
+              Knowledge Base
+            </h1>
+            <p
+              className="lede show"
+              style={{ textAlign: "left", marginLeft: 0, marginRight: 0 }}
+            >
+              Access, organize, and query your integrated documents. All files
+              are securely processed and vectorized for instant retrieval by
+              Cortex.
             </p>
-            <div className="kb-rec">
-              <div className="kb-rec-h">
-                Based on what you know, you might ask
-              </div>
-              <div className="kb-rec-chips">
-                {recommendations.length ? (
-                  recommendations.map((r) => (
-                    <button
-                      key={r}
-                      className="kb-rec-chip"
-                      onClick={() => runRec(r)}
-                    >
-                      {r}
-                      <svg viewBox="0 0 24 24">
-                        <path d="M5 12h14M13 6l6 6-6 6" />
-                      </svg>
-                    </button>
-                  ))
-                ) : (
-                  <span className="es" style={{ color: "var(--muted)" }}>
-                    Keep a few more memories and Cortex will suggest threads
-                    here.
-                  </span>
-                )}
+            <div className="kb2-bar">
+              <label className="kb2-search">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="M21 21l-4.3-4.3" />
+                </svg>
+                <input
+                  placeholder="Search documents, entities, or tags…"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </label>
+              <div className="kb2-filters">
+                {(
+                  [
+                    ["all", "All Sources"],
+                    ["pdf", "PDFs"],
+                    ["markdown", "Markdown"],
+                    ["walrus", "Walrus Drives"],
+                  ] as const
+                ).map(([k, label]) => (
+                  <button
+                    key={k}
+                    className={"kb2-chip" + (kbFilter === k ? " on" : "")}
+                    onClick={() => setKbFilter(k)}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <button
+                  className="kb2-add"
+                  onClick={() => fileRef.current?.click()}
+                  aria-label="Add source"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </button>
               </div>
             </div>
-            {walrusFiles.length > 0 && (
-              <>
-                <div className="section-title">
-                  On Walrus{" "}
-                  <span className="count">{walrusFiles.length}</span>
+            <div className="kb2-grid">
+              <button
+                className="kb2-card kb2-ingest"
+                onClick={() => fileRef.current?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.add("over");
+                }}
+                onDragLeave={(e) => e.currentTarget.classList.remove("over")}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.remove("over");
+                  onFiles(e.dataTransfer.files);
+                }}
+              >
+                <div className="ui">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 16V4M7 9l5-5 5 5M5 20h14" />
+                  </svg>
                 </div>
-                <div className="kb-sources">
-                  {walrusFiles.map((m) => (
-                    <div className="kb-src" key={m.id}>
-                      <div className="kb-src-icon">
-                        <svg viewBox="0 0 24 24">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                          <path d="M14 2v6h6" />
-                        </svg>
-                      </div>
-                      <div className="kb-src-meta">
-                        <div className="kb-src-name">{m.text}</div>
-                        <div className="kb-src-sub">
-                          {m.mime || "file"} · sealed on Walrus
-                        </div>
-                      </div>
-                      {m.url && (
-                        <a
-                          className="pill-btn"
-                          href={m.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Download
-                        </a>
-                      )}
+                <div className="it">Ingest Source</div>
+                <div className="is">Drag &amp; drop PDFs, TXT, or MD files here</div>
+                <span className="kb2-browse">Browse Files</span>
+              </button>
+              {kbFiltered.map((it) => (
+                <div className="kb2-card" key={it.id}>
+                  <div className="kb2-top">
+                    <div className="kb2-badges">
+                      <span
+                        className={"kb2-badge" + (it.walrus ? " walrus" : "")}
+                      >
+                        {it.walrus && (
+                          <svg
+                            viewBox="0 0 24 24"
+                            style={{
+                              width: 12,
+                              height: 12,
+                              marginRight: 5,
+                              verticalAlign: "-1px",
+                              stroke: "currentColor",
+                              fill: "none",
+                              strokeWidth: 1.8,
+                            }}
+                          >
+                            <path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1.5A3.5 3.5 0 0 1 18 18z" />
+                          </svg>
+                        )}
+                        {it.badge}
+                      </span>
+                      <span className="kb2-dot ok" />
                     </div>
-                  ))}
-                </div>
-              </>
-            )}
-            <div className="section-title">
-              Your sources <span className="count">{sources.length}</span>
-            </div>
-            {sources.length ? (
-              <div className="kb-sources">
-                {sources.map((src) => (
-                  <div className="kb-src" key={src.name}>
-                    <div className="kb-src-icon">
+                    <button className="kb2-menu" aria-label="More">
                       <svg viewBox="0 0 24 24">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                        <path d="M14 2v6h6" />
+                        <circle cx="12" cy="5" r="1" />
+                        <circle cx="12" cy="12" r="1" />
+                        <circle cx="12" cy="19" r="1" />
                       </svg>
-                    </div>
-                    <div className="kb-src-meta">
-                      <div className="kb-src-name">{src.name}</div>
-                      <div className="kb-src-sub">
-                        {src.mems.length}{" "}
-                        {src.mems.length === 1 ? "memory" : "memories"} kept
-                      </div>
-                    </div>
-                    <button
-                      className="pill-btn"
-                      onClick={() => {
-                        setMemQuery(src.name);
-                        setView("memories");
-                      }}
-                    >
-                      View
                     </button>
                   </div>
-                ))}
+                  <div className="kb2-title">{it.title}</div>
+                  {it.key === "markdown" ? (
+                    <div className="kb2-mock">{it.desc}</div>
+                  ) : (
+                    <div className="kb2-desc">{it.desc}</div>
+                  )}
+                  <div className="kb2-foot">
+                    {it.url ? (
+                      <a
+                        className="l"
+                        href={it.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <svg viewBox="0 0 24 24">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                        </svg>
+                        {it.foot}
+                      </a>
+                    ) : (
+                      <button
+                        className="l"
+                        onClick={() => {
+                          if (it.name) {
+                            setMemQuery(it.name);
+                            setView("memories");
+                          }
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24">
+                          <ellipse cx="12" cy="6" rx="8" ry="3" />
+                          <path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6" />
+                        </svg>
+                        {it.foot}
+                      </button>
+                    )}
+                    <span>{it.date}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {kbFiltered.length === 0 && (
+              <div className="empty" style={{ marginTop: 24 }}>
+                <div className="et">
+                  No documents{query ? " match your search" : " yet"}
+                </div>
+                <div className="es">Drop a file above to get started.</div>
               </div>
-            ) : null}
-            <button
-              className="kb-drop"
-              onClick={() => fileRef.current?.click()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.currentTarget.classList.add("over");
-              }}
-              onDragLeave={(e) => e.currentTarget.classList.remove("over")}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.currentTarget.classList.remove("over");
-                onFiles(e.dataTransfer.files);
-              }}
-              style={{ marginTop: sources.length ? 16 : 0 }}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              <div className="et" style={{ marginTop: 10 }}>
-                {sources.length ? "Add more documents" : "No documents yet"}
-              </div>
-              <div className="es">
-                Drop a note, PDF, or markdown file here, or click to browse.
-                Cortex reads it and keeps what matters.
-              </div>
-            </button>
+            )}
           </section>
 
           {/* SHARING — SuiNS identity, share memories, inbox + outbox */}
@@ -4010,10 +4436,25 @@ export function CortexApp({
                     </svg>{" "}
                     Web
                   </button>
+                  <div className="importance remember-only">
+                    {(["low", "normal", "high"] as const).map((lv) => (
+                      <button
+                        key={lv}
+                        className={s.importance === lv ? "on" : ""}
+                        onClick={() => s.setImportance(lv)}
+                      >
+                        {lv === "low"
+                          ? "Passing"
+                          : lv === "normal"
+                            ? "Normal"
+                            : "Keep close"}
+                      </button>
+                    ))}
+                  </div>
                   {dictation.supported && (
                     <button
                       className={
-                        "cap-tool" +
+                        "cap-tool speak-tool" +
                         (dictation.recording ? " on" : "")
                       }
                       onClick={() => void toggleDictation()}
@@ -4035,21 +4476,6 @@ export function CortexApp({
                           : "Speak"}
                     </button>
                   )}
-                  <div className="importance remember-only">
-                    {(["low", "normal", "high"] as const).map((lv) => (
-                      <button
-                        key={lv}
-                        className={s.importance === lv ? "on" : ""}
-                        onClick={() => s.setImportance(lv)}
-                      >
-                        {lv === "low"
-                          ? "Passing"
-                          : lv === "normal"
-                            ? "Normal"
-                            : "Keep close"}
-                      </button>
-                    ))}
-                  </div>
                   <button
                     className="cap-send"
                     onClick={submit}
