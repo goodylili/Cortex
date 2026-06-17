@@ -11,6 +11,18 @@ import {
   type Memory,
 } from "@/lib/cortex/logic";
 import {
+  PROVIDERS,
+  providerInfo,
+  providerModels,
+  customModelId,
+  type CustomModel,
+} from "@/lib/llm/byok";
+import {
+  passkeySupported,
+  passkeyEnrolled,
+} from "@/lib/llm/byok-vault";
+import type { Provider } from "@/lib/llm/models";
+import {
   compilePrompt,
   DEFAULT_MODALITY,
   DEFAULT_STYLE,
@@ -237,6 +249,16 @@ export function CortexApp({
   const readAloud = useReadAloud();
   const [modelOpen, setModelOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
+  const [addModelOpen, setAddModelOpen] = useState(false);
+  const [amProvider, setAmProvider] = useState<Provider | "">("");
+  const [amApiId, setAmApiId] = useState("");
+  const [amKey, setAmKey] = useState("");
+  const [amUrl, setAmUrl] = useState("");
+  const [amBusy, setAmBusy] = useState(false);
+  const [amError, setAmError] = useState("");
+  useEffect(() => {
+    useCortex.getState().loadCustomModels();
+  }, []);
   const [kbMenu, setKbMenu] = useState<string | null>(null);
   const [drawer, setDrawer] = useState<Memory | "savings" | null>(null);
   const [studioTask, setStudioTask] = useState("");
@@ -1644,9 +1666,52 @@ export function CortexApp({
     : 0;
   const sharedCount = brainMemories.filter((m) => m.shared).length;
   const tags = [...new Set(brainMemories.flatMap((m) => m.tags))];
-  const modelList = MODELS.filter((m) =>
+  const byokPickerModels = s.customModels.map((m) => ({
+    name: m.label,
+    prov: providerInfo(m.provider).label,
+    price: "BYOK",
+    desc: `${providerInfo(m.provider).label} · your key`,
+  }));
+  const modelList = [...MODELS, ...byokPickerModels].filter((m) =>
     (m.name + " " + m.prov).toLowerCase().includes(modelSearch.toLowerCase()),
   );
+  const openAddModel = () => {
+    setAmProvider("");
+    setAmApiId("");
+    setAmKey("");
+    setAmUrl("");
+    setAmError("");
+    setAddModelOpen(true);
+  };
+  const baseFromUrl = (u: string) =>
+    u.replace(/\/+$/, "").replace(/\/(chat\/completions|messages)$/, "");
+  const submitAddModel = async () => {
+    if (!amProvider || !amApiId || !amKey.trim()) {
+      setAmError("Provider, model and API key are required.");
+      return;
+    }
+    const info = providerInfo(amProvider);
+    const spec = providerModels(amProvider).find((x) => x.apiId === amApiId);
+    const model: CustomModel = {
+      id: customModelId(amProvider, amApiId),
+      label: spec ? spec.name : amApiId,
+      provider: amProvider,
+      apiId: amApiId,
+      baseUrl: amUrl.trim() ? baseFromUrl(amUrl.trim()) : info.baseUrl,
+      createdAt: Date.now(),
+    };
+    setAmBusy(true);
+    setAmError("");
+    try {
+      await s.addCustomModel(model, amKey.trim());
+      s.setModel(model.label);
+      setAddModelOpen(false);
+    } catch (err) {
+      setAmError((err as Error).message);
+    } finally {
+      setAmBusy(false);
+    }
+  };
 
   const onHome = view === "home";
   const railOn = onHome && chatRailOpen;
@@ -4225,6 +4290,69 @@ export function CortexApp({
 
             <div className="set-group">
               <div className="set-gh">
+                <div className="set-gt">Models &amp; API keys</div>
+                <div className="set-gs">
+                  Bring your own keys to enable any model. Keys are encrypted and
+                  stored only on this device — calls run straight from your
+                  browser to the provider, never our servers.
+                </div>
+              </div>
+              {s.customModels.length === 0 && (
+                <div className="set-empty">No custom models yet.</div>
+              )}
+              {s.customModels.map((m) => (
+                <div className="set-srow" key={m.id}>
+                  <span className="set-av store">
+                    {providerInfo(m.provider).label[0]}
+                  </span>
+                  <div className="set-acc-m">
+                    <div className="set-acc-n">
+                      {m.label}{" "}
+                      <span className="int-role">
+                        {providerInfo(m.provider).label}
+                      </span>
+                    </div>
+                    <div className="set-acc-s">
+                      {s.byokKeys[m.id] ? "Key unlocked" : "Key locked"} ·{" "}
+                      {m.apiId}
+                    </div>
+                  </div>
+                  <button
+                    className="pill-btn"
+                    onClick={() => s.removeCustomModel(m.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+              <div className="set-btn-row">
+                <button className="pill-btn" onClick={openAddModel}>
+                  Add model
+                </button>
+                {!s.byokUnlocked && s.customModels.length > 0 && (
+                  <button className="pill-btn" onClick={() => s.unlockByok()}>
+                    Unlock keys
+                  </button>
+                )}
+                {passkeySupported() && !passkeyEnrolled() && (
+                  <button
+                    className="pill-btn"
+                    onClick={() => s.enrollByokPasskey()}
+                  >
+                    Protect with passkey
+                  </button>
+                )}
+                {passkeyEnrolled() && (
+                  <span className="int-pill worm">Passkey on</span>
+                )}
+              </div>
+              {s.byokError && (
+                <div className="set-err">Couldn&apos;t unlock: {s.byokError}</div>
+              )}
+            </div>
+
+            <div className="set-group">
+              <div className="set-gh">
                 <div className="set-gt">Privacy &amp; Access</div>
                 <div className="set-gs">
                   How your data is protected and who can reach it. Sensitive data
@@ -4762,6 +4890,11 @@ export function CortexApp({
                                 onClick={() => {
                                   s.setModel(m.name);
                                   setModelOpen(false);
+                                  const custom = s.customModels.find(
+                                    (c) => c.label === m.name,
+                                  );
+                                  if (custom && !s.byokKeys[custom.id])
+                                    s.unlockByok();
                                 }}
                               >
                                 <span className="mp-av">{m.prov[0]}</span>
@@ -4787,6 +4920,25 @@ export function CortexApp({
                               </button>
                             ))}
                           </div>
+                          <button
+                            className="mp-add"
+                            onClick={() => {
+                              setModelOpen(false);
+                              openAddModel();
+                            }}
+                          >
+                            <span className="mp-add-ic">
+                              <svg viewBox="0 0 24 24">
+                                <path d="M12 5v14M5 12h14" />
+                              </svg>
+                            </span>
+                            <span className="mp-meta">
+                              <span className="mp-name">Add model</span>
+                              <span className="mp-desc">
+                                Bring your own API key
+                              </span>
+                            </span>
+                          </button>
                         </div>
                       )}
                     </div>
@@ -4872,6 +5024,120 @@ export function CortexApp({
           flash={flash}
           onClose={() => setCaptureOpen(false)}
         />
+      )}
+
+      {/* ADD MODEL (bring your own key) */}
+      {addModelOpen && (
+        <div
+          className="am-scrim"
+          onClick={() => !amBusy && setAddModelOpen(false)}
+        >
+          <div className="am-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="am-head">
+              <div className="am-title">Add Model</div>
+              <button
+                className="am-x"
+                onClick={() => setAddModelOpen(false)}
+                aria-label="Close"
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+            <div className="am-body">
+              <label className="am-field">
+                <span className="am-label">
+                  <i className="am-req">*</i> Provider
+                </span>
+                <div className="am-select">
+                  <select
+                    value={amProvider}
+                    onChange={(e) => {
+                      setAmProvider(e.target.value as Provider);
+                      setAmApiId("");
+                    }}
+                  >
+                    <option value="">Model Provider</option>
+                    {PROVIDERS.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                  <svg viewBox="0 0 24 24">
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </div>
+              </label>
+              <label className="am-field">
+                <span className="am-label">
+                  <i className="am-req">*</i> Model
+                </span>
+                <div className="am-select">
+                  <select
+                    value={amApiId}
+                    disabled={!amProvider}
+                    onChange={(e) => setAmApiId(e.target.value)}
+                  >
+                    <option value="">Model</option>
+                    {amProvider &&
+                      providerModels(amProvider).map((m) => (
+                        <option key={m.apiId} value={m.apiId}>
+                          {m.name}
+                        </option>
+                      ))}
+                  </select>
+                  <svg viewBox="0 0 24 24">
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </div>
+              </label>
+              <label className="am-field">
+                <span className="am-label">
+                  <i className="am-req">*</i> API Key
+                </span>
+                <input
+                  className="am-input"
+                  type="password"
+                  autoComplete="off"
+                  placeholder={
+                    amProvider
+                      ? providerInfo(amProvider).keyPlaceholder
+                      : "Fill API Key here"
+                  }
+                  value={amKey}
+                  onChange={(e) => setAmKey(e.target.value)}
+                />
+              </label>
+              <label className="am-field">
+                <span className="am-label">Custom Request URL</span>
+                <input
+                  className="am-input"
+                  placeholder="e.g., https://api.openai.com/v1/chat/completions"
+                  value={amUrl}
+                  onChange={(e) => setAmUrl(e.target.value)}
+                />
+              </label>
+              {amError && <div className="am-err">{amError}</div>}
+              <div className="am-note">
+                Your key is encrypted and stored only on this device
+                {passkeySupported()
+                  ? ", unlocked with a passkey"
+                  : ""}
+                . It never touches our servers — calls go straight from your
+                browser to the provider.
+              </div>
+            </div>
+            <button
+              className="am-submit"
+              onClick={submitAddModel}
+              disabled={amBusy}
+            >
+              {amBusy ? "Adding…" : "Add Model"}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* DRAWER */}
