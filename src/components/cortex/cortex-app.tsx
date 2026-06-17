@@ -1776,19 +1776,6 @@ export function CortexApp({
             </button>
           </div>
           <div className="tb-right">
-            <button
-              className="tb-upgrade"
-              onClick={() =>
-                flash(
-                  "Cortex is free while it's in preview — nothing to upgrade yet.",
-                )
-              }
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M12 3l2.4 5.4L20 11l-5.6 2.6L12 19l-2.4-5.4L4 11l5.6-2.6z" />
-              </svg>
-              Upgrade
-            </button>
             <button className="tb-add" onClick={() => setCaptureOpen(true)}>
               <svg viewBox="0 0 24 24">
                 <path d="M12 5v14M5 12h14" />

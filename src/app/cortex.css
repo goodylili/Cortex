@@ -854,11 +854,9 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .tb-icon.on{color:var(--ink);background:var(--surface2);border-color:var(--faint)}
 .tb-icon svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .tb-right{display:flex;align-items:center;gap:10px;justify-self:end;min-width:0}
-.tb-upgrade{display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 18px;border-radius:999px;color:#fff;background:linear-gradient(180deg,#3f73ea,#2554cf);font-size:14.5px;font-weight:600;white-space:nowrap;box-shadow:0 3px 12px rgba(37,84,207,.35);transition:opacity .15s}
-.tb-upgrade:hover{opacity:.93}
 .tb-add{display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 18px;border-radius:999px;color:var(--ink);background:var(--surface);border:1px solid var(--line2);font-size:14.5px;font-weight:500;white-space:nowrap;transition:background .15s,border-color .15s}
 .tb-add:hover{background:var(--surface2);border-color:var(--faint)}
-.tb-upgrade svg,.tb-add svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.tb-add svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .tb-profile{position:relative}
 .tb-you{display:flex;align-items:center;padding:3px;border-radius:50%;color:var(--ink);transition:background .15s}
 .tb-you:hover,.tb-you.on{background:var(--surface2)}
