@@ -44,6 +44,7 @@ import {
 import type { LoopStatus } from "@/lib/cortex/loops";
 import { useDictation, useReadAloud } from "@/lib/cortex/use-voice";
 import { CaptureModal } from "./capture";
+import { Markdown } from "./markdown";
 
 const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   open: "Open",
@@ -1998,54 +1999,86 @@ export function CortexApp({
                       </div>
                     </div>
                     <div className="bubble-a">
-                      <div className="atext">{m.a}</div>
-                      {!m.streaming && m.sources.length > 0 && (
-                        <div className="ask-sources">
-                          <div className="as-head">
-                            Sources{m.web ? " · memory + web" : ""}
-                          </div>
-                          <div className="as-list">
-                            {m.sources.map((src, n) =>
-                              src.type === "web" ? (
-                                <a
-                                  key={n}
-                                  className="src-chip web"
-                                  href={`https://${src.url}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  <span className="src-n">{n + 1}</span>
-                                  <svg viewBox="0 0 24 24">
-                                    <circle cx="12" cy="12" r="9" />
-                                    <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
-                                  </svg>
-                                  <span className="src-txt">
-                                    <b>{src.title}</b>
-                                    <span className="src-sub">{src.url}</span>
-                                  </span>
-                                </a>
-                              ) : (
-                                <span key={n} className="src-chip mem">
-                                  <span className="src-n">{n + 1}</span>
-                                  <svg viewBox="0 0 24 24">
-                                    <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
-                                  </svg>
-                                  <span className="src-txt">
-                                    <b>
-                                      {src.text!.length > 56
-                                        ? src.text!.slice(0, 56) + "…"
-                                        : src.text}
-                                    </b>
-                                    <span className="src-sub">
-                                      your memory · {src.label} · {src.when}
+                      <div className="atext">
+                        {m.streaming ? m.a : <Markdown text={m.a} />}
+                      </div>
+                      {!m.streaming &&
+                        (() => {
+                          const webRefs = m.sources.filter(
+                            (src) => src.type === "web",
+                          );
+                          const memRefs = m.sources.filter(
+                            (src) => src.type === "memory",
+                          );
+                          return (
+                            <>
+                              {m.web && webRefs.length > 0 && (
+                                <div className="ans-refs">
+                                  <div className="ans-refs-head">
+                                    References
+                                    <span className="ans-refs-n">
+                                      {webRefs.length} result
+                                      {webRefs.length === 1 ? "" : "s"}
                                     </span>
-                                  </span>
-                                </span>
-                              ),
-                            )}
-                          </div>
-                        </div>
-                      )}
+                                  </div>
+                                  <div className="ans-refs-list">
+                                    {webRefs.map((src, n) => (
+                                      <a
+                                        key={n}
+                                        className="ref-row"
+                                        href={`https://${src.url}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                      >
+                                        <span className="ref-dot" />
+                                        <span className="ref-txt">
+                                          <b>{src.title}</b>
+                                          <span className="ref-sub">
+                                            {src.url}
+                                          </span>
+                                        </span>
+                                      </a>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {memRefs.length > 0 && (
+                                <div className="ans-refs">
+                                  <div className="ans-refs-head">
+                                    Memories used
+                                    <span className="ans-refs-n">
+                                      {memRefs.length} memor
+                                      {memRefs.length === 1 ? "y" : "ies"}
+                                    </span>
+                                  </div>
+                                  <div className="ans-refs-list">
+                                    {memRefs.map((src, n) => (
+                                      <span key={n} className="ref-row mem">
+                                        <svg
+                                          className="ref-ic"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
+                                        </svg>
+                                        <span className="ref-txt">
+                                          <b>
+                                            {src.text!.length > 64
+                                              ? src.text!.slice(0, 64) + "…"
+                                              : src.text}
+                                          </b>
+                                          <span className="ref-sub">
+                                            {src.label}
+                                            {src.when ? ` · ${src.when}` : ""}
+                                          </span>
+                                        </span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                       {!m.streaming && (
                         <div className="ans-foot">
                           <button
@@ -2987,7 +3020,11 @@ export function CortexApp({
                     (studioLoading ? " loading" : "")
                   }
                 >
-                  {studioOut}
+                  {CODE_TYPES.includes(studioType) ? (
+                    studioOut
+                  ) : (
+                    <Markdown text={studioOut} />
+                  )}
                 </div>
                 <div className="st2-actions">
                   <div className="st2-copy">
