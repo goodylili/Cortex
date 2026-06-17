@@ -95,7 +95,7 @@ function Node({
                 background: "rgba(10,10,10,.92)",
                 color: "#fff",
                 padding: "8px 12px",
-                borderRadius: 6,
+                borderRadius: "var(--r)",
                 fontSize: 12,
                 width: 200,
                 lineHeight: 1.45,
