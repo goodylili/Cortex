@@ -1168,6 +1168,11 @@ export function MemoryMap({
     }
     const cClose = q("#cClose");
     if (cClose) cClose.onclick = closeCard;
+    const bOpen = q("#bOpen");
+    if (bOpen)
+      bOpen.onclick = () => {
+        if (selectedMem) onOpen(selectedMem.mem);
+      };
     const bVerify = q("#bVerify"),
       bPin = q("#bPin"),
       bForget = q("#bForget");
@@ -1356,6 +1361,9 @@ export function MemoryMap({
             <div id="cRel" />
           </div>
           <div className="acts">
+            <button className="act-btn primary" id="bOpen">
+              open
+            </button>
             <button className="act-btn" id="bVerify">
               verify
             </button>
