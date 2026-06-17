@@ -1639,13 +1639,40 @@ export function CortexApp({
             />
           </label>
         )}
+        <div className="cr-tabs">
+          <button
+            className={"cr-tab" + (homeMode === "chat" ? " on" : "")}
+            onClick={() => setHomeMode("chat")}
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            Chat
+          </button>
+          <button
+            className={"cr-tab" + (homeMode === "agents" ? " on" : "")}
+            onClick={() => setHomeMode("agents")}
+          >
+            <svg viewBox="0 0 24 24">
+              <circle cx="9" cy="7" r="3" />
+              <circle cx="17" cy="9" r="2.4" />
+              <path d="M3 20a6 6 0 0 1 12 0M14.5 14.5a4.5 4.5 0 0 1 6.5 4.1" />
+            </svg>
+            Agents
+          </button>
+        </div>
         <button className="cr-new" onClick={() => s.newSession()}>
           <svg viewBox="0 0 24 24">
             <path d="M12 5v14M5 12h14" />
           </svg>
           New chat
         </button>
-        <div className="cr-label">Recents</div>
+        <div className="cr-label">
+          <span>Recents</span>
+          <button className="cr-viewall" onClick={() => setView("memories")}>
+            View all
+          </button>
+        </div>
         <div className="cr-recents">
           {s.sessions.length ? (
             s.sessions
@@ -1675,36 +1702,25 @@ export function CortexApp({
             </div>
           )}
         </div>
+        <div className="cr-foot">
+          <span className="avatar">
+            {(walletState?.label?.[0] ?? "G").toUpperCase()}
+          </span>
+          <span className="cr-foot-meta">
+            <span className="cr-foot-name">
+              {walletState?.label ?? "Guest"}
+            </span>
+            <span className="cr-foot-sub">
+              {sess ? claimedName || "Signed in" : "Free · just you"}
+            </span>
+          </span>
+        </div>
       </aside>
 
       <main className="main">
         <div className="wrap">
           {/* HOME */}
           <section className={"view" + (view === "home" ? " on" : "")}>
-            <div className="seg-wrap home-mode">
-              <div className="seg-toggle">
-                <button
-                  className={"seg-btn" + (homeMode === "chat" ? " on" : "")}
-                  onClick={() => setHomeMode("chat")}
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                  Chat
-                </button>
-                <button
-                  className={"seg-btn" + (homeMode === "agents" ? " on" : "")}
-                  onClick={() => setHomeMode("agents")}
-                >
-                  <svg viewBox="0 0 24 24">
-                    <circle cx="9" cy="7" r="3" />
-                    <circle cx="17" cy="9" r="2.4" />
-                    <path d="M3 20a6 6 0 0 1 12 0M14.5 14.5a4.5 4.5 0 0 1 6.5 4.1" />
-                  </svg>
-                  Agents
-                </button>
-              </div>
-            </div>
             {homeMode === "chat" &&
               (!hasChat ? (
                 <div className="home-intro">
