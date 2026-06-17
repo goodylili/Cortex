@@ -262,10 +262,6 @@ export function CortexApp({
     "all" | "mcp" | "frameworks" | "storage" | "sources"
   >("all");
   const [intOpen, setIntOpen] = useState<string | null>(null);
-  const [intSel, setIntSel] = useState<string | null>(null);
-  const [intSetupTab, setIntSetupTab] = useState<"manual" | "oneclick">(
-    "manual",
-  );
   const [mcpAuthBusy, setMcpAuthBusy] = useState(false);
   const [delegates, setDelegates] = useState<
     { publicKey: string; isThisDevice: boolean }[]
@@ -1347,7 +1343,8 @@ export function CortexApp({
         "# pip install cortex-memory langchain",
         "from cortex_memory import CortexMemory",
         "",
-        'mem = CortexMemory(config="./config/config.yaml")',
+        "# connects to your managed Cortex — set CORTEX_API_KEY",
+        "mem = CortexMemory()",
         "",
         "# taste-retained system prompt, grounded in what you've kept",
         'system = mem.prompt(format="role")',
@@ -4088,16 +4085,16 @@ export function CortexApp({
                             </div>
                             <div className="int2-desc">{c.desc}</div>
                           </div>
-                          <span className="int2-tag">Local</span>
+                          <span className="int2-tag">Managed</span>
                           <button
                             className="int2-btn ghost"
                             onClick={() =>
                               flash(
-                                "Add your Sui testnet keys and a deployed allowlist in config/config.yaml, then Cortex stores live on Walrus.",
+                                "Provisioned with your managed Cortex — blobs on Walrus, allowlist on Sui, owned by your wallet. Nothing to configure.",
                               )
                             }
                           >
-                            Configure
+                            Details
                           </button>
                         </div>
                       </div>
