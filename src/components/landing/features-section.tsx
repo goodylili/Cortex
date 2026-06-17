@@ -128,7 +128,7 @@ export function FeaturesSection() {
               className="group flex flex-col"
             >
               <div className="mb-8">
-                <div className="flex h-10 w-10 transform items-center justify-center rounded-lg bg-gradient-to-b from-ink/80 to-ink/60 shadow-lg shadow-ink/20 transition-transform duration-300 group-hover:scale-110">
+                <div className="flex h-10 w-10 transform items-center justify-center rounded-[var(--r)] bg-gradient-to-b from-ink/80 to-ink/60 shadow-lg shadow-ink/20 transition-transform duration-300 group-hover:scale-110">
                   <div className="text-canvas">{feature.icon}</div>
                 </div>
               </div>

@@ -104,7 +104,7 @@ export function SolutionSection() {
           </div>
 
           <div className="grid min-h-auto grid-cols-1 items-start gap-8 lg:min-h-[400px] lg:grid-cols-2 lg:items-center lg:gap-12">
-            <div className="group relative order-2 aspect-[4/3] w-full overflow-hidden rounded-lg border border-ink/10 bg-ink/5 lg:order-1">
+            <div className="group relative order-2 aspect-[4/3] w-full overflow-hidden rounded-[var(--r)] border border-ink/10 bg-ink/5 lg:order-1">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeIndex}
@@ -148,7 +148,7 @@ export function SolutionSection() {
                   key={step.id}
                   onClick={() => setActiveIndex(index)}
                   className={cn(
-                    "group relative w-full rounded-lg p-4 text-left outline-none transition-all duration-300 md:p-6",
+                    "group relative w-full rounded-[var(--r)] p-4 text-left outline-none transition-all duration-300 md:p-6",
                     activeIndex === index
                       ? "border border-ink/30 bg-ink/[0.08]"
                       : "border border-transparent bg-transparent hover:bg-ink/[0.02]",
