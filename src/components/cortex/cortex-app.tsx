@@ -1116,7 +1116,7 @@ export function CortexApp({
       letter: "S",
       name: "Seal",
       role: "Encryption",
-      desc: "Every memory is sealed before it leaves your machine. Only you, and who you allow, can open it.",
+      desc: "Every memory is sealed in your browser before it's written to Walrus. Only you, and who you allow, can open it.",
     },
     {
       key: "memwal",
@@ -3908,8 +3908,6 @@ export function CortexApp({
 
           {/* SETTINGS — memory model + account & storage */}
           <section className={"view" + (view === "settings" ? " on" : "")}>
-            <h1 className="h1">Settings</h1>
-
             <div className="set-group">
               <div className="set-gh">
                 <div className="set-gt">Account</div>
@@ -3956,34 +3954,24 @@ export function CortexApp({
               <div className="set-gh">
                 <div className="set-gt">Storage</div>
                 <div className="set-gs">
-                  Where your memory actually lives. Today it runs on your
-                  machine. Add testnet keys to store it on Walrus, sealed and
-                  owned by you.
+                  Where your memory lives — written once to Walrus and owned by
+                  you on Sui. Every memory is sealed and WORM: never stored
+                  locally, never overwritten.
                 </div>
               </div>
               <div className="set-store">
-                {STORAGE.map((c) => {
-                  const live =
-                    c.key === "seal"
-                      ? sealEnabled()
-                      : c.key === "sui"
-                        ? !!sess
-                        : !!wallet;
-                  return (
-                    <div className="set-srow" key={c.key}>
-                      <span className="set-av store">{c.letter}</span>
-                      <div className="set-acc-m">
-                        <div className="set-acc-n">
-                          {c.name} <span className="int-role">{c.role}</span>
-                        </div>
-                        <div className="set-acc-s">{c.desc}</div>
+                {STORAGE.map((c) => (
+                  <div className="set-srow" key={c.key}>
+                    <span className="set-av store">{c.letter}</span>
+                    <div className="set-acc-m">
+                      <div className="set-acc-n">
+                        {c.name} <span className="int-role">{c.role}</span>
                       </div>
-                      <span className={"int-pill " + (live ? "live" : "mock")}>
-                        {live ? "live" : "local"}
-                      </span>
+                      <div className="set-acc-s">{c.desc}</div>
                     </div>
-                  );
-                })}
+                    <span className="int-pill worm">WORM</span>
+                  </div>
+                ))}
               </div>
               <button
                 className="pill-btn"
