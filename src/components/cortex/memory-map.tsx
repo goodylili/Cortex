@@ -1194,6 +1194,18 @@ export function MemoryMap({
       bOpen.onclick = () => {
         if (selectedMem) onOpen(selectedMem.mem);
       };
+    const cycleCard = (dir: number) => {
+      if (!selectedMem) return;
+      const order = MEM.filter((m) => vis(m));
+      if (!order.length) return;
+      const at = order.indexOf(selectedMem);
+      const next = order[((at < 0 ? 0 : at) + dir + order.length) % order.length]!;
+      openCard(next);
+    };
+    const bPrev = q("#bPrev"),
+      bNext = q("#bNext");
+    if (bPrev) bPrev.onclick = () => cycleCard(-1);
+    if (bNext) bNext.onclick = () => cycleCard(1);
     const bVerify = q("#bVerify"),
       bPin = q("#bPin"),
       bForget = q("#bForget");
@@ -1393,6 +1405,14 @@ export function MemoryMap({
             </button>
             <button className="act-btn" id="bForget">
               forget
+            </button>
+          </div>
+          <div className="acts nav">
+            <button className="act-btn" id="bPrev">
+              ‹ prev
+            </button>
+            <button className="act-btn" id="bNext">
+              next ›
             </button>
           </div>
         </div>
