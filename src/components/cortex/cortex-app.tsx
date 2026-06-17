@@ -1487,20 +1487,20 @@ export function CortexApp({
               <b>Cortex</b>
             </a>
           </div>
-          <nav className="tb-nav" aria-label="Primary">
-            {NAV.map(([v, label, icon]) => (
-              <a
-                key={v}
-                className={"tb-item" + (view === v ? " on" : "")}
-                href={`#${v}`}
-                onClick={() => setView(v)}
-              >
-                <svg viewBox="0 0 24 24">{icon}</svg>
-                <span>{label}</span>
-              </a>
-            ))}
-          </nav>
-          <div className="tb-right">
+          <div className="tb-center">
+            <nav className="tb-nav" aria-label="Primary">
+              {NAV.map(([v, label, icon]) => (
+                <a
+                  key={v}
+                  className={"tb-item" + (view === v ? " on" : "")}
+                  href={`#${v}`}
+                  onClick={() => setView(v)}
+                >
+                  <svg viewBox="0 0 24 24">{icon}</svg>
+                  <span>{label}</span>
+                </a>
+              ))}
+            </nav>
             <label className="tb-search">
               <svg viewBox="0 0 24 24">
                 <circle cx="11" cy="11" r="7" />
@@ -1526,6 +1526,8 @@ export function CortexApp({
                 </button>
               )}
             </label>
+          </div>
+          <div className="tb-right">
             <div className="tb-profile" ref={profileRef}>
               <button
                 className={"tb-you" + (profileOpen ? " on" : "")}
