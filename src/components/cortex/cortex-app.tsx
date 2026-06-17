@@ -282,7 +282,6 @@ export function CortexApp({
   const [revokingShareId, setRevokingShareId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
   const [chatRailOpen, setChatRailOpen] = useState(true);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [kbFilter, setKbFilter] = useState<"all" | "pdf" | "markdown" | "walrus">(
     "all",
@@ -293,6 +292,7 @@ export function CortexApp({
   const ta = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     s.hydrate();
@@ -1401,23 +1401,33 @@ export function CortexApp({
   const brainMemories = [...live, ...s.sharedMemories].sort(
     (a, b) => b.ts - a.ts,
   );
-  const memList = brainMemories.filter(
-    (m) =>
+  const memList = brainMemories.filter((m) => {
+    const hay = (m.text + " " + m.tags.join(" ")).toLowerCase();
+    return (
       (memFilter === "all" ||
-        (memFilter === "__shared" ? !!m.shared : m.tags.includes(memFilter))) &&
-      (m.text + " " + m.tags.join(" "))
-        .toLowerCase()
-        .includes(memQuery.toLowerCase()),
-  );
+        (memFilter === "__shared"
+          ? !!m.shared
+          : m.tags.includes(memFilter))) &&
+      hay.includes(memQuery.toLowerCase()) &&
+      hay.includes(query.toLowerCase())
+    );
+  });
   const sharedCount = brainMemories.filter((m) => m.shared).length;
   const tags = [...new Set(brainMemories.flatMap((m) => m.tags))];
   const modelList = MODELS.filter((m) =>
     (m.name + " " + m.prov).toLowerCase().includes(modelSearch.toLowerCase()),
   );
 
-  const railOn = view === "home" && chatRailOpen;
+  const onHome = view === "home";
+  const railOn = onHome && chatRailOpen;
   return (
-    <div className={"app" + (railOn ? " chatrail-on" : "")}>
+    <div
+      className={
+        "app" +
+        (onHome ? " home-rail" : "") +
+        (railOn ? " rail-open" : "")
+      }
+    >
       <header className="topbar">
         <div className="topbar-inner">
           <div className="tb-left">
@@ -1440,6 +1450,32 @@ export function CortexApp({
             ))}
           </nav>
           <div className="tb-right">
+            <label className="tb-search">
+              <svg viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M21 21l-4.3-4.3" />
+              </svg>
+              <input
+                ref={searchRef}
+                placeholder="Search everything…"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  if (e.target.value && view !== "memories" && view !== "knowledge")
+                    setView("memories");
+                }}
+              />
+              {query && (
+                <button
+                  type="button"
+                  className="tb-search-x"
+                  aria-label="Clear search"
+                  onClick={() => setQuery("")}
+                >
+                  ×
+                </button>
+              )}
+            </label>
             <button
               className="tb-icon"
               aria-label="Notifications"
@@ -1590,24 +1626,15 @@ export function CortexApp({
         </div>
       </header>
 
-      {view === "home" && !chatRailOpen && (
-        <button
-          className="rail-reopen"
-          onClick={toggleChatRail}
-          aria-label="Open chat history"
-        >
-          <svg viewBox="0 0 24 24">
-            <rect x="3" y="4" width="18" height="16" rx="2" />
-            <path d="M9 4v16" />
-          </svg>
-        </button>
-      )}
-      <aside className={"chat-rail" + (railOn ? " open" : "")} aria-hidden={!railOn}>
+      <aside
+        className={"chat-rail" + (onHome ? " on-home" : "") + (railOn ? " open" : "")}
+        aria-hidden={!onHome}
+      >
         <div className="cr-top">
           <button
             className="cr-icon"
             onClick={toggleChatRail}
-            aria-label="Collapse chat history"
+            aria-label={chatRailOpen ? "Collapse sidebar" : "Expand sidebar"}
           >
             <svg viewBox="0 0 24 24">
               <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -1615,8 +1642,11 @@ export function CortexApp({
             </svg>
           </button>
           <button
-            className={"cr-icon" + (searchOpen ? " on" : "")}
-            onClick={() => setSearchOpen((o) => !o)}
+            className="cr-icon"
+            onClick={() => {
+              if (!chatRailOpen) toggleChatRail();
+              searchRef.current?.focus();
+            }}
             aria-label="Search"
           >
             <svg viewBox="0 0 24 24">
@@ -1625,20 +1655,6 @@ export function CortexApp({
             </svg>
           </button>
         </div>
-        {searchOpen && (
-          <label className="cr-search">
-            <svg viewBox="0 0 24 24">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M21 21l-4.3-4.3" />
-            </svg>
-            <input
-              autoFocus
-              placeholder="Search chats & memories…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </label>
-        )}
         <div className="cr-tabs">
           <button
             className={"cr-tab" + (homeMode === "chat" ? " on" : "")}
@@ -1647,7 +1663,7 @@ export function CortexApp({
             <svg viewBox="0 0 24 24">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
-            Chat
+            <span>Chat</span>
           </button>
           <button
             className={"cr-tab" + (homeMode === "agents" ? " on" : "")}
@@ -1658,14 +1674,14 @@ export function CortexApp({
               <circle cx="17" cy="9" r="2.4" />
               <path d="M3 20a6 6 0 0 1 12 0M14.5 14.5a4.5 4.5 0 0 1 6.5 4.1" />
             </svg>
-            Agents
+            <span>Agents</span>
           </button>
         </div>
         <button className="cr-new" onClick={() => s.newSession()}>
           <svg viewBox="0 0 24 24">
             <path d="M12 5v14M5 12h14" />
           </svg>
-          New chat
+          <span>New chat</span>
         </button>
         <div className="cr-label">
           <span>Recents</span>
