@@ -224,6 +224,7 @@ export function CortexApp({
   const [memFilter, setMemFilter] = useState("all");
   const [memQuery, setMemQuery] = useState("");
   const [memTab, setMemTab] = useState<"cards" | "timeline">("cards");
+  const [homeMode, setHomeMode] = useState<"chat" | "agents">("chat");
   const [captureOpen, setCaptureOpen] = useState(false);
   const [agentGoal, setAgentGoal] = useState("");
   const [agentAssignee, setAgentAssignee] = useState<string>(AGENTS[0]!.id);
@@ -835,18 +836,6 @@ export function CortexApp({
       </>,
     ],
     [
-      "agents",
-      "Agents",
-      <>
-        <circle key="a" cx="9" cy="7" r="3" />
-        <circle key="b" cx="17" cy="9" r="2.4" />
-        <path
-          key="c"
-          d="M3 20a6 6 0 0 1 12 0M14.5 14.5a4.5 4.5 0 0 1 6.5 4.1"
-        />
-      </>,
-    ],
-    [
       "knowledge",
       "Knowledge",
       <>
@@ -1247,7 +1236,8 @@ export function CortexApp({
       if (id) {
         setOpenLoopId(id);
         s.startLoop(id);
-        setView("agents");
+        setView("home");
+        setHomeMode("agents");
         flash("Loop running on the Agents page.");
       }
     } finally {
@@ -1691,8 +1681,33 @@ export function CortexApp({
         <div className="wrap">
           {/* HOME */}
           <section className={"view" + (view === "home" ? " on" : "")}>
-            {!hasChat ? (
-              <div className="home-intro">
+            <div className="seg-wrap home-mode">
+              <div className="seg-toggle">
+                <button
+                  className={"seg-btn" + (homeMode === "chat" ? " on" : "")}
+                  onClick={() => setHomeMode("chat")}
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                  Chat
+                </button>
+                <button
+                  className={"seg-btn" + (homeMode === "agents" ? " on" : "")}
+                  onClick={() => setHomeMode("agents")}
+                >
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="9" cy="7" r="3" />
+                    <circle cx="17" cy="9" r="2.4" />
+                    <path d="M3 20a6 6 0 0 1 12 0M14.5 14.5a4.5 4.5 0 0 1 6.5 4.1" />
+                  </svg>
+                  Agents
+                </button>
+              </div>
+            </div>
+            {homeMode === "chat" &&
+              (!hasChat ? (
+                <div className="home-intro">
                 <div className="ov-hero">
                   <h1 className="ov-hello">
                     Hello, {claimedName ? claimedName.split(/[.@]/)[0] : "there"}
@@ -2007,7 +2022,7 @@ export function CortexApp({
                   </div>
                 ))}
               </div>
-            )}
+              ))}
           </section>
 
           {/* MEMORIES + LOOKING BACK */}
@@ -2135,7 +2150,12 @@ export function CortexApp({
           </section>
 
           {/* AGENTS — a team of specialists over one shared, durable memory */}
-          <section className={"view" + (view === "agents" ? " on" : "")}>
+          <section
+            className={
+              "view" +
+              (view === "home" && homeMode === "agents" ? " on" : "")
+            }
+          >
             <div className="rr-head">
               <h1 className="h1">
                 Agent <span className="em">team</span>
@@ -4293,7 +4313,8 @@ export function CortexApp({
         {/* GLOBAL COMPOSER (hidden on full-page views) */}
         {view !== "studio" &&
           view !== "integrations" &&
-          view !== "settings" && (
+          view !== "settings" &&
+          !(view === "home" && homeMode === "agents") && (
             <div className="composer-dock">
               <div className="capture" ref={composerRef}>
                 {modelOpen && (
