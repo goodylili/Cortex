@@ -960,8 +960,8 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .cr-log-l svg{width:18px;height:18px;flex:none;stroke:var(--ink);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .cr-log-t{font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cr-log-chev{width:16px;height:16px;flex:none;stroke:var(--muted);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s ease}
-.chat-rail.on-home.open .cr-log-chev{transform:rotate(-90deg)}
-.chat-rail.on-home:not(.open) .cr-log-chev{transform:rotate(90deg)}
+.chat-rail.on-home.open .cr-log-chev{transform:none}
+.chat-rail.on-home:not(.open) .cr-log-chev{transform:rotate(180deg)}
 @media(max-width:640px){.chat-rail{left:12px;right:12px;width:auto;bottom:112px}.chat-rail.on-home.open,.chat-rail.on-home:not(.open){width:auto}}
 
 /* ── Agents — team workspace (three-pane operations console) ── */

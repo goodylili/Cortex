@@ -47,32 +47,10 @@ import {
   contractsEnabled,
   sealEnabled,
 } from "@/lib/cortex/walrus/env";
-import {
-  AGENTS,
-  agentById,
-  type AgentDef,
-  type TaskStatus,
-} from "@/lib/cortex/agents";
-import type { LoopStatus } from "@/lib/cortex/loops";
+import { AGENTS, agentById } from "@/lib/cortex/agents";
 import { useDictation, useReadAloud } from "@/lib/cortex/use-voice";
 import { CaptureModal } from "./capture";
 import { Markdown } from "./markdown";
-
-const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
-  open: "Open",
-  in_progress: "Working",
-  blocked: "Blocked",
-  done: "Done",
-};
-
-const LOOP_STATUS_LABEL: Record<LoopStatus, string> = {
-  draft: "Draft",
-  running: "Running",
-  paused: "Paused",
-  waiting_human: "Needs you",
-  done: "Done",
-  gave_up: "Gave up",
-};
 
 // cortex::sharing MemoryShare.status: 0 DRAFT, 1 ACTIVE, 2 REVOKED.
 const SHARE_STATUS_LABEL: Record<number, string> = {
@@ -178,9 +156,7 @@ export function CortexApp({
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
   const [autoTaskId, setAutoTaskId] = useState<string | null>(null);
   const autoStop = useRef(false);
-  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [loopBusy, setLoopBusy] = useState(false);
-  const [openLoopId, setOpenLoopId] = useState<string | null>(null);
   const dictation = useDictation();
   const readAloud = useReadAloud();
   const [modelOpen, setModelOpen] = useState(false);
@@ -1387,7 +1363,6 @@ export function CortexApp({
     if (autoTaskId) return;
     autoStop.current = false;
     setAutoTaskId(taskId);
-    setOpenTaskId(taskId);
     try {
       for (let i = 0; i < AUTO_STEP_CAP; i++) {
         if (autoStop.current) break;
@@ -1398,9 +1373,6 @@ export function CortexApp({
     } finally {
       setAutoTaskId(null);
     }
-  }
-  function stopAutoRun() {
-    autoStop.current = true;
   }
   async function createAndRun() {
     const goal = agentGoal.trim();
@@ -1417,27 +1389,9 @@ export function CortexApp({
     try {
       const id = await s.generateLoop(goal, AGENTS[0]!.id);
       if (id) {
-        setOpenLoopId(id);
         s.startLoop(id);
         setView("agents");
         flash("Loop running on the Agents page.");
-      }
-    } finally {
-      setLoopBusy(false);
-    }
-  }
-  async function createAndLoop() {
-    const goal = agentGoal.trim();
-    if (!goal || loopBusy) return;
-    setLoopBusy(true);
-    flash("Reading memory to write the loop…");
-    try {
-      const id = await s.generateLoop(goal, agentAssignee);
-      setAgentGoal("");
-      if (id) {
-        setOpenLoopId(id);
-        s.startLoop(id);
-        flash("Loop running — it will correct itself toward the goal.");
       }
     } finally {
       setLoopBusy(false);
@@ -1912,19 +1866,19 @@ export function CortexApp({
           )}
         </div>
         <button
-          className={"cr-log" + (view === "agents" ? " on" : "")}
-          onClick={() => setView("agents")}
+          className="cr-log"
+          onClick={toggleChatRail}
+          aria-expanded={chatRailOpen}
         >
           <span className="cr-log-l">
             <svg viewBox="0 0 24 24">
-              <path d="M4.5 16.5c-1.5 1.5-2 5-2 5s3.5-.5 5-2a2.1 2.1 0 0 0-3-3z" />
-              <path d="M12 15l-3-3a11 11 0 0 1 7-7 11 11 0 0 1 0 7l-4 3z" />
-              <path d="M9 12a3 3 0 0 1 3 3" />
+              <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+              <path d="M3 4v4h4M12 8v4l3 2" />
             </svg>
-            <span className="cr-log-t">Agent log</span>
+            <span className="cr-log-t">Chat History</span>
           </span>
           <svg className="cr-log-chev" viewBox="0 0 24 24">
-            <path d="M9 6l6 6-6 6" />
+            <path d="M6 15l6-6 6 6" />
           </svg>
         </button>
       </aside>
@@ -2381,462 +2335,321 @@ export function CortexApp({
             )}
           </section>
 
-          {/* AGENTS — a team of specialists over one shared, durable memory */}
+          {/* AGENTS — team workspace: manage agents, assign tasks, track progress */}
           <section
-            className={"view" + (view === "agents" ? " on" : "")}
+            className={"view agents-ws" + (view === "agents" ? " on" : "")}
           >
-            <div className="cards" style={{ marginTop: 16 }}>
-              {AGENTS.map((a: AgentDef) => (
-                <div
-                  key={a.id}
-                  className="scard"
-                  style={{ borderLeft: `3px solid ${a.accent}` }}
-                >
-                  <div
-                    className="st"
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
-                  >
-                    <span
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: "50%",
-                        background: a.accent,
-                        flex: "0 0 auto",
-                      }}
-                    />
-                    {a.name}
-                    <span
-                      style={{
-                        textTransform: "capitalize",
-                        color: "var(--muted)",
-                        fontWeight: 400,
-                      }}
-                    >
-                      · {a.role}
-                    </span>
-                  </div>
-                  <div className="ssub">{a.blurb}</div>
+            <div className="aw-grid">
+              <aside className="aw-left">
+                <div className="aw-left-h">Workspace Settings</div>
+                <div className="aw-sec">View Options</div>
+                <label className="aw-opt">
+                  <input
+                    type="checkbox"
+                    checked={awActive}
+                    onChange={() => setAwActive((v) => !v)}
+                  />
+                  <span>Active Agents</span>
+                </label>
+                <label className="aw-opt">
+                  <input
+                    type="checkbox"
+                    checked={awLogs}
+                    onChange={() => setAwLogs((v) => !v)}
+                  />
+                  <span>System Logs</span>
+                </label>
+                <div className="aw-sec">L3 Protocols</div>
+                <div className="aw-proto on">
+                  <span>Isolation</span>
+                  <span className="aw-badge ok">SECURE</span>
                 </div>
-              ))}
-            </div>
-
-            <div className="scard" style={{ marginTop: 20 }}>
-              <div className="filters" style={{ marginBottom: 10 }}>
-                {AGENTS.map((a) => (
+                <div className="aw-proto">
+                  <span>Sync Mode</span>
+                  <span className="aw-badge">STRICT</span>
+                </div>
+                <div className="aw-sec">Context History</div>
+                <button className="aw-ctx on">Current Session</button>
+                {s.sessions.slice(0, 4).map((se) => (
                   <button
-                    key={a.id}
-                    className={"fchip" + (agentAssignee === a.id ? " on" : "")}
-                    onClick={() => setAgentAssignee(a.id)}
+                    key={se.id}
+                    className="aw-ctx"
+                    onClick={() => {
+                      s.switchSession(se.id);
+                      setView("home");
+                    }}
                   >
-                    {a.name}
+                    {se.title || "New chat"}
                   </button>
                 ))}
-              </div>
-              <textarea
-                className="st2-task"
-                rows={2}
-                placeholder={`Give ${agentById(agentAssignee)?.name ?? "the team"} a goal — e.g. "find what I've kept about Walrus and summarize it"`}
-                value={agentGoal}
-                onChange={(e) => setAgentGoal(e.target.value)}
-              />
-              <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button
-                  className="pill-btn keep"
-                  onClick={() => void createAndRun()}
-                  disabled={
-                    !agentGoal.trim() ||
-                    runningTaskId !== null ||
-                    autoTaskId !== null
-                  }
-                >
-                  Assign &amp; run
-                </button>
-                <button
-                  className="pill-btn"
-                  onClick={() => void createAndLoop()}
-                  disabled={!agentGoal.trim() || loopBusy}
-                  title="Cortex reads this agent's memory to write a loop spec, then runs it until the goal is met"
-                >
-                  {loopBusy ? "Writing the loop…" : "Run as a loop"}
-                </button>
-              </div>
-            </div>
+              </aside>
 
-            {s.loops.length > 0 && (
-              <>
-                <h2 style={{ marginTop: 28, fontSize: 18, fontWeight: 600 }}>
-                  Loops
-                </h2>
-                <p className="ssub" style={{ marginBottom: 10 }}>
-                  Self-correcting runs. The spec is generated from memory; each
-                  iteration senses, acts, and verifies until a gate passes or the
-                  budget runs out.
-                </p>
-                <div className="story">
-                  {s.loops.map((r) => {
-                    const owner = agentById(r.spec.agentId);
-                    const open = openLoopId === r.spec.id;
-                    return (
-                      <div key={r.spec.id} className="snode">
-                        <div className="when">{ago(r.updatedAt)}</div>
-                        <div
-                          className="scard"
-                          style={
-                            owner
-                              ? { borderLeft: `3px solid ${owner.accent}` }
-                              : undefined
-                          }
-                        >
-                          <div
-                            className="st"
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            <span
-                              className="fchip on"
-                              style={{ cursor: "default" }}
-                            >
-                              {LOOP_STATUS_LABEL[r.status]}
-                            </span>
-                            {owner && (
-                              <span style={{ color: owner.accent }}>
-                                {owner.name}
-                              </span>
-                            )}
-                            <span style={{ fontWeight: 400 }}>{r.spec.goal}</span>
-                          </div>
-                          <div className="ssub">
-                            iteration {r.iterations.length}/
-                            {r.spec.budget.maxIterations} ·{" "}
-                            {fmtTokens(r.tokensUsed)}/
-                            {fmtTokens(r.spec.budget.maxTokens)} tokens ·{" "}
-                            {r.spec.loopType}
-                          </div>
-                          {r.status === "waiting_human" && (
-                            <div
-                              className="ssub"
-                              style={{ marginTop: 6, color: "var(--accent,#b45309)" }}
-                            >
-                              Waiting on you · {r.spec.humanGate}
+              <div className="aw-center">
+                <div className="aw-head">
+                  <div className="aw-head-l">
+                    <div className="aw-head-t">
+                      Agent Team Workspace
+                      <span className="aw-live" />
+                    </div>
+                    <div className="aw-head-s">
+                      {AGENTS.length} specialists synchronized in cluster
+                    </div>
+                  </div>
+                  <div className="aw-cluster">
+                    {AGENTS.map((a) => (
+                      <span
+                        key={a.id}
+                        className="aw-av"
+                        style={{ background: a.accent }}
+                        title={`${a.name} · ${a.role}`}
+                      >
+                        {a.name.slice(0, 2).toUpperCase()}
+                      </span>
+                    ))}
+                    <button
+                      className="aw-av aw-add"
+                      onClick={() => setAgentAssignee(AGENTS[0]!.id)}
+                      title="Assign a task"
+                      aria-label="Assign a task"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div className="aw-feed">
+                  <div className="aw-session">
+                    SESSION INITIALIZED · {AGENTS.length} AGENTS ONLINE
+                  </div>
+                  {s.tasks.length === 0 && (
+                    <div className="aw-empty">
+                      No operations yet. Mention an agent below and give the team
+                      a goal to begin.
+                    </div>
+                  )}
+                  {awActive &&
+                    [...s.tasks].reverse().map((t) => {
+                      const a = agentById(t.assignedTo);
+                      const running =
+                        runningTaskId === t.id || autoTaskId === t.id;
+                      const next = AGENTS.find((x) => x.id !== t.assignedTo);
+                      return (
+                        <div className="aw-block" key={t.id}>
+                          <div className="aw-op-row">
+                            <span className="aw-op-tag">HUMAN OPERATOR</span>
+                            <div className="aw-op-bubble">
+                              <b>@{a?.name ?? "team"}</b> {t.goal}
                             </div>
-                          )}
-                          <div
-                            className="filters"
-                            style={{ marginTop: 10, gap: 6 }}
-                          >
-                            {r.status === "running" ? (
-                              <button
-                                className="pill-btn"
-                                onClick={() => s.stopLoop(r.spec.id)}
-                              >
-                                Stop
-                              </button>
-                            ) : (
-                              r.status !== "done" && (
-                                <button
-                                  className="pill-btn keep"
-                                  onClick={() => s.startLoop(r.spec.id)}
-                                >
-                                  {r.iterations.length ? "Resume" : "Start"}
-                                </button>
-                              )
-                            )}
-                            <button
-                              className="fchip"
-                              onClick={() =>
-                                setOpenLoopId(open ? null : r.spec.id)
-                              }
-                            >
-                              {open ? "Hide" : "Trace"}
-                            </button>
                           </div>
-
-                          {open && (
-                            <div style={{ marginTop: 12 }}>
-                              <div className="ssub" style={{ marginBottom: 6 }}>
-                                Gates:{" "}
-                                {r.spec.gates
-                                  .map((g) => `${g.name} (${g.kind})`)
-                                  .join(", ") || "none"}{" "}
-                                · Guardrails: {r.spec.guardrails.join("; ")}
-                              </div>
-                              {r.iterations.length ? (
-                                r.iterations
-                                  .slice()
-                                  .reverse()
-                                  .map((it) => (
-                                    <div
-                                      key={it.n}
-                                      className="scard"
-                                      style={{ marginBottom: 8 }}
-                                    >
-                                      <div
-                                        className="ssub"
-                                        style={{ marginBottom: 4 }}
-                                      >
-                                        #{it.n} · {it.gate ?? "no gate"} ·{" "}
-                                        <span
-                                          style={{
-                                            color:
-                                              it.verdict === "pass"
-                                                ? "#10b981"
-                                                : it.verdict === "fail"
-                                                  ? "#ef4444"
-                                                  : "var(--muted)",
-                                          }}
-                                        >
-                                          {it.verdict}
-                                        </span>{" "}
-                                        · {ago(it.ts)}
-                                      </div>
-                                      <div style={{ whiteSpace: "pre-wrap" }}>
-                                        {it.acted}
-                                      </div>
-                                      {it.feedback && (
-                                        <div
-                                          className="ssub"
-                                          style={{ marginTop: 6 }}
-                                        >
-                                          ↳ {it.feedback}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))
-                              ) : (
-                                <div className="ssub">
-                                  No iterations yet — start the loop.
+                          {t.observations.map((o) => {
+                            const oa = agentById(o.agentId);
+                            return (
+                              <div className="aw-msg" key={o.id}>
+                                <span
+                                  className="aw-av sm"
+                                  style={{ background: oa?.accent }}
+                                >
+                                  {(oa?.name ?? "??").slice(0, 2).toUpperCase()}
+                                </span>
+                                <div className="aw-msg-body">
+                                  <div className="aw-msg-head">
+                                    <b>{oa?.name ?? "Agent"}</b>
+                                    <span className="aw-role">{oa?.role}</span>
+                                  </div>
+                                  <div className="aw-bubble">{o.text}</div>
+                                  <button
+                                    className="aw-mini-btn"
+                                    onClick={() => saveFinding(t.id, o.id)}
+                                  >
+                                    Save to memory
+                                  </button>
                                 </div>
+                              </div>
+                            );
+                          })}
+                          <div className="aw-ask">
+                            <div className="aw-ask-head">
+                              <span
+                                className={
+                                  "aw-ask-tag" +
+                                  (t.status === "done" ? " done" : "")
+                                }
+                              >
+                                {t.status === "done"
+                                  ? "ASK COMPLETED"
+                                  : "ASK ASSIGNED"}
+                              </span>
+                              <span className="aw-ask-id">
+                                ID: #{t.id.slice(-4).toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="aw-ask-title">{t.goal}</div>
+                            <div className="aw-ask-meta">
+                              Assigned to{" "}
+                              <b style={{ color: a?.accent }}>@{a?.name}</b> ·{" "}
+                              {t.status.replace("_", " ")} · {ago(t.updatedAt)}
+                            </div>
+                            <div className="aw-ask-acts">
+                              {t.status !== "done" && (
+                                <button
+                                  className="aw-act"
+                                  disabled={running}
+                                  onClick={() => void autoRunTask(t.id)}
+                                >
+                                  {running ? "Running…" : "Run step"}
+                                </button>
+                              )}
+                              {t.status !== "done" && (
+                                <button
+                                  className="aw-act"
+                                  onClick={() => s.completeTask(t.id)}
+                                >
+                                  Complete
+                                </button>
+                              )}
+                              {next && (
+                                <button
+                                  className="aw-act ghost"
+                                  onClick={() => s.handoffTask(t.id, next.id)}
+                                >
+                                  Forward @{next.name}
+                                </button>
                               )}
                             </div>
-                          )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {awLogs && s.agentMessages.length > 0 && (
+                    <div className="aw-syslog">
+                      <div className="aw-syslog-h">SYSTEM LOGS</div>
+                      {s.agentMessages.slice(0, 12).map((m) => (
+                        <div className="aw-syslog-row" key={m.id}>
+                          <span>{agentById(m.from)?.name ?? "system"}</span>
+                          <span className="aw-syslog-k">{m.kind}</span>
+                          <span className="aw-syslog-c">{m.content}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="aw-composer">
+                  <div className="aw-assignees">
+                    {AGENTS.map((a) => (
+                      <button
+                        key={a.id}
+                        className={
+                          "aw-chip" + (agentAssignee === a.id ? " on" : "")
+                        }
+                        onClick={() => setAgentAssignee(a.id)}
+                      >
+                        <span
+                          className="aw-dot"
+                          style={{ background: a.accent }}
+                        />
+                        @{a.name}
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    className="aw-input"
+                    rows={2}
+                    placeholder={`Message @${
+                      agentById(agentAssignee)?.name ?? "team"
+                    } — give the team a goal…`}
+                    value={agentGoal}
+                    onChange={(e) => setAgentGoal(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey))
+                        void createAndRun();
+                    }}
+                  />
+                  <button
+                    className="aw-send"
+                    disabled={
+                      !agentGoal.trim() ||
+                      runningTaskId !== null ||
+                      autoTaskId !== null
+                    }
+                    onClick={() => void createAndRun()}
+                  >
+                    Assign &amp; run
+                  </button>
+                </div>
+              </div>
+
+              <aside className="aw-right">
+                <div className="aw-right-h">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M4 19V5M4 19h16M8 16v-5M13 16V8M18 16v-9" />
+                  </svg>
+                  Team Progress
+                </div>
+                <div className="aw-sec">Active Tasks</div>
+                {s.tasks.filter((t) => t.status !== "done").length === 0 && (
+                  <div className="aw-empty sm">No active tasks.</div>
+                )}
+                {s.tasks
+                  .filter((t) => t.status !== "done")
+                  .slice(0, 6)
+                  .map((t) => {
+                    const a = agentById(t.assignedTo);
+                    const pct =
+                      t.status === "blocked"
+                        ? 35
+                        : Math.min(20 + t.observations.length * 22, 92);
+                    return (
+                      <div className="aw-prog" key={t.id}>
+                        <div className="aw-prog-top">
+                          <b>{a?.name}</b>
+                          <span className="aw-pct" style={{ color: a?.accent }}>
+                            {pct}%
+                          </span>
+                        </div>
+                        <div className="aw-bar">
+                          <span
+                            style={{ width: pct + "%", background: a?.accent }}
+                          />
+                        </div>
+                        <div className="aw-prog-sub">
+                          <span
+                            className="aw-dot"
+                            style={{ background: a?.accent }}
+                          />
+                          {t.goal}
                         </div>
                       </div>
                     );
                   })}
-                </div>
-              </>
-            )}
-
-            {s.tasks.length ? (
-              <div className="story" style={{ marginTop: 20 }}>
-                {s.tasks.map((t) => {
-                  const owner = agentById(t.assignedTo);
-                  const open = openTaskId === t.id;
-                  const running = runningTaskId === t.id;
+                <div className="aw-sec">Live Operations</div>
+                {s.agentMessages.length === 0 && (
+                  <div className="aw-empty sm">No operations logged.</div>
+                )}
+                {s.agentMessages.slice(0, 6).map((m) => {
+                  const from = agentById(m.from);
                   return (
-                    <div key={t.id} className="snode">
-                      <div className="when">{ago(t.updatedAt)}</div>
-                      <div
-                        className="scard"
-                        style={
-                          owner
-                            ? { borderLeft: `3px solid ${owner.accent}` }
-                            : undefined
-                        }
-                      >
-                        <div
-                          className="st"
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <span
-                            className="fchip on"
-                            style={{ cursor: "default" }}
-                          >
-                            {TASK_STATUS_LABEL[t.status]}
-                          </span>
-                          {owner && (
-                            <span style={{ color: owner.accent }}>
-                              {owner.name}
-                            </span>
-                          )}
-                          <span style={{ fontWeight: 400 }}>{t.goal}</span>
+                    <div className="aw-op-item" key={m.id}>
+                      <span
+                        className="aw-op-ic"
+                        style={{ borderColor: from?.accent }}
+                      />
+                      <div className="aw-op-meta">
+                        <div className="aw-op-t">
+                          {m.kind === "handoff"
+                            ? "Handoff"
+                            : m.kind === "result"
+                              ? "Result"
+                              : "Note"}{" "}
+                          · {from?.name}
                         </div>
-                        <div className="ssub">
-                          {t.observations.length}{" "}
-                          {t.observations.length === 1 ? "step" : "steps"} ·
-                          created {ago(t.createdAt)}
-                        </div>
-
-                        <div
-                          className="filters"
-                          style={{ marginTop: 10, gap: 6 }}
-                        >
-                          {autoTaskId === t.id ? (
-                            <button
-                              className="pill-btn"
-                              onClick={stopAutoRun}
-                            >
-                              {running ? "Working…" : "Stopping…"} · Stop
-                            </button>
-                          ) : (
-                            <button
-                              className="pill-btn keep"
-                              onClick={() => void autoRunTask(t.id)}
-                              disabled={
-                                autoTaskId !== null || runningTaskId !== null
-                              }
-                            >
-                              Run
-                            </button>
-                          )}
-                          <button
-                            className="fchip"
-                            onClick={() => void runStep(t.id)}
-                            disabled={
-                              running ||
-                              runningTaskId !== null ||
-                              autoTaskId !== null
-                            }
-                          >
-                            {running && autoTaskId !== t.id
-                              ? "Working…"
-                              : "Step once"}
-                          </button>
-                          <button
-                            className="fchip"
-                            onClick={() =>
-                              setOpenTaskId(open ? null : t.id)
-                            }
-                          >
-                            {open ? "Hide" : "Details"}
-                          </button>
-                          {t.status !== "done" && (
-                            <button
-                              className="fchip"
-                              onClick={() => s.completeTask(t.id)}
-                            >
-                              Mark done
-                            </button>
-                          )}
-                        </div>
-
-                        {open && (
-                          <div style={{ marginTop: 12 }}>
-                            <div
-                              className="ssub"
-                              style={{ marginBottom: 6 }}
-                            >
-                              Hand off to continue:
-                            </div>
-                            <div
-                              className="filters"
-                              style={{ gap: 6, marginBottom: 12 }}
-                            >
-                              {AGENTS.filter(
-                                (a) => a.id !== t.assignedTo,
-                              ).map((a) => (
-                                <button
-                                  key={a.id}
-                                  className="fchip"
-                                  onClick={() => s.handoffTask(t.id, a.id)}
-                                >
-                                  → {a.name}
-                                </button>
-                              ))}
-                            </div>
-                            {t.observations.length ? (
-                              t.observations.map((o) => {
-                                const by = agentById(o.agentId);
-                                return (
-                                  <div
-                                    key={o.id}
-                                    className="scard"
-                                    style={{ marginBottom: 8 }}
-                                  >
-                                    <div
-                                      className="ssub"
-                                      style={{
-                                        color: by?.accent,
-                                        marginBottom: 4,
-                                      }}
-                                    >
-                                      {by?.name ?? "Agent"} · {ago(o.ts)}
-                                    </div>
-                                    <div style={{ whiteSpace: "pre-wrap" }}>
-                                      {o.text}
-                                    </div>
-                                    <div style={{ marginTop: 8 }}>
-                                      <button
-                                        className="fchip"
-                                        onClick={() => saveFinding(t.id, o.id)}
-                                      >
-                                        Save to memory
-                                      </button>
-                                    </div>
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              <div className="ssub">
-                                No steps yet — run one to begin.
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        <div className="aw-op-s">{m.content}</div>
                       </div>
                     </div>
                   );
                 })}
-              </div>
-            ) : (
-              <div className="empty" style={{ marginTop: 20 }}>
-                <div className="et">No tasks yet</div>
-                <div className="es">
-                  Assign a goal above and an agent will start working it.
-                </div>
-              </div>
-            )}
-
-            {s.agentMessages.length > 0 && (
-              <>
-                <h2
-                  style={{
-                    marginTop: 28,
-                    fontSize: 18,
-                    fontWeight: 600,
-                  }}
-                >
-                  Message bus
-                </h2>
-                <p className="ssub" style={{ marginBottom: 10 }}>
-                  Every handoff and result is persisted to Walrus + Sui.
-                </p>
-                <div className="story">
-                  {s.agentMessages.slice(0, 30).map((m) => {
-                    const from = agentById(m.from);
-                    const to = agentById(m.to);
-                    return (
-                      <div key={m.id} className="snode">
-                        <div className="when">{ago(m.ts)}</div>
-                        <div className="scard">
-                          <div className="ssub" style={{ marginBottom: 4 }}>
-                            <span style={{ color: from?.accent }}>
-                              {from?.name ?? (m.from === "user" ? "You" : m.from)}
-                            </span>{" "}
-                            →{" "}
-                            <span style={{ color: to?.accent }}>
-                              {to?.name ?? (m.to === "team" ? "Team" : m.to)}
-                            </span>{" "}
-                            · {m.kind}
-                          </div>
-                          <div>{m.content}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
+              </aside>
+            </div>
           </section>
 
           {/* STUDIO — compile memory into a prompt */}
