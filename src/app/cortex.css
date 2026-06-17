@@ -991,9 +991,16 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .kb2-badge.walrus{background:var(--ink);color:var(--paper)}
 .kb2-dot{width:9px;height:9px;border-radius:50%;flex:none}
 .kb2-dot.ok{background:#3aa76d}.kb2-dot.err{background:var(--accent)}
+.kb2-menu-wrap{position:relative;flex:none}
 .kb2-menu{color:var(--faint);width:26px;height:26px;display:grid;place-items:center;border-radius:var(--r);flex:none}
 .kb2-menu:hover{background:var(--surface2);color:var(--ink)}
 .kb2-menu svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+.kb2-menu-pop{position:absolute;top:calc(100% + 6px);right:0;z-index:30;min-width:184px;padding:6px;background:var(--surface);border:1px solid var(--line2);border-radius:var(--r);box-shadow:var(--shadow-lg);animation:rise .16s ease}
+.kb2-menu-pop button{display:flex;align-items:center;gap:10px;width:100%;padding:9px 11px;border-radius:var(--r);color:var(--ink);font-size:13.5px;text-align:left;transition:background .12s,color .12s}
+.kb2-menu-pop button:hover{background:var(--surface2)}
+.kb2-menu-pop button.danger{color:#e5484d}
+.kb2-menu-pop button.danger:hover{background:rgba(229,72,77,.12)}
+.kb2-menu-pop button svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .kb2-title{font-family:var(--head);font-size:19px;font-weight:600;letter-spacing:-.01em;color:var(--ink);line-height:1.2}
 .kb2-desc{font-size:14px;line-height:1.5;color:var(--muted);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .kb2-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;padding-top:14px;border-top:1px solid var(--line);font-size:13px;color:var(--faint)}
