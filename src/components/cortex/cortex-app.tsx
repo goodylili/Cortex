@@ -1466,7 +1466,7 @@ export function CortexApp({
       className={
         "app" +
         (onHome ? " home-rail" : "") +
-        (railOn ? " rail-open" : "")
+        (railOn ? " rail-expanded" : "")
       }
     >
       <header className="topbar">
