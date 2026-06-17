@@ -1526,8 +1526,6 @@ export function CortexApp({
                 </button>
               )}
             </label>
-          </div>
-          <div className="tb-right">
             <div className="tb-profile" ref={profileRef}>
               <button
                 className={"tb-you" + (profileOpen ? " on" : "")}
