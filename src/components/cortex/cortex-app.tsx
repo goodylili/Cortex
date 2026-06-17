@@ -238,6 +238,7 @@ export function CortexApp({
   const [modelOpen, setModelOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
   const [brainLegendOpen, setBrainLegendOpen] = useState(false);
+  const [kbMenu, setKbMenu] = useState<string | null>(null);
   const [drawer, setDrawer] = useState<Memory | "savings" | null>(null);
   const [studioTask, setStudioTask] = useState("");
   const [studioMode, setStudioMode] = useState<"prompt" | "loop">("prompt");
@@ -463,6 +464,14 @@ export function CortexApp({
     document.addEventListener("click", onClick);
     return () => document.removeEventListener("click", onClick);
   }, []);
+  useEffect(() => {
+    if (!kbMenu) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(".kb2-menu-wrap")) setKbMenu(null);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [kbMenu]);
   useEffect(() => {
     if (!profileOpen) return;
     const onDoc = (e: MouseEvent) => {
@@ -946,6 +955,8 @@ export function CortexApp({
         date: ago(m.ts),
         url: m.url ?? null,
         name: null as string | null,
+        memIds: [m.id],
+        body: m.text,
       };
     }),
     ...sources.map((src) => {
@@ -977,6 +988,8 @@ export function CortexApp({
         date: ago(Math.max(...src.mems.map((x) => x.ts))),
         url: null as string | null,
         name: src.name as string | null,
+        memIds: src.mems.map((x) => x.id),
+        body: src.mems.map((x) => x.text).join("\n\n"),
       };
     }),
   ];
@@ -985,6 +998,32 @@ export function CortexApp({
       (kbFilter === "all" || it.key === kbFilter) &&
       (it.title + " " + it.desc).toLowerCase().includes(query.toLowerCase()),
   );
+  const downloadKb = (it: {
+    url: string | null;
+    title: string;
+    body: string;
+  }) => {
+    const a = document.createElement("a");
+    if (it.url) {
+      a.href = it.url;
+      a.download = it.title || "download";
+      a.target = "_blank";
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      return;
+    }
+    const url = URL.createObjectURL(
+      new Blob([it.body || it.title], { type: "text/plain" }),
+    );
+    a.href = url;
+    a.download = (it.title || "memory") + ".txt";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
   // studio
   const studioSelected =
     studioSel ??
@@ -3158,13 +3197,64 @@ export function CortexApp({
                       </span>
                       <span className="kb2-dot ok" />
                     </div>
-                    <button className="kb2-menu" aria-label="More">
-                      <svg viewBox="0 0 24 24">
-                        <circle cx="12" cy="5" r="1" />
-                        <circle cx="12" cy="12" r="1" />
-                        <circle cx="12" cy="19" r="1" />
-                      </svg>
-                    </button>
+                    <div className="kb2-menu-wrap">
+                      <button
+                        className="kb2-menu"
+                        aria-label="More"
+                        aria-haspopup="menu"
+                        aria-expanded={kbMenu === it.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setKbMenu((o) => (o === it.id ? null : it.id));
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24">
+                          <circle cx="12" cy="5" r="1" />
+                          <circle cx="12" cy="12" r="1" />
+                          <circle cx="12" cy="19" r="1" />
+                        </svg>
+                      </button>
+                      {kbMenu === it.id && (
+                        <div className="kb2-menu-pop" role="menu">
+                          <button
+                            onClick={() => {
+                              s.attachDoc(it.title);
+                              setKbMenu(null);
+                              flash("Added to your working memory.");
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24">
+                              <path d="M12 5v14M5 12h14" />
+                            </svg>
+                            Add to memory
+                          </button>
+                          <button
+                            onClick={() => {
+                              downloadKb(it);
+                              setKbMenu(null);
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                            </svg>
+                            Download
+                          </button>
+                          <button
+                            className="danger"
+                            onClick={() => {
+                              it.memIds.forEach((id) => s.forgetMem(id));
+                              setKbMenu(null);
+                              flash("Deleted from your memory.");
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24">
+                              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" />
+                            </svg>
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="kb2-title">{it.title}</div>
                   {it.key === "markdown" ? (
