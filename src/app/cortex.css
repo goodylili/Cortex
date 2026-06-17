@@ -502,6 +502,7 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .mesh .leg .lh{font-family:var(--mesh-sans);font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--fnt);margin-bottom:9px}
 .mesh .li{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:8px;font-size:12.5px;color:var(--mut);cursor:pointer;transition:background .16s,color .16s,opacity .16s;user-select:none}
 .mesh .li:hover{background:rgba(255,255,255,0.05);color:var(--ink)}.mesh .li.on{background:rgba(255,255,255,0.08);color:var(--ink)}.mesh .li.off{opacity:.34}
+.mesh .li.muted{opacity:.4}.mesh .li.muted .dot{box-shadow:none;opacity:.45}.mesh .li.muted .nm{text-decoration:line-through;text-decoration-thickness:1px}
 .mesh .li .dot{width:9px;height:9px;border-radius:50%;flex:none;box-shadow:0 0 7px var(--bc)}
 .mesh .li .nm{flex:1;text-transform:capitalize}
 .mesh .li .ct{font-family:var(--mesh-mono);font-size:11px;color:var(--fnt)}
