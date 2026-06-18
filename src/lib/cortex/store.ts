@@ -49,6 +49,7 @@ import {
 } from "./memory-model";
 import type { SessionMeta } from "./walrus/sessions";
 import type { ShareSummary } from "./walrus/sharing";
+import { type UserProfile, profileToMemories } from "./profile";
 import {
   type AgentTask,
   type AgentMessage,
@@ -202,6 +203,9 @@ interface State {
   byokUnlocked: boolean;
   byokKeys: Record<string, string>;
   byokError: string;
+  // first-run profile (collected at sign-up, editable in settings)
+  profile: UserProfile;
+  onboarded: boolean;
   // actions
   hydrate: () => void;
   live: () => Memory[];
@@ -288,6 +292,10 @@ interface State {
   // memory sharing (cortex::sharing)
   setSharedMemories: (memories: Memory[]) => void;
   setShares: (shares: ShareSummary[]) => void;
+  // profile + onboarding
+  saveProfile: (profile: UserProfile) => void;
+  setOnboarded: (flag: boolean) => void;
+  seedProfileMemories: (profile: UserProfile) => string[];
 }
 
 const sessionCache: SessionCache = {
@@ -341,6 +349,35 @@ function logEvent(
   return [{ id: uid("ev"), ts: Date.now(), type, t, sub, warm }, ...events];
 }
 
+const PROFILE_KEY = "cortex-profile";
+const ONBOARDED_KEY = "cortex-onboarded";
+
+function loadProfile(): UserProfile {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(PROFILE_KEY);
+    return raw ? (JSON.parse(raw) as UserProfile) : {};
+  } catch {
+    return {};
+  }
+}
+
+function loadOnboarded(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(ONBOARDED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeLocal(key: string, value: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {}
+}
+
 export const useCortex = create<State>((set, get) => ({
   memories: [],
   events: [],
@@ -367,6 +404,8 @@ export const useCortex = create<State>((set, get) => ({
   byokUnlocked: false,
   byokKeys: {},
   byokError: "",
+  profile: {},
+  onboarded: false,
 
   hydrate: () => {
     const data: SessionCache =
@@ -439,6 +478,8 @@ export const useCortex = create<State>((set, get) => ({
       agentMessages,
       agents,
       loops,
+      profile: loadProfile(),
+      onboarded: loadOnboarded(),
       ready: true,
     });
   },
@@ -1676,6 +1717,54 @@ export const useCortex = create<State>((set, get) => ({
     }),
   setSharedMemories: (sharedMemories) => set({ sharedMemories }),
   setShares: (shares) => set({ shares }),
+  saveProfile: (profile) => {
+    writeLocal(PROFILE_KEY, JSON.stringify(profile));
+    set({ profile });
+  },
+  setOnboarded: (flag) => {
+    writeLocal(ONBOARDED_KEY, flag ? "1" : "0");
+    set({ onboarded: flag });
+  },
+  seedProfileMemories: (profile) => {
+    const facts = profileToMemories(profile);
+    if (!facts.length) return [];
+    const now = Date.now();
+    const mems = facts.map(({ text, high }) =>
+      newMemory(
+        {
+          id: uid("mem"),
+          text,
+          tags: autoTags(text),
+          ts: now,
+          createdAt: now,
+          source: "profile",
+          importance: high ? "high" : "normal",
+          kept: high,
+        } as Memory,
+        high ? "high" : "normal",
+        "stated",
+      ),
+    );
+    set((s) => {
+      const memories = [...mems, ...s.memories];
+      const cost = {
+        ...s.cost,
+        rawIngestedTokens:
+          s.cost.rawIngestedTokens +
+          facts.reduce((n, f) => n + toks(f.text), 0),
+      };
+      const events = logEvent(
+        s.events,
+        "added",
+        "Seeded memory from your profile",
+        `${facts.length} ${facts.length === 1 ? "fact" : "facts"} about you`,
+      );
+      const next = { memories, events, cost, config: s.config };
+      persist(next);
+      return next;
+    });
+    return facts.map((f) => f.text);
+  },
   resetMemory: () =>
     set((s) => {
       const fresh = emptyState();

@@ -49,6 +49,13 @@ import {
   isBuiltInAgent,
 } from "@/lib/cortex/agents";
 import { useDictation, useReadAloud } from "@/lib/cortex/use-voice";
+import {
+  ONBOARDING_STEPS,
+  TOTAL_QUESTIONS,
+  profileAnsweredCount,
+  type UserProfile,
+} from "@/lib/cortex/profile";
+import { Onboarding } from "./onboarding";
 import { CaptureModal } from "./capture";
 import { Markdown } from "./markdown";
 
@@ -91,6 +98,7 @@ type View =
 type Theme = "light" | "dark" | "system";
 type SettingsSection =
   | "account"
+  | "profile"
   | "models"
   | "privacy"
   | "username"
@@ -221,6 +229,9 @@ export function CortexApp({
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const [dev, setDev] = useState(false);
+  const [onboardOpen, setOnboardOpen] = useState(false);
+  const [profileDraft, setProfileDraft] = useState<UserProfile>({});
+  const [profileSaved, setProfileSaved] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] =
     useState<SettingsSection>("account");
@@ -521,6 +532,18 @@ export function CortexApp({
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [profileOpen]);
+  const isSignedIn = walletState
+    ? walletState.authenticated && !!walletState.address
+    : !!session;
+  useEffect(() => {
+    if (s.ready && isSignedIn && !s.onboarded) setOnboardOpen(true);
+  }, [s.ready, isSignedIn, s.onboarded]);
+  useEffect(() => {
+    if (settingsOpen) {
+      setProfileDraft({ ...useCortex.getState().profile });
+      setProfileSaved(false);
+    }
+  }, [settingsOpen]);
   function flash(m: string) {
     setToast(m);
     setTimeout(() => setToast(""), 2600);
@@ -919,6 +942,15 @@ export function CortexApp({
       <g key="i">
         <circle cx="12" cy="8" r="3.4" />
         <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+      </g>,
+    ],
+    [
+      "profile",
+      "Profile",
+      <g key="i">
+        <circle cx="12" cy="7" r="3.2" />
+        <path d="M5 20a7 7 0 0 1 14 0" />
+        <path d="M16 4.5l1.4-1.4 2 2L18 6.5" />
       </g>,
     ],
     [
@@ -1706,6 +1738,48 @@ export function CortexApp({
     if (walletState) walletState.logout();
     else endSession();
   }
+  function seedProfileToMemory(profile: UserProfile) {
+    const texts = s.seedProfileMemories(profile);
+    if (wallet)
+      texts.forEach((t) => void wallet.remember(t).catch(() => {}));
+    return texts.length;
+  }
+  function completeOnboarding(profile: UserProfile) {
+    s.saveProfile(profile);
+    const n = seedProfileToMemory(profile);
+    s.setOnboarded(true);
+    setOnboardOpen(false);
+    flash(
+      n
+        ? `Welcome. Seeded ${n} ${n === 1 ? "memory" : "memories"} about you.`
+        : "Welcome to Cortex.",
+    );
+  }
+  function skipOnboarding(profile: UserProfile) {
+    if (profileAnsweredCount(profile) > 0) s.saveProfile(profile);
+    s.setOnboarded(true);
+    setOnboardOpen(false);
+  }
+  function openProfileSettings() {
+    setProfileDraft({ ...s.profile });
+    setProfileSaved(false);
+    openSettings("profile");
+  }
+  function saveProfileEdits() {
+    const prev = s.profile;
+    const fresh: UserProfile = {};
+    Object.entries(profileDraft).forEach(([k, v]) => {
+      if (v?.trim() && !prev[k]?.trim()) fresh[k] = v;
+    });
+    s.saveProfile(profileDraft);
+    const n = Object.keys(fresh).length ? seedProfileToMemory(fresh) : 0;
+    setProfileSaved(true);
+    flash(
+      n
+        ? `Profile saved · ${n} new ${n === 1 ? "memory" : "memories"}.`
+        : "Profile saved.",
+    );
+  }
   async function storeFileLive(file: File) {
     if (!wallet) return;
     flash(`Storing ${file.name} on Walrus…`);
@@ -2035,6 +2109,16 @@ export function CortexApp({
                       Developer
                     </span>
                     <span className="dev-switch" />
+                  </button>
+                  <button
+                    className="tb-menu-item"
+                    onClick={openProfileSettings}
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <circle cx="12" cy="7" r="3.2" />
+                      <path d="M5 20a7 7 0 0 1 14 0" />
+                    </svg>
+                    <span>Profile</span>
                   </button>
                   <button
                     className="tb-menu-item"
@@ -2653,21 +2737,10 @@ export function CortexApp({
                 .toUpperCase();
               return (
                 <div className="pr-shell">
-                  {roomRailOpen && (
-                    <aside className="pr-side">
-                      <div className="pr-side-bar">
-                        <button
-                          className="pr-collapse"
-                          onClick={() => setRoomRailOpen(false)}
-                          aria-label="Collapse sidebar"
-                          title="Collapse sidebar"
-                        >
-                          <svg viewBox="0 0 24 24">
-                            <rect x="3" y="4" width="18" height="16" rx="2" />
-                            <path d="M9 4v16" />
-                          </svg>
-                        </button>
-                      </div>
+                  <aside
+                    className={"pr-rail" + (roomRailOpen ? " open" : "")}
+                  >
+                    <div className="pr-rail-body">
                       <button
                         className="pr-new"
                         onClick={() => {
@@ -2871,25 +2944,30 @@ export function CortexApp({
                           </div>
                         </div>
                       </div>
-                    </aside>
-                  )}
+                    </div>
+                    <button
+                      className="pr-rail-toggle"
+                      onClick={() => setRoomRailOpen((v) => !v)}
+                      aria-expanded={roomRailOpen}
+                    >
+                      <span className="pr-rail-l">
+                        <svg viewBox="0 0 24 24">
+                          <circle cx="9" cy="7" r="3" />
+                          <circle cx="17" cy="9" r="2.4" />
+                          <path d="M3 20a6 6 0 0 1 12 0M14.5 14.5a4.5 4.5 0 0 1 6.5 4.1" />
+                        </svg>
+                        <span className="pr-rail-t">Agents &amp; rooms</span>
+                        <span className="pr-rail-count">{roster.length}</span>
+                      </span>
+                      <svg className="pr-rail-chev" viewBox="0 0 24 24">
+                        <path d="M6 15l6-6 6 6" />
+                      </svg>
+                    </button>
+                  </aside>
 
                   <div className="pr-main">
                     <div className="pr-chan-head">
                       <div className="pr-chan-id">
-                        {!roomRailOpen && (
-                          <button
-                            className="pr-icon pr-reopen"
-                            onClick={() => setRoomRailOpen(true)}
-                            aria-label="Show sidebar"
-                            title="Show sidebar"
-                          >
-                            <svg viewBox="0 0 24 24">
-                              <rect x="3" y="4" width="18" height="16" rx="2" />
-                              <path d="M9 4v16" />
-                            </svg>
-                          </button>
-                        )}
                         <span className="pr-hash">#</span>
                         <b>{room ? roomSlug(room.goal) : "no-room"}</b>
                         {room && (
@@ -5024,6 +5102,82 @@ export function CortexApp({
                     <div
                       className={
                         "set-group" +
+                        (settingsSection === "profile" ? " on" : "")
+                      }
+                    >
+                      <div className="set-gh">
+                        <div className="set-gt">Profile</div>
+                        <div className="set-gs">
+                          What you share here becomes initial memory about you,
+                          and grounds how Cortex and your agents respond.{" "}
+                          {profileAnsweredCount(profileDraft)}/{TOTAL_QUESTIONS}{" "}
+                          answered.
+                        </div>
+                      </div>
+                      <div className="set-profile-acts">
+                        <button
+                          className="pill-btn"
+                          onClick={() => {
+                            setProfileDraft({ ...s.profile });
+                            setOnboardOpen(true);
+                          }}
+                        >
+                          Run the guided setup
+                        </button>
+                      </div>
+                      {ONBOARDING_STEPS.map((grp) => (
+                        <div className="set-profile-grp" key={grp.title}>
+                          <div className="set-subh">{grp.title}</div>
+                          {grp.fields.map((f) => (
+                            <label className="set-pfield" key={f.key}>
+                              <span className="set-pfl">{f.label}</span>
+                              {f.type === "textarea" ? (
+                                <textarea
+                                  className="am-input"
+                                  rows={2}
+                                  placeholder={f.placeholder}
+                                  value={profileDraft[f.key] ?? ""}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setProfileSaved(false);
+                                    setProfileDraft((p) => ({
+                                      ...p,
+                                      [f.key]: v,
+                                    }));
+                                  }}
+                                />
+                              ) : (
+                                <input
+                                  className="am-input"
+                                  placeholder={f.placeholder}
+                                  value={profileDraft[f.key] ?? ""}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setProfileSaved(false);
+                                    setProfileDraft((p) => ({
+                                      ...p,
+                                      [f.key]: v,
+                                    }));
+                                  }}
+                                />
+                              )}
+                            </label>
+                          ))}
+                        </div>
+                      ))}
+                      <div className="set-profile-save">
+                        <button
+                          className="pill-btn keep"
+                          onClick={saveProfileEdits}
+                        >
+                          {profileSaved ? "Saved" : "Save profile"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      className={
+                        "set-group" +
                         (settingsSection === "models" ? " on" : "")
                       }
                     >
@@ -5802,6 +5956,14 @@ export function CortexApp({
           wallet={wallet}
           flash={flash}
           onClose={() => setCaptureOpen(false)}
+        />
+      )}
+
+      {onboardOpen && (
+        <Onboarding
+          initial={s.profile}
+          onComplete={completeOnboarding}
+          onSkip={skipOnboarding}
         />
       )}
 
