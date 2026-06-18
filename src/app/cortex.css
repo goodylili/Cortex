@@ -1219,7 +1219,7 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 /* agents — Pipeline Room (Slack-style: agents are members) */
 .pr-shell{position:absolute;inset:0;z-index:8;display:flex;background:var(--paper);color:var(--ink);font-size:14px}
 
-.pr-rail{position:fixed;left:22px;bottom:104px;z-index:25;width:300px;max-height:min(64vh,560px);display:flex;flex-direction:column;min-height:0;padding:12px;border:1px solid var(--line2);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-lg);overflow:hidden;transition:max-height .22s ease,padding .22s ease}
+.pr-rail{position:fixed;left:24px;bottom:104px;z-index:25;width:340px;max-height:min(56vh,520px);display:flex;flex-direction:column;min-height:0;padding:12px;border:1px solid var(--line2);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-lg);overflow:hidden;transition:max-height .22s ease,padding .22s ease}
 .pr-rail:not(.open){max-height:54px;padding:6px}
 .pr-rail-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:4px;overflow:hidden}
 .pr-rail:not(.open) .pr-rail-body{display:none}
