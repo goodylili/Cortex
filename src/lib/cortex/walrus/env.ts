@@ -25,6 +25,13 @@ const DEFAULT_AGGREGATOR: Record<CortexNetwork, string> = {
   testnet: "https://aggregator.walrus-testnet.walrus.space",
   mainnet: "https://aggregator.walrus-mainnet.walrus.space",
 };
+const DEFAULT_WAL_COIN_TYPE: Record<CortexNetwork, string> = {
+  testnet:
+    "0x8270feb7375eee355e64fdb69c50abb6b5f9393a722883c1cf45f8e26048810a::wal::WAL",
+  mainnet:
+    "0x356a26eb9e012a68958082340d4c4116e7f55615cf27affcff209cf0ae544f59::wal::WAL",
+};
+const SUI_COIN_TYPE = "0x2::sui::SUI";
 const DEFAULT_SUINS_PARENT = "cortex.sui";
 
 export interface CortexEnv {
@@ -41,6 +48,8 @@ export interface CortexEnv {
   walrusEpochs: number;
   walrusUploadRelay: string;
   walrusAggregator: string;
+  suiCoinType: string;
+  walCoinType: string;
   seal: { serverObjectIds: string[]; threshold: number };
   memwal: { serverUrl: string; packageId: string; registryId: string };
   suinsParent: string;
@@ -80,9 +89,13 @@ export const CORTEX_ENV: CortexEnv = {
     DEFAULT_WALRUS_EPOCHS,
   ),
   walrusUploadRelay:
-    process.env.NEXT_PUBLIC_WALRUS_UPLOAD_RELAY ?? DEFAULT_UPLOAD_RELAY[network],
+    process.env.NEXT_PUBLIC_WALRUS_UPLOAD_RELAY ??
+    DEFAULT_UPLOAD_RELAY[network],
   walrusAggregator:
     process.env.NEXT_PUBLIC_WALRUS_AGGREGATOR ?? DEFAULT_AGGREGATOR[network],
+  suiCoinType: SUI_COIN_TYPE,
+  walCoinType:
+    process.env.NEXT_PUBLIC_WAL_COIN_TYPE ?? DEFAULT_WAL_COIN_TYPE[network],
   seal: {
     serverObjectIds: parseList(process.env.NEXT_PUBLIC_SEAL_SERVER_IDS),
     threshold: parseIntOr(
