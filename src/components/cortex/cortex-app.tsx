@@ -1009,20 +1009,19 @@ export function CortexApp({
     [
       "memories",
       "Memories",
-      <path
-        key="i"
-        d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"
-      />,
+      <>
+        <path key="a" d="M12 3 3 8l9 5 9-5-9-5z" />
+        <path key="b" d="M3 13l9 5 9-5" />
+      </>,
     ],
     [
       "brain",
       "Brain",
       <>
-        <circle key="a" cx="12" cy="12" r="3" />
-        <path
-          key="b"
-          d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"
-        />
+        <circle key="a" cx="6" cy="7" r="2.2" />
+        <circle key="b" cx="18" cy="8" r="2.2" />
+        <circle key="c" cx="12" cy="17.5" r="2.2" />
+        <path key="d" d="M8 7.6l8 .8M7.4 9l3.6 6.6M16.4 9.6l-3.4 6" />
       </>,
     ],
     [
@@ -1041,8 +1040,11 @@ export function CortexApp({
       "knowledge",
       "Knowledge",
       <>
-        <path key="a" d="M4 5a2 2 0 0 1 2-2h6v18H6a2 2 0 0 1-2-2z" />
-        <path key="b" d="M20 5a2 2 0 0 0-2-2h-6v18h6a2 2 0 0 0 2-2z" />
+        <path
+          key="a"
+          d="M3 5a17 17 0 0 1 9 2 17 17 0 0 1 9-2v13a17 17 0 0 0-9 2 17 17 0 0 0-9-2z"
+        />
+        <path key="b" d="M12 7v13" />
       </>,
     ],
     [
@@ -1063,11 +1065,10 @@ export function CortexApp({
       "integrations",
       "Integrations",
       <>
-        <path
-          key="a"
-          d="M9 3v4M15 3v4M9 17v4M15 17v4M3 9h4M3 15h4M17 9h4M17 15h4"
-        />
-        <rect key="b" x="7" y="7" width="10" height="10" rx="2" />
+        <rect key="a" x="3" y="3" width="7" height="7" rx="1.5" />
+        <rect key="b" x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect key="c" x="3" y="14" width="7" height="7" rx="1.5" />
+        <rect key="d" x="14" y="14" width="7" height="7" rx="1.5" />
       </>,
     ],
   ];
@@ -4624,6 +4625,14 @@ export function CortexApp({
           {/* INTEGRATIONS — MCP clients, storage backends, sources */}
           <section className={"view" + (view === "integrations" ? " on" : "")}>
             <div className="int2">
+              <div className="int2-head">
+                <h1 className="int2-title">Integrations</h1>
+                <p className="int2-sub">
+                  Cortex is one shared memory behind every tool you use. Connect
+                  your assistants, agent frameworks and sources so they read and
+                  write the same durable context — no copy-paste between chats.
+                </p>
+              </div>
               <div className="int2-filter">
                 {(["all", "mcp", "frameworks", "sources"] as const).map((t) => (
                   <button
