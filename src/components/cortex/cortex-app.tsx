@@ -55,13 +55,12 @@ const SHARE_STATUS_LABEL: Record<number, string> = {
 
 const MARK = (
   <svg viewBox="0 0 120 120" fill="currentColor">
-    <circle cx="60" cy="60" r="9" />
+    <circle cx="60" cy="60" r="13" />
     {[0, 45, 90, 135, 180, 225, 270, 315].map((a) => (
-      <path
-        key={a}
-        d="M54 43 L54 27 L49 17 L60 24 L71 17 L66 27 L66 43 L60 48 Z"
-        transform={`rotate(${a} 60 60)`}
-      />
+      <g key={a} transform={`rotate(${a} 60 60)`}>
+        <rect x="51.5" y="19" width="6.5" height="25" rx="3.25" />
+        <rect x="62" y="19" width="6.5" height="25" rx="3.25" />
+      </g>
     ))}
   </svg>
 );
@@ -135,6 +134,7 @@ const STUDIO_PRODUCTS: Record<
 const CODE_TYPES = ["json", "xml", "yaml", "function", "multimodal", "schema"];
 
 const ROOM_SLUG_WORDS = 3;
+const ROOM_PREVIEW_CAP = 5;
 const AGENT_NAMES = AGENTS.map((a) => a.name);
 const roomSlug = (goal: string): string => {
   const words = goal
@@ -236,6 +236,8 @@ export function CortexApp({
   const [roomTaskId, setRoomTaskId] = useState<string | null>(null);
   const [threadTaskId, setThreadTaskId] = useState<string | null>(null);
   const [threadReply, setThreadReply] = useState("");
+  const [roomRailOpen, setRoomRailOpen] = useState(true);
+  const [roomsExpanded, setRoomsExpanded] = useState(false);
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
   const [autoTaskId, setAutoTaskId] = useState<string | null>(null);
   const autoStop = useRef(false);
@@ -2570,91 +2572,131 @@ export function CortexApp({
                 .toUpperCase();
               return (
                 <div className="pr-shell">
-                  <aside className="pr-side">
-                    <div className="pr-side-head">
-                      <div className="pr-side-title">Pipeline Room</div>
-                      <div className="pr-side-sub">
-                        {AGENTS.length} agents · 1 human · {tasks.length}
-                        {tasks.length === 1 ? " task room" : " task rooms"}
-                      </div>
-                    </div>
-                    <div className="pr-side-scroll">
-                      <div className="pr-grp">
-                        <span className="pr-grp-l">Task Rooms</span>
+                  {roomRailOpen && (
+                    <aside className="pr-side">
+                      <div className="pr-side-bar">
                         <button
-                          className="pr-grp-add"
-                          onClick={() => {
-                            setRoomTaskId(null);
-                            roomComposerRef.current?.focus();
-                          }}
-                          aria-label="New task room"
+                          className="pr-collapse"
+                          onClick={() => setRoomRailOpen(false)}
+                          aria-label="Collapse sidebar"
+                          title="Collapse sidebar"
                         >
-                          +
+                          <svg viewBox="0 0 24 24">
+                            <rect x="3" y="4" width="18" height="16" rx="2" />
+                            <path d="M9 4v16" />
+                          </svg>
                         </button>
                       </div>
-                      {tasks.length === 0 && (
-                        <div className="pr-side-empty">
-                          No rooms yet. @mention an agent below.
-                        </div>
-                      )}
-                      {tasks.map((t) => (
-                        <button
-                          key={t.id}
-                          className={
-                            "pr-room" + (room?.id === t.id ? " on" : "")
-                          }
-                          onClick={() => setRoomTaskId(t.id)}
-                        >
-                          <span className="pr-hash">#</span>
-                          <span className="pr-room-name">
-                            {roomSlug(t.goal)}
-                          </span>
-                          {t.observations.length > 0 && (
-                            <span className="pr-room-badge">
-                              {t.observations.length}
-                            </span>
+                      <button
+                        className="pr-new"
+                        onClick={() => {
+                          setRoomTaskId(null);
+                          setThreadTaskId(null);
+                          roomComposerRef.current?.focus();
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24">
+                          <path d="M12 5v14M5 12h14" />
+                        </svg>
+                        New task room
+                      </button>
+                      <div className="pr-side-scroll">
+                        <div className="pr-grp">
+                          <span className="pr-grp-l">Task Rooms</span>
+                          {tasks.length > ROOM_PREVIEW_CAP && (
+                            <button
+                              className="pr-viewall"
+                              onClick={() => setRoomsExpanded((v) => !v)}
+                            >
+                              {roomsExpanded ? "Show less" : "View all"}
+                            </button>
                           )}
-                        </button>
-                      ))}
-
-                      <div className="pr-grp">
-                        <span className="pr-grp-l">
-                          Agents · {AGENTS.length}
-                        </span>
-                      </div>
-                      {AGENTS.map((a) => {
-                        const st = agentStatus(a.id);
-                        return (
-                          <div className="pr-member" key={a.id}>
-                            <span className="pr-av">
-                              {a.name.slice(0, 2).toUpperCase()}
-                              <span className={"pr-presence " + st} />
-                            </span>
-                            <div className="pr-member-m">
-                              <div className="pr-member-n">{a.name}</div>
-                              <div className="pr-member-r">{a.role}</div>
-                            </div>
-                            <span className={"pr-status " + st}>{st}</span>
+                        </div>
+                        {tasks.length === 0 && (
+                          <div className="pr-side-empty">
+                            No rooms yet. @mention an agent below.
                           </div>
-                        );
-                      })}
+                        )}
+                        {(roomsExpanded
+                          ? tasks
+                          : tasks.slice(0, ROOM_PREVIEW_CAP)
+                        ).map((t) => (
+                          <button
+                            key={t.id}
+                            className={
+                              "pr-room" + (room?.id === t.id ? " on" : "")
+                            }
+                            onClick={() => setRoomTaskId(t.id)}
+                          >
+                            <span
+                              className={
+                                "pr-room-dot" + (room?.id === t.id ? " on" : "")
+                              }
+                            />
+                            <span className="pr-hash">#</span>
+                            <span className="pr-room-name">
+                              {roomSlug(t.goal)}
+                            </span>
+                            {t.observations.length > 0 && (
+                              <span className="pr-room-badge">
+                                {t.observations.length}
+                              </span>
+                            )}
+                          </button>
+                        ))}
 
-                      <div className="pr-grp">
-                        <span className="pr-grp-l">Direct</span>
-                      </div>
-                      <div className="pr-member">
-                        <span className="pr-av human">{youInitials}</span>
-                        <div className="pr-member-m">
-                          <div className="pr-member-n">You</div>
-                          <div className="pr-member-r">director</div>
+                        <div className="pr-grp">
+                          <span className="pr-grp-l">
+                            Agents · {AGENTS.length}
+                          </span>
+                        </div>
+                        {AGENTS.map((a) => {
+                          const st = agentStatus(a.id);
+                          return (
+                            <div className="pr-member" key={a.id}>
+                              <span className="pr-av">
+                                {a.name.slice(0, 2).toUpperCase()}
+                                <span className={"pr-presence " + st} />
+                              </span>
+                              <div className="pr-member-m">
+                                <div className="pr-member-n">{a.name}</div>
+                                <div className="pr-member-r">{a.role}</div>
+                              </div>
+                              <span className={"pr-status " + st}>{st}</span>
+                            </div>
+                          );
+                        })}
+
+                        <div className="pr-grp">
+                          <span className="pr-grp-l">Direct</span>
+                        </div>
+                        <div className="pr-member">
+                          <span className="pr-av human">{youInitials}</span>
+                          <div className="pr-member-m">
+                            <div className="pr-member-n">You</div>
+                            <div className="pr-member-r">director</div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </aside>
+                    </aside>
+                  )}
 
                   <div className="pr-main">
                     <div className="pr-chan-head">
                       <div className="pr-chan-id">
+                        {!roomRailOpen && (
+                          <button
+                            className="pr-icon pr-reopen"
+                            onClick={() => setRoomRailOpen(true)}
+                            aria-label="Show sidebar"
+                            title="Show sidebar"
+                          >
+                            <svg viewBox="0 0 24 24">
+                              <rect x="3" y="4" width="18" height="16" rx="2" />
+                              <path d="M9 4v16" />
+                            </svg>
+                          </button>
+                        )}
                         <span className="pr-hash">#</span>
                         <b>{room ? roomSlug(room.goal) : "no-room"}</b>
                         {room && (
