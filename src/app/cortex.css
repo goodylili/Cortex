@@ -972,7 +972,7 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 @media(max-width:980px){.tb-search{width:42px;padding:0}.tb-search:focus-within{width:220px;padding:0 12px}.tb-search input,.tb-search-x{display:none}.tb-search:focus-within input{display:block}.tb-search:focus-within .tb-search-x{display:grid}}
 
 /* ── Chat-history sidebar (mini icon-rail ↔ full) ── */
-.chat-rail{position:fixed;left:24px;bottom:128px;width:340px;max-height:min(56vh,520px);display:flex;flex-direction:column;gap:8px;padding:12px;background:var(--paper);border:1px solid var(--line2);border-radius:var(--r);box-shadow:var(--shadow-lg);z-index:35;opacity:0;pointer-events:none;transform:translateY(12px);transition:opacity .2s ease,transform .2s ease,max-height .2s ease,padding .2s ease;overflow:hidden}
+.chat-rail{position:fixed;left:24px;bottom:84px;width:340px;max-height:min(56vh,520px);display:flex;flex-direction:column;gap:8px;padding:12px;background:var(--paper);border:1px solid var(--line2);border-radius:var(--r);box-shadow:var(--shadow-lg);z-index:35;opacity:0;pointer-events:none;transform:translateY(12px);transition:opacity .2s ease,transform .2s ease,max-height .2s ease,padding .2s ease;overflow:hidden}
 .chat-rail.on-home{opacity:1;pointer-events:auto;transform:none}
 .chat-rail.on-home.open{width:340px;padding:12px}
 .chat-rail.on-home:not(.open){width:340px;max-height:none;padding:8px;gap:0}
