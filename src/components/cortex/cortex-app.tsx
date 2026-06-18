@@ -40,6 +40,7 @@ import {
 } from "@/lib/cortex/memory-model";
 import type { CortexWalletState } from "@/lib/cortex/use-wallet";
 import { CORTEX_ENV, contractsEnabled } from "@/lib/cortex/walrus/env";
+import { getSuiClient } from "@/lib/cortex/walrus/clients";
 import { AGENTS, agentById } from "@/lib/cortex/agents";
 import { useDictation, useReadAloud } from "@/lib/cortex/use-voice";
 import { CaptureModal } from "./capture";
@@ -146,6 +147,24 @@ const roomSlug = (goal: string): string => {
   return words.length ? words.join("-") : "task";
 };
 const taskCode = (id: string): string => "TASK-" + id.slice(-3).toUpperCase();
+const COIN_DECIMALS = 9;
+const COIN_DISPLAY_DECIMALS = 4;
+const fmtCoin = (raw: string): string => {
+  let big: bigint;
+  try {
+    big = BigInt(raw);
+  } catch {
+    return "0";
+  }
+  const base = BigInt(10) ** BigInt(COIN_DECIMALS);
+  const whole = big / base;
+  const frac = (big % base)
+    .toString()
+    .padStart(COIN_DECIMALS, "0")
+    .slice(0, COIN_DISPLAY_DECIMALS)
+    .replace(/0+$/, "");
+  return frac ? `${whole}.${frac}` : whole.toString();
+};
 const clock = (ts: number): string =>
   new Date(ts).toLocaleTimeString([], {
     hour: "2-digit",
@@ -197,6 +216,11 @@ export function CortexApp({
   const [settingsSection, setSettingsSection] =
     useState<SettingsSection>("account");
   const [settingsSearch, setSettingsSearch] = useState("");
+  const [walletBalances, setWalletBalances] = useState<{
+    sui: string;
+    wal: string;
+  } | null>(null);
+  const [balancesLoading, setBalancesLoading] = useState(false);
   const openSettings = (section: SettingsSection) => {
     setSettingsSection(section);
     setSettingsSearch("");
@@ -518,6 +542,27 @@ export function CortexApp({
     }
   }
 
+  async function refreshBalances() {
+    const owner = walletState?.address;
+    if (!owner) {
+      setWalletBalances(null);
+      return;
+    }
+    setBalancesLoading(true);
+    try {
+      const client = getSuiClient();
+      const [sui, wal] = await Promise.all([
+        client.getBalance({ owner, coinType: CORTEX_ENV.suiCoinType }),
+        client.getBalance({ owner, coinType: CORTEX_ENV.walCoinType }),
+      ]);
+      setWalletBalances({ sui: sui.balance.balance, wal: wal.balance.balance });
+    } catch {
+      setWalletBalances(null);
+    } finally {
+      setBalancesLoading(false);
+    }
+  }
+
   async function loadDelegates() {
     const w = walletState?.wallet;
     if (!w) {
@@ -720,6 +765,12 @@ export function CortexApp({
     void loadDelegates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsOpen, walletState?.wallet]);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    void refreshBalances();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsOpen, walletState?.address]);
 
   // Dreams (offline insight pass) power the wide carousel on the overview. Fetch
   // once, lazily, when the overview is in view and there's enough to reflect on.
@@ -4397,6 +4448,113 @@ export function CortexApp({
                               : "This creates a local ephemeral session right now. Add a Privy app id (NEXT_PUBLIC_PRIVY_APP_ID) to sign in with a managed Sui wallet."}
                           </div>
                         </div>
+                      )}
+
+                      {privyOn && sess?.addr && (
+                        <>
+                          <div className="set-subh">Connected wallet</div>
+                          <div className="wcard">
+                            <div className="wcard-top">
+                              <span className="wcard-av">
+                                {sess.via[0]?.toUpperCase() ?? "S"}
+                              </span>
+                              <div className="wcard-id">
+                                <div className="wcard-name">
+                                  {sess.via} wallet
+                                </div>
+                                <button
+                                  className="wcard-addr"
+                                  onClick={() => {
+                                    void navigator.clipboard?.writeText(
+                                      sess.addr,
+                                    );
+                                    flash("Address copied.");
+                                  }}
+                                  title="Copy address"
+                                >
+                                  {sess.addr.slice(0, 6)}…{sess.addr.slice(-4)}
+                                  <svg viewBox="0 0 24 24">
+                                    <rect
+                                      x="9"
+                                      y="9"
+                                      width="11"
+                                      height="11"
+                                      rx="2"
+                                    />
+                                    <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                                  </svg>
+                                </button>
+                              </div>
+                              <div className="wcard-acts">
+                                <button
+                                  className="wcard-ic"
+                                  onClick={() => void refreshBalances()}
+                                  disabled={balancesLoading}
+                                  title="Refresh balances"
+                                  aria-label="Refresh balances"
+                                >
+                                  <svg viewBox="0 0 24 24">
+                                    <path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5" />
+                                  </svg>
+                                </button>
+                                <a
+                                  className="wcard-ic"
+                                  href={`https://suiscan.xyz/${CORTEX_ENV.network}/account/${sess.addr}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title="View on explorer"
+                                  aria-label="View on explorer"
+                                >
+                                  <svg viewBox="0 0 24 24">
+                                    <path d="M7 17 17 7M9 7h8v8" />
+                                  </svg>
+                                </a>
+                              </div>
+                            </div>
+                            <div className="wcard-warn">
+                              <svg viewBox="0 0 24 24">
+                                <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+                                <path d="M12 9v4M12 17h.01" />
+                              </svg>
+                              <span>
+                                Only send <b>SUI</b> and <b>WAL</b> to this
+                                address — they cover gas and Walrus storage.
+                                Other tokens or NFTs sent here may be lost.
+                              </span>
+                            </div>
+                            <div className="wcard-bals">
+                              {[
+                                {
+                                  sym: "SUI",
+                                  name: "Sui",
+                                  sub: "network gas",
+                                  raw: walletBalances?.sui,
+                                },
+                                {
+                                  sym: "WAL",
+                                  name: "Walrus",
+                                  sub: "storage",
+                                  raw: walletBalances?.wal,
+                                },
+                              ].map((b) => (
+                                <div className="wbal" key={b.sym}>
+                                  <span className="wbal-sym">{b.sym}</span>
+                                  <div className="wbal-m">
+                                    <div className="wbal-name">{b.name}</div>
+                                    <div className="wbal-sub">{b.sub}</div>
+                                  </div>
+                                  <span className="wbal-amt">
+                                    {!walletBalances && balancesLoading
+                                      ? "…"
+                                      : b.raw != null
+                                        ? fmtCoin(b.raw)
+                                        : "0"}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </>
                       )}
                     </div>
 
