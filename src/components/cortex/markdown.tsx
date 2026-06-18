@@ -1,4 +1,39 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
+
+function CodeBlock({ label, code }: { label: string; code: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="md-cb">
+      <div className="md-cb-head">
+        <span className="md-cb-name">{label}</span>
+        <button
+          className="md-cb-copy"
+          aria-label="Copy code"
+          title="Copy code"
+          onClick={() => {
+            navigator.clipboard?.writeText(code);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1400);
+          }}
+        >
+          {copied ? (
+            <svg viewBox="0 0 24 24">
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24">
+              <rect x="9" y="9" width="11" height="11" rx="2" />
+              <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+            </svg>
+          )}
+        </button>
+      </div>
+      <pre className="md-pre">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+}
 
 const INLINE = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
 const BOLD = /^\*\*([^*]+)\*\*$/;
@@ -62,6 +97,10 @@ export function Markdown({ text }: { text: string }) {
   while (i < lines.length) {
     const line = lines[i]!;
     if (FENCE.test(line.trim())) {
+      const info = line.trim().slice(3).trim();
+      const label = info.includes(":")
+        ? info.split(":").pop()!.trim()
+        : info || "code";
       const body: string[] = [];
       i++;
       while (i < lines.length && !FENCE.test(lines[i]!.trim())) {
@@ -70,9 +109,7 @@ export function Markdown({ text }: { text: string }) {
       }
       i++;
       blocks.push(
-        <pre className="md-pre" key={key++}>
-          <code>{body.join("\n")}</code>
-        </pre>,
+        <CodeBlock key={key++} label={label} code={body.join("\n")} />,
       );
       continue;
     }

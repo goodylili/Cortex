@@ -1,5 +1,5 @@
-const PETAL = "M54 43 L54 27 L49 17 L60 24 L71 17 L66 27 L66 43 L60 48 Z";
 const ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
+const BRAND = "#0A0A0A";
 
 export function Logo({
   variant = "color",
@@ -15,7 +15,7 @@ export function Logo({
         ? "#FFFFFF"
         : variant === "black"
           ? "#000000"
-          : "#0A0A0A";
+          : BRAND;
 
   return (
     <svg
@@ -24,9 +24,12 @@ export function Logo({
       className={className}
       xmlns="http://www.w3.org/2000/svg"
     >
-      <circle cx="60" cy="60" r="9" />
+      <circle cx="60" cy="60" r="13" />
       {ANGLES.map((a) => (
-        <path key={a} d={PETAL} transform={`rotate(${a} 60 60)`} />
+        <g key={a} transform={`rotate(${a} 60 60)`}>
+          <rect x="51.5" y="19" width="6.5" height="25" rx="3.25" />
+          <rect x="62" y="19" width="6.5" height="25" rx="3.25" />
+        </g>
       ))}
     </svg>
   );

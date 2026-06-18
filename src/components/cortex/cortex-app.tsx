@@ -58,6 +58,7 @@ import {
 import { Onboarding } from "./onboarding";
 import { CaptureModal } from "./capture";
 import { Markdown } from "./markdown";
+import { SourceChips, type SourceItem } from "./sources";
 
 // cortex::sharing MemoryShare.status: 0 DRAFT, 1 ACTIVE, 2 REVOKED.
 const SHARE_STATUS_LABEL: Record<number, string> = {
@@ -850,13 +851,6 @@ export function CortexApp({
       return n;
     });
   }
-
-  if (!s.ready)
-    return (
-      <div style={{ padding: 60, color: "var(--muted)" }}>
-        Loading your memory…
-      </div>
-    );
 
   const live = s.live();
   const now = Date.now();
@@ -2402,143 +2396,159 @@ export function CortexApp({
               </div>
             ) : (
               <div className="home-chat">
-                {s.chat.map((m, i) => (
-                  <div key={i}>
-                    <div>
-                      <div className="bubble-q">
-                        {m.q}
-                        {m.docs.length > 0 && (
-                          <span className="q-docs">
-                            {m.docs.map((d) => "📎 " + d).join(" ")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="bubble-a">
-                      <div className="atext">
-                        {m.streaming ? m.a : <Markdown text={m.a} />}
-                      </div>
-                      {!m.streaming &&
-                        (() => {
-                          const webRefs = m.sources.filter(
-                            (src) => src.type === "web",
-                          );
-                          const memRefs = m.sources.filter(
-                            (src) => src.type === "memory",
-                          );
-                          return (
-                            <>
-                              {m.web && webRefs.length > 0 && (
-                                <div className="ans-refs">
-                                  <div className="ans-refs-head">
-                                    References
-                                    <span className="ans-refs-n">
-                                      {webRefs.length} result
-                                      {webRefs.length === 1 ? "" : "s"}
-                                    </span>
-                                  </div>
-                                  <div className="ans-refs-list">
-                                    {webRefs.map((src, n) => (
-                                      <a
-                                        key={n}
-                                        className="ref-row"
-                                        href={`https://${src.url}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                      >
-                                        <span className="ref-dot" />
-                                        <span className="ref-txt">
-                                          <b>{src.title}</b>
-                                          <span className="ref-sub">
-                                            {src.url}
-                                          </span>
-                                        </span>
-                                      </a>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {memRefs.length > 0 && (
-                                <div className="ans-refs">
-                                  <div className="ans-refs-head">
-                                    Memories used
-                                    <span className="ans-refs-n">
-                                      {memRefs.length} memor
-                                      {memRefs.length === 1 ? "y" : "ies"}
-                                    </span>
-                                  </div>
-                                  <div className="ans-refs-list">
-                                    {memRefs.map((src, n) => (
-                                      <span key={n} className="ref-row mem">
-                                        <svg
-                                          className="ref-ic"
-                                          viewBox="0 0 24 24"
-                                        >
-                                          <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
-                                        </svg>
-                                        <span className="ref-txt">
-                                          <b>
-                                            {src.text!.length > 64
-                                              ? src.text!.slice(0, 64) + "…"
-                                              : src.text}
-                                          </b>
-                                          <span className="ref-sub">
-                                            {src.label}
-                                            {src.when ? ` · ${src.when}` : ""}
-                                          </span>
-                                        </span>
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </>
-                          );
-                        })()}
-                      {!m.streaming && (
-                        <div className="ans-foot">
-                          <button
-                            className="ans-save"
-                            onClick={() => {
-                              s.remember(m.a, "normal");
-                              flash("Saved this answer to your memory.");
-                            }}
-                          >
-                            <svg viewBox="0 0 24 24">
-                              <path d="M12 5v14M5 12h14" />
-                            </svg>
-                            Remember this
-                          </button>
-                          {readAloud.supported && m.a && (
-                            <button
-                              className="ans-save"
-                              onClick={() =>
-                                readAloud.speaking
-                                  ? readAloud.stop()
-                                  : readAloud.speak(m.a)
-                              }
-                            >
-                              <svg viewBox="0 0 24 24">
-                                <path d="M11 5 6 9H3v6h3l5 4zM16 9a4 4 0 0 1 0 6M19 7a8 8 0 0 1 0 10" />
-                              </svg>
-                              {readAloud.speaking ? "Stop" : "Read aloud"}
-                            </button>
+                {s.chat.map((m, i) => {
+                  const pad = (n: number) => String(n).padStart(2, "0");
+                  let mn = 0;
+                  let kn = 0;
+                  let wn = 0;
+                  const items: SourceItem[] = [
+                    ...m.sources
+                      .filter((src) => src.type === "memory")
+                      .map((src) => ({
+                        kind: "memory" as const,
+                        label: `Memory Source ${pad(++mn)}`,
+                        title: src.text,
+                      })),
+                    ...m.docs.map((d) => ({
+                      kind: "knowledge" as const,
+                      label: `Knowledge Base ${pad(++kn)}`,
+                      title: d,
+                    })),
+                    ...m.sources
+                      .filter((src) => src.type === "web")
+                      .map((src) => ({
+                        kind: "web" as const,
+                        label: `Web Search ${pad(++wn)}`,
+                        title: src.title,
+                        url: src.url ? `https://${src.url}` : undefined,
+                      })),
+                  ];
+                  return (
+                    <div className="cmsg" key={i}>
+                      <div className="cmsg-q">
+                        <div className="bubble-q">
+                          {m.q}
+                          {m.docs.length > 0 && (
+                            <span className="q-docs">
+                              {m.docs.map((d) => "📎 " + d).join(" ")}
+                            </span>
                           )}
-                          <span className="src">
-                            {m.model}
-                            {m.savedNote && (
-                              <>
-                                {" "}
-                                ·{" "}
-                                <span className="ask-saved">{m.savedNote}</span>
-                              </>
-                            )}
-                          </span>
                         </div>
-                      )}
+                      </div>
+                      <div className="cmsg-a">
+                        <span className="cmsg-av" aria-hidden="true">
+                          <svg viewBox="0 0 24 24">
+                            <path d="M13 2 4 14h6l-1 8 9-12h-6z" />
+                          </svg>
+                        </span>
+                        <div className="cmsg-card">
+                          <div className="atext">
+                            {m.streaming ? m.a : <Markdown text={m.a} />}
+                          </div>
+                          {!m.streaming && <SourceChips sources={items} />}
+                          {!m.streaming && (
+                            <div className="cmsg-acts">
+                              <button
+                                className="cmsg-ic"
+                                title="Copy"
+                                aria-label="Copy"
+                                onClick={() => {
+                                  navigator.clipboard?.writeText(m.a);
+                                  flash("Copied.");
+                                }}
+                              >
+                                <svg viewBox="0 0 24 24">
+                                  <rect
+                                    x="9"
+                                    y="9"
+                                    width="11"
+                                    height="11"
+                                    rx="2"
+                                  />
+                                  <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                                </svg>
+                              </button>
+                              {readAloud.supported && m.a && (
+                                <button
+                                  className="cmsg-ic"
+                                  title={
+                                    readAloud.speaking ? "Stop" : "Read aloud"
+                                  }
+                                  aria-label="Read aloud"
+                                  onClick={() =>
+                                    readAloud.speaking
+                                      ? readAloud.stop()
+                                      : readAloud.speak(m.a)
+                                  }
+                                >
+                                  {readAloud.speaking ? (
+                                    <svg viewBox="0 0 24 24">
+                                      <rect
+                                        x="6"
+                                        y="6"
+                                        width="12"
+                                        height="12"
+                                        rx="2"
+                                      />
+                                    </svg>
+                                  ) : (
+                                    <svg viewBox="0 0 24 24">
+                                      <path d="M7 5l11 7-11 7z" />
+                                    </svg>
+                                  )}
+                                </button>
+                              )}
+                              <button
+                                className={
+                                  "cmsg-ic" + (m.rating === "up" ? " on" : "")
+                                }
+                                title="Good response"
+                                aria-label="Good response"
+                                onClick={() => s.rateChat(i, "up")}
+                              >
+                                <svg viewBox="0 0 24 24">
+                                  <path d="M7 11v9H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1zM7 11l4-8a2 2 0 0 1 2 2v4h5.5a2 2 0 0 1 2 2.4l-1.2 6A2 2 0 0 1 17.3 20H7" />
+                                </svg>
+                              </button>
+                              <button
+                                className={
+                                  "cmsg-ic" + (m.rating === "down" ? " on" : "")
+                                }
+                                title="Bad response"
+                                aria-label="Bad response"
+                                onClick={() => s.rateChat(i, "down")}
+                              >
+                                <svg viewBox="0 0 24 24">
+                                  <path d="M17 13V4h3a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1zM17 13l-4 8a2 2 0 0 1-2-2v-4H5.5a2 2 0 0 1-2-2.4l1.2-6A2 2 0 0 1 6.7 4H17" />
+                                </svg>
+                              </button>
+                              <button
+                                className="cmsg-ic"
+                                title="Regenerate"
+                                aria-label="Regenerate"
+                                disabled={!m.q}
+                                onClick={() => m.q && s.ask(m.q)}
+                              >
+                                <svg viewBox="0 0 24 24">
+                                  <path d="M21 12a9 9 0 1 1-3-6.7M21 4v4h-4" />
+                                </svg>
+                              </button>
+                              <span className="cmsg-model">
+                                {m.model}
+                                {m.savedNote && (
+                                  <span className="ask-saved">
+                                    {" · "}
+                                    {m.savedNote}
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
@@ -3039,8 +3049,21 @@ export function CortexApp({
                                     </span>
                                   </div>
                                   <div className="pr-msg-text">
-                                    {renderMessageText(o.text, rosterNames)}
+                                    <Markdown text={o.text} />
                                   </div>
+                                  {o.memoryRefs && o.memoryRefs.length > 0 && (
+                                    <SourceChips
+                                      sources={o.memoryRefs.map((id, n) => ({
+                                        kind: "memory" as const,
+                                        label: `Memory Source ${String(
+                                          n + 1,
+                                        ).padStart(2, "0")}`,
+                                        title: s.memories.find(
+                                          (mm) => mm.id === id,
+                                        )?.text,
+                                      }))}
+                                    />
+                                  )}
                                   <button
                                     className="pr-save"
                                     onClick={() => saveFinding(room.id, o.id)}
@@ -3520,8 +3543,21 @@ export function CortexApp({
                                   <span className="pr-time">{clock(o.ts)}</span>
                                 </div>
                                 <div className="pr-msg-text">
-                                  {renderMessageText(o.text, rosterNames)}
+                                  <Markdown text={o.text} />
                                 </div>
+                                {o.memoryRefs && o.memoryRefs.length > 0 && (
+                                  <SourceChips
+                                    sources={o.memoryRefs.map((id, n) => ({
+                                      kind: "memory" as const,
+                                      label: `Memory Source ${String(
+                                        n + 1,
+                                      ).padStart(2, "0")}`,
+                                      title: s.memories.find(
+                                        (mm) => mm.id === id,
+                                      )?.text,
+                                    }))}
+                                  />
+                                )}
                               </div>
                             </div>
                           );
