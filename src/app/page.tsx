@@ -1,5 +1,3 @@
-import { Instrument_Sans } from "next/font/google";
-
 import { Hero } from "@/components/landing/hero";
 import { ProblemSection } from "@/components/landing/problem-section";
 import { SolutionSection } from "@/components/landing/solution-section";
@@ -12,15 +10,9 @@ import { MarqueeBand } from "@/components/landing/marquee-band";
 import { LandingThemeProvider } from "@/components/landing/theme-provider";
 import { ThemeToggle } from "@/components/landing/theme-toggle";
 
-const instrumentSans = Instrument_Sans({
-  subsets: ["latin"],
-  variable: "--font-instrument-sans",
-  display: "swap",
-});
-
 export default function Home() {
   return (
-    <LandingThemeProvider className={instrumentSans.variable}>
+    <LandingThemeProvider>
       <div className="pointer-events-none fixed inset-0 z-50 hidden md:block">
         <div className="mx-auto h-full max-w-7xl">
           <div className="relative h-full">

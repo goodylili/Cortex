@@ -15,7 +15,7 @@ export function ThemeToggle() {
   const { preference, setPreference } = useLandingTheme();
 
   return (
-    <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-1 rounded-full border border-ink/15 bg-canvas/70 p-1 shadow-lg backdrop-blur-md">
+    <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-1 rounded-[var(--r)] border border-ink/15 bg-canvas/70 p-1 shadow-lg backdrop-blur-md">
       {OPTIONS.map(({ value, label, icon: Icon }) => (
         <button
           key={value}
@@ -24,7 +24,7 @@ export function ThemeToggle() {
           aria-label={label}
           aria-pressed={preference === value}
           className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-full transition-colors",
+            "flex h-9 w-9 items-center justify-center rounded-[var(--r)] transition-colors",
             preference === value
               ? "bg-ink text-canvas"
               : "text-ink/50 hover:text-ink",

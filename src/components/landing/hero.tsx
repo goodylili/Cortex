@@ -99,7 +99,7 @@ export function Hero() {
         </nav>
 
         <div className="flex flex-1 flex-col items-center px-6 pb-16 pt-16 text-center md:pt-24">
-          <div className="mb-6 inline-block rounded-full border border-ink/20 bg-ink/10 px-3 py-1 text-xs font-medium text-ink/70">
+          <div className="mb-6 inline-block rounded-[var(--r)] border border-ink/20 bg-ink/10 px-3 py-1 text-xs font-medium text-ink/70">
             Local-first memory × Multi-agent AI
           </div>
 
@@ -140,7 +140,7 @@ export function Hero() {
             <Button
               asChild
               size="lg"
-              className="bg-ink px-8 text-canvas hover:bg-ink/90"
+              className="rounded-[var(--r)] bg-ink px-8 text-canvas hover:bg-ink/90"
             >
               <Link href="/app">Try Cortex Free</Link>
             </Button>
@@ -148,7 +148,7 @@ export function Hero() {
               asChild
               variant="outline"
               size="lg"
-              className="border-ink/20 bg-transparent px-8 text-ink hover:bg-ink/10 hover:text-ink"
+              className="rounded-[var(--r)] border-ink/20 bg-transparent px-8 text-ink hover:bg-ink/10 hover:text-ink"
             >
               <Link href="#solution">See How It Works</Link>
             </Button>

@@ -12,7 +12,7 @@ export function ProblemSection() {
     <section className="relative w-full border-b border-ink/10 bg-canvas py-24 md:py-32">
       <div className="relative z-10 mx-auto flex max-w-7xl flex-col items-center justify-center px-6 md:px-12 lg:px-16">
         <div className="flex flex-col items-center space-y-8 text-center">
-          <div className="flex w-fit items-center gap-3 rounded-full border border-ink/20 bg-ink/10 px-4 py-2">
+          <div className="flex w-fit items-center gap-3 rounded-[var(--r)] border border-ink/20 bg-ink/10 px-4 py-2">
             <div className="h-2.5 w-2.5 bg-ink" />
             <span className="text-sm font-medium tracking-wide text-ink/70">
               The Challenge
@@ -45,13 +45,13 @@ export function ProblemSection() {
           <div className="flex flex-col gap-4 pt-8 sm:flex-row sm:justify-center">
             <Link
               href="#solution"
-              className="rounded bg-ink px-8 py-3 font-semibold text-canvas transition-all hover:bg-ink/90 active:scale-95"
+              className="rounded-[var(--r)] bg-ink px-8 py-3 font-semibold text-canvas transition-all hover:bg-ink/90 active:scale-95"
             >
               See How Cortex Works
             </Link>
             <Link
               href="#features"
-              className="rounded border border-ink/20 px-8 py-3 font-semibold text-ink transition-all hover:bg-ink/10 active:scale-95"
+              className="rounded-[var(--r)] border border-ink/20 px-8 py-3 font-semibold text-ink transition-all hover:bg-ink/10 active:scale-95"
             >
               Read the Philosophy
             </Link>

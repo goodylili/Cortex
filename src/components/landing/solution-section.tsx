@@ -74,7 +74,7 @@ export function SolutionSection() {
       <div className="sticky top-0 flex min-h-screen flex-col items-center justify-center py-24 text-ink">
         <div className="w-full max-w-7xl space-y-12 px-6 md:px-12 lg:px-16">
           <div className="flex max-w-[560px] flex-col gap-4">
-            <div className="flex w-fit items-center gap-3 rounded-full border border-ink/20 bg-ink/10 px-4 py-2">
+            <div className="flex w-fit items-center gap-3 rounded-[var(--r)] border border-ink/20 bg-ink/10 px-4 py-2">
               <div className="h-2.5 w-2.5 bg-ink" />
               <span className="text-sm font-medium tracking-wide text-ink/70">
                 The Solution
@@ -159,7 +159,7 @@ export function SolutionSection() {
                   <div className="flex items-start gap-3 md:gap-4">
                     <div
                       className={cn(
-                        "mt-1 shrink-0 rounded p-2 transition-colors duration-300",
+                        "mt-1 shrink-0 rounded-[var(--r)] p-2 transition-colors duration-300",
                         activeIndex === index
                           ? "bg-ink text-canvas"
                           : "bg-ink/5 text-ink/40",
@@ -211,7 +211,7 @@ export function SolutionSection() {
           <div className="flex justify-center border-t border-ink/5 pt-12">
             <Link
               href="/app"
-              className="flex items-center gap-2 rounded bg-ink px-8 py-4 font-medium text-canvas transition-transform hover:scale-105 active:scale-95"
+              className="flex items-center gap-2 rounded-[var(--r)] bg-ink px-8 py-4 font-medium text-canvas transition-transform hover:scale-105 active:scale-95"
             >
               Get Started
               <ChevronRight className="h-4 w-4" />
