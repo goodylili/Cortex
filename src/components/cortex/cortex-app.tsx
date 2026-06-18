@@ -17,10 +17,7 @@ import {
   customModelId,
   type CustomModel,
 } from "@/lib/llm/byok";
-import {
-  passkeySupported,
-  passkeyEnrolled,
-} from "@/lib/llm/byok-vault";
+import { passkeySupported, passkeyEnrolled } from "@/lib/llm/byok-vault";
 import type { Provider } from "@/lib/llm/models";
 import {
   compilePrompt,
@@ -42,11 +39,7 @@ import {
   type MemState,
 } from "@/lib/cortex/memory-model";
 import type { CortexWalletState } from "@/lib/cortex/use-wallet";
-import {
-  CORTEX_ENV,
-  contractsEnabled,
-  sealEnabled,
-} from "@/lib/cortex/walrus/env";
+import { CORTEX_ENV, contractsEnabled } from "@/lib/cortex/walrus/env";
 import { AGENTS, agentById } from "@/lib/cortex/agents";
 import { useDictation, useReadAloud } from "@/lib/cortex/use-voice";
 import { CaptureModal } from "./capture";
@@ -80,7 +73,6 @@ const MemoryMap = dynamic(
   },
 );
 
-
 type View =
   | "home"
   | "memories"
@@ -89,9 +81,16 @@ type View =
   | "agents"
   | "studio"
   | "knowledge"
-  | "integrations"
-  | "settings";
+  | "integrations";
 type Theme = "light" | "dark" | "system";
+type SettingsSection =
+  | "account"
+  | "models"
+  | "privacy"
+  | "username"
+  | "devices"
+  | "memory"
+  | "reset";
 
 // Popular destinations per modality — "Open in …" from the Studio output.
 // `prefill` URLs accept the prompt as a ?q= query; the rest just open the app
@@ -145,6 +144,16 @@ export function CortexApp({
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const [dev, setDev] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] =
+    useState<SettingsSection>("account");
+  const [settingsSearch, setSettingsSearch] = useState("");
+  const openSettings = (section: SettingsSection) => {
+    setSettingsSection(section);
+    setSettingsSearch("");
+    setSettingsOpen(true);
+    setProfileOpen(false);
+  };
   const [input, setInput] = useState("");
   const [memFilter, setMemFilter] = useState("all");
   const [memTab, setMemTab] = useState<"cards" | "timeline">("cards");
@@ -258,7 +267,6 @@ export function CortexApp({
           "studio",
           "knowledge",
           "integrations",
-          "settings",
         ].includes(h)
       )
         setView(h);
@@ -409,7 +417,10 @@ export function CortexApp({
   useEffect(() => {
     if (!profileOpen) return;
     const onDoc = (e: MouseEvent) => {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+      if (
+        profileRef.current &&
+        !profileRef.current.contains(e.target as Node)
+      ) {
         setProfileOpen(false);
       }
     };
@@ -533,7 +544,9 @@ export function CortexApp({
     const ids = [...shareSel];
     ids.forEach((id) => s.setAside(id));
     setShareSel(new Set());
-    flash(`Set aside ${ids.length} ${ids.length === 1 ? "memory" : "memories"}.`);
+    flash(
+      `Set aside ${ids.length} ${ids.length === 1 ? "memory" : "memories"}.`,
+    );
   }
   function bulkForget() {
     const ids = [...shareSel];
@@ -545,7 +558,9 @@ export function CortexApp({
     const ids = [...shareSel];
     ids.forEach((id) => s.keepClose(id));
     setShareSel(new Set());
-    flash(`Kept ${ids.length} ${ids.length === 1 ? "memory" : "memories"} close.`);
+    flash(
+      `Kept ${ids.length} ${ids.length === 1 ? "memory" : "memories"} close.`,
+    );
   }
   async function shareSelected() {
     const w = walletState?.wallet;
@@ -650,10 +665,10 @@ export function CortexApp({
   }, [drawer]);
 
   useEffect(() => {
-    if (view !== "settings") return;
+    if (!settingsOpen) return;
     void loadDelegates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, walletState?.wallet]);
+  }, [settingsOpen, walletState?.wallet]);
 
   // Dreams (offline insight pass) power the wide carousel on the overview. Fetch
   // once, lazily, when the overview is in view and there's enough to reflect on.
@@ -732,7 +747,9 @@ export function CortexApp({
         void wallet
           .remember(text)
           .catch((err) =>
-            flash(`Saved locally; Walrus memory failed: ${(err as Error).message}`),
+            flash(
+              `Saved locally; Walrus memory failed: ${(err as Error).message}`,
+            ),
           );
       setInput("");
       grow(ta.current);
@@ -774,6 +791,59 @@ export function CortexApp({
   const hasChat = s.chat.length > 0 && s.mode === "ask";
   const sav = computeSavings(live, s.cost);
 
+  const SETTINGS_NAV: [SettingsSection, string, React.ReactNode][] = [
+    [
+      "account",
+      "Account",
+      <g key="i">
+        <circle cx="12" cy="8" r="3.4" />
+        <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+      </g>,
+    ],
+    [
+      "models",
+      "Models & API keys",
+      <path
+        key="i"
+        d="M14 7a4 4 0 1 0-3.4 6L7 16.6V20h3.4l.6-2h2l.6-2 .8-.8A4 4 0 0 0 14 7zm2.6 1.4h.01"
+      />,
+    ],
+    [
+      "privacy",
+      "Privacy & Access",
+      <path key="i" d="M12 3l7 3v5c0 4.4-3 8.3-7 9.5C8 19.3 5 15.4 5 11V6z" />,
+    ],
+    [
+      "username",
+      "Username & sharing",
+      <path
+        key="i"
+        d="M12 8a4 4 0 1 0 2.5 7.1M12 8a4 4 0 0 1 4 4v1.2a2 2 0 0 1-4 0V8"
+      />,
+    ],
+    [
+      "devices",
+      "Devices & Access",
+      <g key="i">
+        <rect x="3" y="4" width="18" height="12" rx="1.5" />
+        <path d="M8 20h8M12 16v4" />
+      </g>,
+    ],
+    [
+      "memory",
+      "Memory model",
+      <g key="i">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" />
+      </g>,
+    ],
+    [
+      "reset",
+      "Reset memory",
+      <path key="i" d="M4 12a8 8 0 1 1 2.3 5.6M4 12V7M4 12h5" />,
+    ],
+  ];
+
   const NAV: [View, string, React.ReactNode][] = [
     [
       "home",
@@ -808,7 +878,10 @@ export function CortexApp({
       <>
         <circle key="a" cx="9" cy="7" r="3" />
         <circle key="b" cx="17" cy="9" r="2.4" />
-        <path key="c" d="M3 20a6 6 0 0 1 12 0M14.5 14.5a4.5 4.5 0 0 1 6.5 4.1" />
+        <path
+          key="c"
+          d="M3 20a6 6 0 0 1 12 0M14.5 14.5a4.5 4.5 0 0 1 6.5 4.1"
+        />
       </>,
     ],
     [
@@ -1205,9 +1278,7 @@ export function CortexApp({
           <circle cx="12" cy="12" r="3.2" />
         </>
       ),
-      claude: (
-        <path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4" />
-      ),
+      claude: <path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4" />,
       "claude-code": (
         <>
           <rect x="3" y="5" width="18" height="14" rx="2" />
@@ -1463,76 +1534,76 @@ export function CortexApp({
   const memCard = (m: Memory) => {
     const selected = shareSel.has(m.id);
     return (
-    <div
-      className={"mcard" + (selected ? " selected" : "")}
-      key={m.id}
-      onClick={() => setDrawer(m)}
-    >
-      {!m.shared && (
-        <button
-          className={"mcard-check" + (selected ? " on" : "")}
-          onClick={(e) => {
-            e.stopPropagation();
-            setShareSel((prev) => {
-              const next = new Set(prev);
-              if (next.has(m.id)) next.delete(m.id);
-              else next.add(m.id);
-              return next;
-            });
-          }}
-          aria-label={selected ? "Deselect memory" : "Select memory to share"}
-        >
-          <svg viewBox="0 0 24 24">
-            <path d="M20 6L9 17l-5-5" />
-          </svg>
-        </button>
-      )}
-      <div className="mtext">{m.text}</div>
-      <div className="mfoot">
-        {m.shared && (
-          <span className="chip shared">
-            <span className="dot" />
-            shared{m.sharedBy ? ` · ${m.sharedBy}` : ""}
-          </span>
+      <div
+        className={"mcard" + (selected ? " selected" : "")}
+        key={m.id}
+        onClick={() => setDrawer(m)}
+      >
+        {!m.shared && (
+          <button
+            className={"mcard-check" + (selected ? " on" : "")}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShareSel((prev) => {
+                const next = new Set(prev);
+                if (next.has(m.id)) next.delete(m.id);
+                else next.add(m.id);
+                return next;
+              });
+            }}
+            aria-label={selected ? "Deselect memory" : "Select memory to share"}
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+          </button>
         )}
-        {(() => {
-          if (m.shared) return null;
-          const st = memState(m);
-          return st === "core" ? (
-            <span className="chip core">
+        <div className="mtext">{m.text}</div>
+        <div className="mfoot">
+          {m.shared && (
+            <span className="chip shared">
               <span className="dot" />
-              core
+              shared{m.sharedBy ? ` · ${m.sharedBy}` : ""}
             </span>
-          ) : st === "pinned" ? (
-            <span className="chip kept">
-              <span className="dot" />
-              kept
+          )}
+          {(() => {
+            if (m.shared) return null;
+            const st = memState(m);
+            return st === "core" ? (
+              <span className="chip core">
+                <span className="dot" />
+                core
+              </span>
+            ) : st === "pinned" ? (
+              <span className="chip kept">
+                <span className="dot" />
+                kept
+              </span>
+            ) : st === "fading" ? (
+              <span className="chip fading">
+                <span className="dot" />
+                fading
+              </span>
+            ) : st === "forgotten" ? (
+              <span className="chip gone">
+                <span className="dot" />
+                out of mind
+              </span>
+            ) : m.noticed ? (
+              <span className="chip noticed">
+                <span className="dot" />
+                noticed
+              </span>
+            ) : null;
+          })()}
+          {m.tags.map((t) => (
+            <span className="mtag" key={t}>
+              {t}
             </span>
-          ) : st === "fading" ? (
-            <span className="chip fading">
-              <span className="dot" />
-              fading
-            </span>
-          ) : st === "forgotten" ? (
-            <span className="chip gone">
-              <span className="dot" />
-              out of mind
-            </span>
-          ) : m.noticed ? (
-            <span className="chip noticed">
-              <span className="dot" />
-              noticed
-            </span>
-          ) : null;
-        })()}
-        {m.tags.map((t) => (
-          <span className="mtag" key={t}>
-            {t}
-          </span>
-        ))}
-        <span className="mwhen">{ago(m.ts)}</span>
+          ))}
+          <span className="mwhen">{ago(m.ts)}</span>
+        </div>
       </div>
-    </div>
     );
   };
 
@@ -1546,9 +1617,7 @@ export function CortexApp({
     const hay = (m.text + " " + m.tags.join(" ")).toLowerCase();
     return (
       (memFilter === "all" ||
-        (memFilter === "__shared"
-          ? !!m.shared
-          : m.tags.includes(memFilter))) &&
+        (memFilter === "__shared" ? !!m.shared : m.tags.includes(memFilter))) &&
       hay.includes(q)
     );
   });
@@ -1618,15 +1687,17 @@ export function CortexApp({
   return (
     <div
       className={
-        "app" +
-        (onHome ? " home-rail" : "") +
-        (railOn ? " rail-expanded" : "")
+        "app" + (onHome ? " home-rail" : "") + (railOn ? " rail-expanded" : "")
       }
     >
       <header className="topbar">
         <div className="topbar-inner">
           <div className="tb-left">
-            <a className="tb-brand" href="#home" onClick={() => setView("home")}>
+            <a
+              className="tb-brand"
+              href="#home"
+              onClick={() => setView("home")}
+            >
               <span className="mark">{MARK}</span>
               <b>Cortex</b>
             </a>
@@ -1699,10 +1770,10 @@ export function CortexApp({
                       {sess && claimedName ? (
                         <a
                           className="you-handle"
-                          href="#settings"
-                          onClick={() => {
-                            setView("settings");
-                            setProfileOpen(false);
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            openSettings("username");
                           }}
                         >
                           <span className="dot" />
@@ -1711,10 +1782,10 @@ export function CortexApp({
                       ) : sess ? (
                         <a
                           className="you-claim"
-                          href="#settings"
-                          onClick={() => {
-                            setView("settings");
-                            setProfileOpen(false);
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            openSettings("username");
                           }}
                         >
                           Claim username
@@ -1759,15 +1830,14 @@ export function CortexApp({
                     <svg viewBox="0 0 24 24">
                       <path d="M8 3H7a2 2 0 0 0-2 2v3a2 2 0 0 1-2 2 2 2 0 0 1 2 2v3a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 1 2 2v3a2 2 0 0 0 2 2 2 2 0 0 0-2 2v3a2 2 0 0 1-2 2h-1" />
                     </svg>
-                    <span style={{ flex: 1, textAlign: "left" }}>Developer</span>
+                    <span style={{ flex: 1, textAlign: "left" }}>
+                      Developer
+                    </span>
                     <span className="dev-switch" />
                   </button>
                   <button
                     className="tb-menu-item"
-                    onClick={() => {
-                      setView("settings");
-                      setProfileOpen(false);
-                    }}
+                    onClick={() => openSettings("account")}
                   >
                     <svg viewBox="0 0 24 24">
                       <circle cx="12" cy="12" r="3" />
@@ -1812,7 +1882,9 @@ export function CortexApp({
       </header>
 
       <aside
-        className={"chat-rail" + (onHome ? " on-home" : "") + (railOn ? " open" : "")}
+        className={
+          "chat-rail" + (onHome ? " on-home" : "") + (railOn ? " open" : "")
+        }
         aria-hidden={!onHome}
       >
         <div className="cr-top">
@@ -1891,8 +1963,8 @@ export function CortexApp({
         <div className="wrap">
           {/* HOME */}
           <section className={"view" + (view === "home" ? " on" : "")}>
-            {(!hasChat ? (
-                <div className="home-intro">
+            {!hasChat ? (
+              <div className="home-intro">
                 <div className="ov-hero">
                   <h1 className="ov-hello">
                     Hello,{" "}
@@ -1991,9 +2063,7 @@ export function CortexApp({
                               ? "File"
                               : "Memory";
                         const fileName =
-                          (m.origin
-                            ? m.origin.split(/[\\/]/).pop()
-                            : null) ||
+                          (m.origin ? m.origin.split(/[\\/]/).pop() : null) ||
                           m.text.slice(0, 40) ||
                           "Untitled";
                         const fileMeta = (m.mime || "file").split("/").pop();
@@ -2006,10 +2076,7 @@ export function CortexApp({
                             <div className="hc-card-top">
                               <span className="hc-tag">
                                 {pinned && (
-                                  <svg
-                                    className="hc-heart"
-                                    viewBox="0 0 24 24"
-                                  >
+                                  <svg className="hc-heart" viewBox="0 0 24 24">
                                     <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
                                   </svg>
                                 )}
@@ -2187,7 +2254,7 @@ export function CortexApp({
                   </div>
                 ))}
               </div>
-              ))}
+            )}
           </section>
 
           {/* MEMORIES + LOOKING BACK */}
@@ -2427,8 +2494,8 @@ export function CortexApp({
                   </div>
                   {s.tasks.length === 0 && (
                     <div className="aw-empty">
-                      No operations yet. Mention an agent below and give the team
-                      a goal to begin.
+                      No operations yet. Mention an agent below and give the
+                      team a goal to begin.
                     </div>
                   )}
                   {awActive &&
@@ -3107,7 +3174,9 @@ export function CortexApp({
                   </svg>
                 </div>
                 <div className="it">Ingest Source</div>
-                <div className="is">Drag &amp; drop PDFs, TXT, or MD files here</div>
+                <div className="is">
+                  Drag &amp; drop PDFs, TXT, or MD files here
+                </div>
                 <span className="kb2-browse">Browse Files</span>
               </button>
               {kbFiltered.map((it) => (
@@ -3309,10 +3378,7 @@ export function CortexApp({
               className="share-backdrop"
               onClick={() => setShareHubOpen(false)}
             >
-              <div
-                className="share-modal"
-                onClick={(e) => e.stopPropagation()}
-              >
+              <div className="share-modal" onClick={(e) => e.stopPropagation()}>
                 <button
                   className="share-x"
                   onClick={() => setShareHubOpen(false)}
@@ -3330,339 +3396,346 @@ export function CortexApp({
                   time.
                 </p>
 
-            {!wallet ? (
-              <div className="empty" style={{ marginTop: 28 }}>
-                <div className="et">Sign in to start sharing</div>
-                <div className="es">
-                  Sharing needs your Sui wallet so memories stay owned by you.
-                  Sign in to claim a username and share memories with others.
-                </div>
-                <button
-                  className="pill-btn keep"
-                  style={{ marginTop: 14 }}
-                  onClick={doSignIn}
-                >
-                  {privyOn
-                    ? "Sign in with Privy"
-                    : "Continue with Google (zkLogin)"}
-                </button>
-              </div>
-            ) : (
-              <div className="int2">
-                {/* Your identity */}
-                <div className="int2-group">
-                  <div className="int2-glabel">Your identity</div>
-                  <div className="scard">
-                    <div className="int2-name">
-                      Username
-                      {claimedName && (
-                        <span className="chip shared">
-                          <span className="dot" />
-                          {claimedName}
-                        </span>
-                      )}
+                {!wallet ? (
+                  <div className="empty" style={{ marginTop: 28 }}>
+                    <div className="et">Sign in to start sharing</div>
+                    <div className="es">
+                      Sharing needs your Sui wallet so memories stay owned by
+                      you. Sign in to claim a username and share memories with
+                      others.
                     </div>
-                    <div className="ssub" style={{ marginTop: 4 }}>
-                      Claiming mints a real SuiNS leaf subname under cortex.sui
-                      and points it at your wallet, so others can share with you
-                      by name.
-                    </div>
-                    {claimedName ? (
-                      <div className="ssub" style={{ marginTop: 10 }}>
-                        You hold{" "}
-                        <span style={{ fontFamily: "var(--mono,monospace)" }}>
-                          {claimedName}
-                        </span>{" "}
-                        — it points to your wallet.
+                    <button
+                      className="pill-btn keep"
+                      style={{ marginTop: 14 }}
+                      onClick={doSignIn}
+                    >
+                      {privyOn
+                        ? "Sign in with Privy"
+                        : "Continue with Google (zkLogin)"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="int2">
+                    {/* Your identity */}
+                    <div className="int2-group">
+                      <div className="int2-glabel">Your identity</div>
+                      <div className="scard">
+                        <div className="int2-name">
+                          Username
+                          {claimedName && (
+                            <span className="chip shared">
+                              <span className="dot" />
+                              {claimedName}
+                            </span>
+                          )}
+                        </div>
+                        <div className="ssub" style={{ marginTop: 4 }}>
+                          Claiming mints a real SuiNS leaf subname under
+                          cortex.sui and points it at your wallet, so others can
+                          share with you by name.
+                        </div>
+                        {claimedName ? (
+                          <div className="ssub" style={{ marginTop: 10 }}>
+                            You hold{" "}
+                            <span
+                              style={{ fontFamily: "var(--mono,monospace)" }}
+                            >
+                              {claimedName}
+                            </span>{" "}
+                            — it points to your wallet.
+                          </div>
+                        ) : (
+                          <>
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: 8,
+                                marginTop: 12,
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <input
+                                className="cortex-input"
+                                style={{ flex: 1, minWidth: 180 }}
+                                placeholder="yourname"
+                                value={username}
+                                disabled={claimBusy}
+                                onChange={(e) => setUsername(e.target.value)}
+                              />
+                              <button
+                                className="pill-btn keep"
+                                disabled={claimBusy || !username.trim()}
+                                onClick={() => void claimUsername()}
+                              >
+                                {claimBusy ? "Claiming…" : "Claim"}
+                              </button>
+                            </div>
+                            <div className="ssub" style={{ marginTop: 8 }}>
+                              Not claimed yet — pick a handle to get a
+                              name.cortex.sui address.
+                            </div>
+                          </>
+                        )}
+                        {claimErr && (
+                          <div className="ssub" style={{ marginTop: 10 }}>
+                            {claimErr}
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <>
+                    </div>
+
+                    {/* Share memories */}
+                    <div className="int2-group">
+                      <div className="int2-glabel">Share memories</div>
+                      <div className="scard">
+                        <div className="int2-name">Pick memories to share</div>
+                        <div className="ssub" style={{ marginTop: 4 }}>
+                          Choose one or more of your memories and send them to
+                          someone by username, name.cortex.sui or 0x address.
+                          They get a read-only copy.
+                        </div>
                         <div
                           style={{
                             display: "flex",
                             gap: 8,
-                            marginTop: 12,
+                            margin: "14px 0",
                             flexWrap: "wrap",
                           }}
                         >
                           <input
                             className="cortex-input"
-                            style={{ flex: 1, minWidth: 180 }}
-                            placeholder="yourname"
-                            value={username}
-                            disabled={claimBusy}
-                            onChange={(e) => setUsername(e.target.value)}
+                            style={{ flex: 1, minWidth: 200 }}
+                            placeholder="username or username.cortex.sui"
+                            value={shareRecipient}
+                            disabled={shareBusy}
+                            onChange={(e) => setShareRecipient(e.target.value)}
                           />
                           <button
                             className="pill-btn keep"
-                            disabled={claimBusy || !username.trim()}
-                            onClick={() => void claimUsername()}
+                            disabled={
+                              shareBusy ||
+                              !shareRecipient.trim() ||
+                              shareSel.size === 0
+                            }
+                            onClick={() => void shareSelected()}
                           >
-                            {claimBusy ? "Claiming…" : "Claim"}
+                            {shareBusy
+                              ? "Sharing…"
+                              : `Share ${shareSel.size || ""}`.trim()}
                           </button>
                         </div>
-                        <div className="ssub" style={{ marginTop: 8 }}>
-                          Not claimed yet — pick a handle to get a
-                          name.cortex.sui address.
-                        </div>
-                      </>
-                    )}
-                    {claimErr && (
-                      <div className="ssub" style={{ marginTop: 10 }}>
-                        {claimErr}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Share memories */}
-                <div className="int2-group">
-                  <div className="int2-glabel">Share memories</div>
-                  <div className="scard">
-                    <div className="int2-name">Pick memories to share</div>
-                    <div className="ssub" style={{ marginTop: 4 }}>
-                      Choose one or more of your memories and send them to
-                      someone by username, name.cortex.sui or 0x address. They
-                      get a read-only copy.
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 8,
-                        margin: "14px 0",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <input
-                        className="cortex-input"
-                        style={{ flex: 1, minWidth: 200 }}
-                        placeholder="username or username.cortex.sui"
-                        value={shareRecipient}
-                        disabled={shareBusy}
-                        onChange={(e) => setShareRecipient(e.target.value)}
-                      />
-                      <button
-                        className="pill-btn keep"
-                        disabled={
-                          shareBusy ||
-                          !shareRecipient.trim() ||
-                          shareSel.size === 0
-                        }
-                        onClick={() => void shareSelected()}
-                      >
-                        {shareBusy
-                          ? "Sharing…"
-                          : `Share ${shareSel.size || ""}`.trim()}
-                      </button>
-                    </div>
-                    {shareErr && (
-                      <div className="ssub" style={{ marginBottom: 10 }}>
-                        {shareErr}
-                      </div>
-                    )}
-                    {live.length === 0 ? (
-                      <div className="ssub">
-                        You have no memories to share yet.
-                      </div>
-                    ) : (
-                      <div
-                        className="share-pick"
-                        style={{
-                          maxHeight: 320,
-                          overflowY: "auto",
-                          borderTop:
-                            "1px solid var(--line, rgba(0,0,0,0.08))",
-                        }}
-                      >
-                        {live.slice(0, 60).map((m) => {
-                          const on = shareSel.has(m.id);
-                          return (
-                            <button
-                              key={m.id}
-                              className="share-row"
-                              onClick={() => {
-                                const next = new Set(shareSel);
-                                if (on) next.delete(m.id);
-                                else next.add(m.id);
-                                setShareSel(next);
-                              }}
-                              style={{
-                                display: "flex",
-                                alignItems: "flex-start",
-                                gap: 10,
-                                width: "100%",
-                                textAlign: "left",
-                                padding: "10px 0",
-                                borderBottom:
-                                  "1px solid var(--line, rgba(0,0,0,0.08))",
-                              }}
-                            >
-                              <span
-                                className={"share-check" + (on ? " on" : "")}
-                                aria-hidden
-                              >
-                                {on ? "✓" : ""}
-                              </span>
-                              <span style={{ flex: 1, minWidth: 0 }}>
-                                <span className="set-acc-n">{m.text}</span>
-                                <span
-                                  className="set-acc-s"
-                                  style={{ fontFamily: "var(--sans)" }}
-                                >
-                                  {m.tags.join(" · ") || "note"} · {ago(m.ts)}
-                                </span>
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Shared with me */}
-                <div className="int2-group">
-                  <div className="int2-glabel">
-                    Shared with you{" "}
-                    <span>read-only memories others sent you</span>
-                  </div>
-                  <div className="scard">
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 8,
-                      }}
-                    >
-                      <div className="int2-name">
-                        Inbox · {s.sharedMemories.length}
-                      </div>
-                      <button
-                        className="pill-btn"
-                        disabled={sharedRefreshing}
-                        onClick={() => void refreshShared()}
-                      >
-                        {sharedRefreshing ? "Refreshing…" : "Refresh"}
-                      </button>
-                    </div>
-                    {s.sharedMemories.length === 0 ? (
-                      <div className="ssub" style={{ marginTop: 10 }}>
-                        Nothing shared with you yet. When someone shares a
-                        memory, it shows up here.
-                      </div>
-                    ) : (
-                      (() => {
-                        const groups: Record<string, Memory[]> = {};
-                        s.sharedMemories.forEach((m) => {
-                          const who = m.sharedBy || "someone";
-                          (groups[who] ||= []).push(m);
-                        });
-                        return Object.entries(groups).map(([who, mems]) => (
-                          <div key={who} style={{ marginTop: 12 }}>
-                            <div className="int2-name">
-                              <span className="chip shared">
-                                <span className="dot" />
-                                {who}
-                              </span>
-                            </div>
-                            {mems.map((m) => (
-                              <button
-                                key={m.id}
-                                className="share-row"
-                                onClick={() => setDrawer(m)}
-                                style={{
-                                  display: "block",
-                                  width: "100%",
-                                  textAlign: "left",
-                                  padding: "8px 0",
-                                  borderTop:
-                                    "1px solid var(--line, rgba(0,0,0,0.08))",
-                                }}
-                              >
-                                <span className="set-acc-n">{m.text}</span>
-                                <span
-                                  className="set-acc-s"
-                                  style={{ fontFamily: "var(--sans)" }}
-                                >
-                                  {m.tags.join(" · ") || "note"} · {ago(m.ts)}
-                                </span>
-                              </button>
-                            ))}
+                        {shareErr && (
+                          <div className="ssub" style={{ marginBottom: 10 }}>
+                            {shareErr}
                           </div>
-                        ));
-                      })()
-                    )}
-                  </div>
-                </div>
-
-                {/* Memories you've shared */}
-                <div className="int2-group">
-                  <div className="int2-glabel">
-                    Memories you&apos;ve shared <span>your outbox</span>
-                  </div>
-                  <div className="scard">
-                    <div className="int2-name">Outbox · {s.shares.length}</div>
-                    {s.shares.length === 0 ? (
-                      <div className="ssub" style={{ marginTop: 10 }}>
-                        Nothing shared yet. Pick memories above, or open a memory
-                        and use “Share”.
+                        )}
+                        {live.length === 0 ? (
+                          <div className="ssub">
+                            You have no memories to share yet.
+                          </div>
+                        ) : (
+                          <div
+                            className="share-pick"
+                            style={{
+                              maxHeight: 320,
+                              overflowY: "auto",
+                              borderTop:
+                                "1px solid var(--line, rgba(0,0,0,0.08))",
+                            }}
+                          >
+                            {live.slice(0, 60).map((m) => {
+                              const on = shareSel.has(m.id);
+                              return (
+                                <button
+                                  key={m.id}
+                                  className="share-row"
+                                  onClick={() => {
+                                    const next = new Set(shareSel);
+                                    if (on) next.delete(m.id);
+                                    else next.add(m.id);
+                                    setShareSel(next);
+                                  }}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "flex-start",
+                                    gap: 10,
+                                    width: "100%",
+                                    textAlign: "left",
+                                    padding: "10px 0",
+                                    borderBottom:
+                                      "1px solid var(--line, rgba(0,0,0,0.08))",
+                                  }}
+                                >
+                                  <span
+                                    className={
+                                      "share-check" + (on ? " on" : "")
+                                    }
+                                    aria-hidden
+                                  >
+                                    {on ? "✓" : ""}
+                                  </span>
+                                  <span style={{ flex: 1, minWidth: 0 }}>
+                                    <span className="set-acc-n">{m.text}</span>
+                                    <span
+                                      className="set-acc-s"
+                                      style={{ fontFamily: "var(--sans)" }}
+                                    >
+                                      {m.tags.join(" · ") || "note"} ·{" "}
+                                      {ago(m.ts)}
+                                    </span>
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      s.shares.map((sh) => (
+                    </div>
+
+                    {/* Shared with me */}
+                    <div className="int2-group">
+                      <div className="int2-glabel">
+                        Shared with you{" "}
+                        <span>read-only memories others sent you</span>
+                      </div>
+                      <div className="scard">
                         <div
-                          key={sh.id}
                           style={{
                             display: "flex",
                             alignItems: "center",
-                            gap: 10,
-                            padding: "10px 0",
-                            borderTop:
-                              "1px solid var(--line, rgba(0,0,0,0.08))",
+                            justifyContent: "space-between",
+                            gap: 8,
                           }}
                         >
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div className="set-acc-n">
-                              {sh.title || "Untitled"}
-                            </div>
-                            <div
-                              className="set-acc-s"
-                              style={{ fontFamily: "var(--sans)" }}
-                            >
-                              {sh.itemCount}{" "}
-                              {sh.itemCount === 1 ? "memory" : "memories"} ·{" "}
-                              {sh.recipientCount}{" "}
-                              {sh.recipientCount === 1
-                                ? "recipient"
-                                : "recipients"}{" "}
-                              ·{" "}
-                              <span
-                                className={
-                                  "share-status s" + sh.status
-                                }
-                              >
-                                {SHARE_STATUS_LABEL[sh.status] ?? "unknown"}
-                              </span>
-                            </div>
+                          <div className="int2-name">
+                            Inbox · {s.sharedMemories.length}
                           </div>
-                          {sh.status === 1 && (
-                            <button
-                              className="pill-btn"
-                              disabled={revokingShareId === sh.id}
-                              onClick={() => void revokeShare(sh.id)}
-                            >
-                              {revokingShareId === sh.id
-                                ? "Revoking…"
-                                : "Revoke"}
-                            </button>
-                          )}
+                          <button
+                            className="pill-btn"
+                            disabled={sharedRefreshing}
+                            onClick={() => void refreshShared()}
+                          >
+                            {sharedRefreshing ? "Refreshing…" : "Refresh"}
+                          </button>
                         </div>
-                      ))
-                    )}
+                        {s.sharedMemories.length === 0 ? (
+                          <div className="ssub" style={{ marginTop: 10 }}>
+                            Nothing shared with you yet. When someone shares a
+                            memory, it shows up here.
+                          </div>
+                        ) : (
+                          (() => {
+                            const groups: Record<string, Memory[]> = {};
+                            s.sharedMemories.forEach((m) => {
+                              const who = m.sharedBy || "someone";
+                              (groups[who] ||= []).push(m);
+                            });
+                            return Object.entries(groups).map(([who, mems]) => (
+                              <div key={who} style={{ marginTop: 12 }}>
+                                <div className="int2-name">
+                                  <span className="chip shared">
+                                    <span className="dot" />
+                                    {who}
+                                  </span>
+                                </div>
+                                {mems.map((m) => (
+                                  <button
+                                    key={m.id}
+                                    className="share-row"
+                                    onClick={() => setDrawer(m)}
+                                    style={{
+                                      display: "block",
+                                      width: "100%",
+                                      textAlign: "left",
+                                      padding: "8px 0",
+                                      borderTop:
+                                        "1px solid var(--line, rgba(0,0,0,0.08))",
+                                    }}
+                                  >
+                                    <span className="set-acc-n">{m.text}</span>
+                                    <span
+                                      className="set-acc-s"
+                                      style={{ fontFamily: "var(--sans)" }}
+                                    >
+                                      {m.tags.join(" · ") || "note"} ·{" "}
+                                      {ago(m.ts)}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            ));
+                          })()
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Memories you've shared */}
+                    <div className="int2-group">
+                      <div className="int2-glabel">
+                        Memories you&apos;ve shared <span>your outbox</span>
+                      </div>
+                      <div className="scard">
+                        <div className="int2-name">
+                          Outbox · {s.shares.length}
+                        </div>
+                        {s.shares.length === 0 ? (
+                          <div className="ssub" style={{ marginTop: 10 }}>
+                            Nothing shared yet. Pick memories above, or open a
+                            memory and use “Share”.
+                          </div>
+                        ) : (
+                          s.shares.map((sh) => (
+                            <div
+                              key={sh.id}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 10,
+                                padding: "10px 0",
+                                borderTop:
+                                  "1px solid var(--line, rgba(0,0,0,0.08))",
+                              }}
+                            >
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div className="set-acc-n">
+                                  {sh.title || "Untitled"}
+                                </div>
+                                <div
+                                  className="set-acc-s"
+                                  style={{ fontFamily: "var(--sans)" }}
+                                >
+                                  {sh.itemCount}{" "}
+                                  {sh.itemCount === 1 ? "memory" : "memories"} ·{" "}
+                                  {sh.recipientCount}{" "}
+                                  {sh.recipientCount === 1
+                                    ? "recipient"
+                                    : "recipients"}{" "}
+                                  ·{" "}
+                                  <span
+                                    className={"share-status s" + sh.status}
+                                  >
+                                    {SHARE_STATUS_LABEL[sh.status] ?? "unknown"}
+                                  </span>
+                                </div>
+                              </div>
+                              {sh.status === 1 && (
+                                <button
+                                  className="pill-btn"
+                                  disabled={revokingShareId === sh.id}
+                                  onClick={() => void revokeShare(sh.id)}
+                                >
+                                  {revokingShareId === sh.id
+                                    ? "Revoking…"
+                                    : "Revoke"}
+                                </button>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            )}
+                )}
               </div>
             </div>
           )}
@@ -3697,9 +3770,9 @@ export function CortexApp({
                       className="ssub"
                       style={{ marginTop: 4, marginBottom: 6 }}
                     >
-                      One server exposes your whole memory plane to any MCP host —
-                      read and write memory, drive the agent team, and (once you
-                      authorize it) read your details, memory and context.
+                      One server exposes your whole memory plane to any MCP host
+                      — read and write memory, drive the agent team, and (once
+                      you authorize it) read your details, memory and context.
                     </div>
                     <div className="int2-tools">
                       {MCP_TOOLS.map((t) => (
@@ -3805,7 +3878,10 @@ export function CortexApp({
                     </div>
                     <div
                       className="ssub"
-                      style={{ marginTop: 10, fontFamily: "var(--mono,monospace)" }}
+                      style={{
+                        marginTop: 10,
+                        fontFamily: "var(--mono,monospace)",
+                      }}
                     >
                       {CORTEX_ENV.mcpAddress
                         ? CORTEX_ENV.mcpAddress.slice(0, 10) +
@@ -3937,530 +4013,613 @@ export function CortexApp({
             </div>
           </section>
 
-          {/* SETTINGS — memory model + account & storage */}
-          <section className={"view" + (view === "settings" ? " on" : "")}>
-            <div className="set-group">
-              <div className="set-gh">
-                <div className="set-gt">Account</div>
-                <div className="set-gs">
-                  {privyOn
-                    ? "How you sign in. Cortex uses Privy for login and a managed Sui wallet — your identity stays yours, with no seed phrase to lose."
-                    : "How you sign in. Cortex uses zkLogin so your identity stays yours, with no password to leak."}
-                </div>
-              </div>
-              {sess ? (
-                <div className="set-account">
-                  <span className="set-av">{sess.via[0]?.toUpperCase()}</span>
-                  <div className="set-acc-m">
-                    <div className="set-acc-n">Signed in · {sess.via}</div>
-                    <div className="set-acc-s">
-                      {sess.addr.slice(0, 10)}…{sess.addr.slice(-6)}
-                    </div>
-                  </div>
-                  <button className="pill-btn" onClick={doSignOut}>
-                    Sign out
-                  </button>
-                </div>
-              ) : (
-                <div className="set-signin">
-                  <button className="pill-btn keep" onClick={doSignIn}>
+          {/* SETTINGS — floating console over the current page */}
+          {settingsOpen && (
+            <div
+              className="cset-backdrop"
+              onClick={() => setSettingsOpen(false)}
+            >
+              <div className="cset-modal" onClick={(e) => e.stopPropagation()}>
+                <aside className="cset-nav">
+                  <div className="cset-search">
                     <svg viewBox="0 0 24 24">
-                      <circle cx="12" cy="12" r="9" />
-                      <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+                      <circle cx="11" cy="11" r="7" />
+                      <path d="M21 21l-4.3-4.3" />
                     </svg>
-                    {privyOn
-                      ? "Sign in with Privy"
-                      : "Continue with Google (zkLogin)"}
-                  </button>
-                  <div className="set-note">
-                    {privyOn
-                      ? "Privy logs you in by email or social and provisions a managed Sui wallet that owns your memory on Walrus."
-                      : "This creates a local ephemeral session right now. Add a Privy app id (NEXT_PUBLIC_PRIVY_APP_ID) to sign in with a managed Sui wallet."}
+                    <input
+                      value={settingsSearch}
+                      onChange={(e) => setSettingsSearch(e.target.value)}
+                      placeholder="Search"
+                    />
                   </div>
-                </div>
-              )}
-            </div>
-
-            <div className="set-group">
-              <div className="set-gh">
-                <div className="set-gt">Models &amp; API keys</div>
-                <div className="set-gs">
-                  Bring your own keys to enable any model. Keys are encrypted and
-                  stored only on this device — calls run straight from your
-                  browser to the provider, never our servers.
-                </div>
-              </div>
-              {s.customModels.length === 0 && (
-                <div className="set-empty">No custom models yet.</div>
-              )}
-              {s.customModels.map((m) => (
-                <div className="set-srow" key={m.id}>
-                  <span className="set-av store">
-                    {providerInfo(m.provider).label[0]}
-                  </span>
-                  <div className="set-acc-m">
-                    <div className="set-acc-n">
-                      {m.label}{" "}
-                      <span className="int-role">
-                        {providerInfo(m.provider).label}
-                      </span>
-                    </div>
-                    <div className="set-acc-s">
-                      {s.byokKeys[m.id] ? "Key unlocked" : "Key locked"} ·{" "}
-                      {m.apiId}
-                    </div>
-                  </div>
-                  <button
-                    className="pill-btn"
-                    onClick={() => s.removeCustomModel(m.id)}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-              <div className="set-btn-row">
-                <button className="pill-btn" onClick={openAddModel}>
-                  Add model
-                </button>
-                {!s.byokUnlocked && s.customModels.length > 0 && (
-                  <button className="pill-btn" onClick={() => s.unlockByok()}>
-                    Unlock keys
-                  </button>
-                )}
-                {passkeySupported() && !passkeyEnrolled() && (
-                  <button
-                    className="pill-btn"
-                    onClick={() => s.enrollByokPasskey()}
-                  >
-                    Protect with passkey
-                  </button>
-                )}
-                {passkeyEnrolled() && (
-                  <span className="int-pill worm">Passkey on</span>
-                )}
-              </div>
-              {s.byokError && (
-                <div className="set-err">Couldn&apos;t unlock: {s.byokError}</div>
-              )}
-            </div>
-
-            <div className="set-group">
-              <div className="set-gh">
-                <div className="set-gt">Privacy &amp; Access</div>
-                <div className="set-gs">
-                  How your data is protected and who can reach it. Sensitive data
-                  is encrypted client-side before it ever touches Walrus — only
-                  your wallet can decrypt it.
-                </div>
-              </div>
-
-              <div className="scard" style={{ marginBottom: 16 }}>
-                <div className="int2-name">Encryption mode</div>
-                <div className="ssub" style={{ marginTop: 4 }}>
-                  {sealEnabled()
-                    ? "Owner-only Seal encryption (threshold key servers)"
-                    : "Wallet-derived AES-GCM (owner-only)"}
-                </div>
-              </div>
-
-              <div className="scard" style={{ marginBottom: 16 }}>
-                <div className="int2-name">What&apos;s public vs owner-only</div>
-                {(
-                  [
-                    ["Public", "your profile (name, handle, bio)"],
-                    [
-                      "Owner-only",
-                      "chats, memory, timeline, documents, agent tasks — encrypted; only pointers on Sui",
-                    ],
-                    ["Owner-only", "agent prompts & descriptions"],
-                    ["Never on chain", "the MCP service key (server-side only)"],
-                  ] as const
-                ).map(([k, v], i) => (
-                  <div
-                    key={k + i}
-                    style={{
-                      display: "flex",
-                      gap: 10,
-                      padding: "6px 0",
-                      borderTop: "1px solid var(--line, rgba(0,0,0,0.08))",
-                    }}
-                  >
-                    <span style={{ minWidth: 92, fontWeight: 600 }}>{k}</span>
-                    <span className="ssub">{v}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="scard">
-                <div className="int2-name">MCP access</div>
-                <div className="ssub" style={{ marginTop: 4 }}>
-                  An authorized MCP gets your profile, your memory, and your
-                  shared agent workspace (board + bus). You can revoke anytime.
-                </div>
-                <div
-                  className="ssub"
-                  style={{ marginTop: 10, fontFamily: "var(--mono,monospace)" }}
-                >
-                  {CORTEX_ENV.mcpAddress
-                    ? CORTEX_ENV.mcpAddress.slice(0, 10) +
-                      "…" +
-                      CORTEX_ENV.mcpAddress.slice(-6)
-                    : "No MCP wallet configured"}
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    marginTop: 12,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <button
-                    className="pill-btn keep"
-                    disabled={!mcpAuthReady || mcpAuthBusy}
-                    onClick={authorizeMcp}
-                  >
-                    {mcpAuthBusy ? "Authorizing…" : "Authorize MCP"}
-                  </button>
-                  <button
-                    className="pill-btn"
-                    disabled={!mcpAuthReady || mcpAuthBusy}
-                    onClick={revokeMcp}
-                  >
-                    Revoke
-                  </button>
-                </div>
-                {!mcpAuthReady && (
-                  <div className="ssub" style={{ marginTop: 10 }}>
-                    {!walletState?.wallet
-                      ? "Sign in to authorize your MCP."
-                      : "Set NEXT_PUBLIC_CORTEX_MCP_ADDRESS and deploy the contracts to enable."}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="set-group">
-              <div className="set-gh">
-                <div className="set-gt">Username &amp; sharing</div>
-                <div className="set-gs">
-                  Claim a handle under cortex.sui so others can share memories
-                  with you by name. Manage shares and your inbox in the Sharing
-                  view.
-                </div>
-              </div>
-
-              <div className="scard" style={{ marginBottom: 16 }}>
-                <div className="int2-name">Username</div>
-                <div className="ssub" style={{ marginTop: 4 }}>
-                  Claiming mints a real SuiNS subname under cortex.sui and points
-                  it at your wallet.
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    marginTop: 12,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <input
-                    className="cortex-input"
-                    style={{ flex: 1, minWidth: 180 }}
-                    placeholder="yourname"
-                    value={username}
-                    disabled={claimBusy}
-                    onChange={(e) => setUsername(e.target.value)}
-                  />
-                  <button
-                    className="pill-btn keep"
-                    disabled={!wallet || claimBusy || !username.trim()}
-                    onClick={() => void claimUsername()}
-                  >
-                    {claimBusy ? "Claiming…" : "Claim"}
-                  </button>
-                </div>
-                {claimedName && (
-                  <div className="ssub" style={{ marginTop: 10 }}>
-                    You hold{" "}
-                    <span style={{ fontFamily: "var(--mono,monospace)" }}>
-                      {claimedName}
-                    </span>{" "}
-                    — it points to your wallet.
-                  </div>
-                )}
-                {claimErr && (
-                  <div className="ssub" style={{ marginTop: 10 }}>
-                    {claimErr}
-                  </div>
-                )}
-                {!wallet && (
-                  <div className="ssub" style={{ marginTop: 10 }}>
-                    Sign in to claim a username.
-                  </div>
-                )}
-              </div>
-
-              <button
-                className="pill-btn"
-                onClick={() => setShareHubOpen(true)}
-              >
-                Open Sharing
-              </button>
-            </div>
-
-            <div className="set-group">
-              <div className="set-gh">
-                <div className="set-gt">Devices &amp; Access</div>
-                <div className="set-gs">
-                  Each device and agent that can read your memory has its own
-                  key, derived on that device and never stored — revoke any of
-                  them anytime.
-                </div>
-              </div>
-
-              <div className="scard">
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                  }}
-                >
-                  <div className="int2-name">Authorized keys</div>
-                  <button
-                    className="pill-btn"
-                    disabled={!walletState?.wallet || delegatesLoading}
-                    onClick={() => void loadDelegates()}
-                  >
-                    {delegatesLoading ? "Refreshing…" : "Refresh"}
-                  </button>
-                </div>
-                {!walletState?.wallet ? (
-                  <div className="ssub" style={{ marginTop: 10 }}>
-                    Sign in to manage access.
-                  </div>
-                ) : !contractsEnabled() || delegates.length === 0 ? (
-                  <div className="ssub" style={{ marginTop: 10 }}>
-                    Keys appear here once your memory is provisioned.
-                  </div>
-                ) : (
-                  delegates.map((d) => {
-                    const label = d.isThisDevice
-                      ? "This device"
-                      : d.publicKey === CORTEX_ENV.mcpMemwalPubkey
-                        ? "MCP"
-                        : "Device / agent";
-                    return (
-                      <div
-                        key={d.publicKey}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          padding: "8px 0",
-                          borderTop: "1px solid var(--line, rgba(0,0,0,0.08))",
-                        }}
+                  <div className="cset-nav-label">Settings</div>
+                  <div className="cset-nav-list">
+                    {SETTINGS_NAV.filter(([, label]) =>
+                      label
+                        .toLowerCase()
+                        .includes(settingsSearch.trim().toLowerCase()),
+                    ).map(([key, label, icon]) => (
+                      <button
+                        key={key}
+                        className={
+                          "cset-nav-item" +
+                          (settingsSection === key ? " on" : "")
+                        }
+                        onClick={() => setSettingsSection(key)}
                       >
-                        <span style={{ minWidth: 110, fontWeight: 600 }}>
-                          {label}
-                        </span>
-                        <span
+                        <svg viewBox="0 0 24 24">{icon}</svg>
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </aside>
+                <div className="cset-body">
+                  <button
+                    className="cset-x"
+                    onClick={() => setSettingsOpen(false)}
+                    aria-label="Close settings"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
+                  <div className="cset-scroll">
+                    <div
+                      className={
+                        "set-group" +
+                        (settingsSection === "account" ? " on" : "")
+                      }
+                    >
+                      <div className="set-gh">
+                        <div className="set-gt">Account</div>
+                        <div className="set-gs">
+                          {privyOn
+                            ? "How you sign in. Cortex uses Privy for login and a managed Sui wallet — your identity stays yours, with no seed phrase to lose."
+                            : "How you sign in. Cortex uses zkLogin so your identity stays yours, with no password to leak."}
+                        </div>
+                      </div>
+                      {sess ? (
+                        <div className="set-account">
+                          <span className="set-av">
+                            {sess.via[0]?.toUpperCase()}
+                          </span>
+                          <div className="set-acc-m">
+                            <div className="set-acc-n">
+                              Signed in · {sess.via}
+                            </div>
+                            <div className="set-acc-s">
+                              {sess.addr.slice(0, 10)}…{sess.addr.slice(-6)}
+                            </div>
+                          </div>
+                          <button className="pill-btn" onClick={doSignOut}>
+                            Sign out
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="set-signin">
+                          <button className="pill-btn keep" onClick={doSignIn}>
+                            <svg viewBox="0 0 24 24">
+                              <circle cx="12" cy="12" r="9" />
+                              <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+                            </svg>
+                            {privyOn
+                              ? "Sign in with Privy"
+                              : "Continue with Google (zkLogin)"}
+                          </button>
+                          <div className="set-note">
+                            {privyOn
+                              ? "Privy logs you in by email or social and provisions a managed Sui wallet that owns your memory on Walrus."
+                              : "This creates a local ephemeral session right now. Add a Privy app id (NEXT_PUBLIC_PRIVY_APP_ID) to sign in with a managed Sui wallet."}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div
+                      className={
+                        "set-group" +
+                        (settingsSection === "models" ? " on" : "")
+                      }
+                    >
+                      <div className="set-gh">
+                        <div className="set-gt">Models &amp; API keys</div>
+                        <div className="set-gs">
+                          Bring your own keys to enable any model. Keys are
+                          encrypted and stored only on this device — calls run
+                          straight from your browser to the provider, never our
+                          servers.
+                        </div>
+                      </div>
+                      {s.customModels.length === 0 && (
+                        <div className="set-empty">No custom models yet.</div>
+                      )}
+                      {s.customModels.map((m) => (
+                        <div className="set-srow" key={m.id}>
+                          <span className="set-av store">
+                            {providerInfo(m.provider).label[0]}
+                          </span>
+                          <div className="set-acc-m">
+                            <div className="set-acc-n">
+                              {m.label}{" "}
+                              <span className="int-role">
+                                {providerInfo(m.provider).label}
+                              </span>
+                            </div>
+                            <div className="set-acc-s">
+                              {s.byokKeys[m.id] ? "Key unlocked" : "Key locked"}{" "}
+                              · {m.apiId}
+                            </div>
+                          </div>
+                          <button
+                            className="pill-btn"
+                            onClick={() => s.removeCustomModel(m.id)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                      <div className="set-btn-row">
+                        <button className="pill-btn" onClick={openAddModel}>
+                          Add model
+                        </button>
+                        {!s.byokUnlocked && s.customModels.length > 0 && (
+                          <button
+                            className="pill-btn"
+                            onClick={() => s.unlockByok()}
+                          >
+                            Unlock keys
+                          </button>
+                        )}
+                        {passkeySupported() && !passkeyEnrolled() && (
+                          <button
+                            className="pill-btn"
+                            onClick={() => s.enrollByokPasskey()}
+                          >
+                            Protect with passkey
+                          </button>
+                        )}
+                        {passkeyEnrolled() && (
+                          <span className="int-pill worm">Passkey on</span>
+                        )}
+                      </div>
+                      {s.byokError && (
+                        <div className="set-err">
+                          Couldn&apos;t unlock: {s.byokError}
+                        </div>
+                      )}
+                    </div>
+
+                    <div
+                      className={
+                        "set-group" +
+                        (settingsSection === "privacy" ? " on" : "")
+                      }
+                    >
+                      <div className="set-gh">
+                        <div className="set-gt">Privacy &amp; Access</div>
+                        <div className="set-gs">
+                          How your data is protected and who can reach it.
+                          Sensitive data is encrypted client-side before it ever
+                          touches Walrus — only your wallet can decrypt it.
+                        </div>
+                      </div>
+
+                      <div className="scard">
+                        <div className="int2-name">MCP access</div>
+                        <div className="ssub" style={{ marginTop: 4 }}>
+                          An authorized MCP gets your profile, your memory, and
+                          your shared agent workspace (board + bus). You can
+                          revoke anytime.
+                        </div>
+                        <div
                           className="ssub"
                           style={{
-                            flex: 1,
+                            marginTop: 10,
                             fontFamily: "var(--mono,monospace)",
                           }}
                         >
-                          {d.publicKey.slice(0, 10) +
-                            "…" +
-                            d.publicKey.slice(-6)}
-                        </span>
-                        {!d.isThisDevice && (
+                          {CORTEX_ENV.mcpAddress
+                            ? CORTEX_ENV.mcpAddress.slice(0, 10) +
+                              "…" +
+                              CORTEX_ENV.mcpAddress.slice(-6)
+                            : "No MCP wallet configured"}
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            marginTop: 12,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <button
+                            className="pill-btn keep"
+                            disabled={!mcpAuthReady || mcpAuthBusy}
+                            onClick={authorizeMcp}
+                          >
+                            {mcpAuthBusy ? "Authorizing…" : "Authorize MCP"}
+                          </button>
                           <button
                             className="pill-btn"
-                            disabled={revokingKey === d.publicKey}
-                            onClick={() => void revokeDelegate(d.publicKey)}
+                            disabled={!mcpAuthReady || mcpAuthBusy}
+                            onClick={revokeMcp}
                           >
-                            {revokingKey === d.publicKey
-                              ? "Revoking…"
-                              : "Revoke"}
+                            Revoke
                           </button>
+                        </div>
+                        {!mcpAuthReady && (
+                          <div className="ssub" style={{ marginTop: 10 }}>
+                            {!walletState?.wallet
+                              ? "Sign in to authorize your MCP."
+                              : "Set NEXT_PUBLIC_CORTEX_MCP_ADDRESS and deploy the contracts to enable."}
+                          </div>
                         )}
                       </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
+                    </div>
 
-            <div className="set-group">
-              <div className="set-gh">
-                <div className="set-gt">Memory model</div>
-                <div className="set-gs">
-                  How Cortex forgets and remembers. It mirrors human memory: it
-                  forgets by default and keeps what earns it. These are the
-                  dials.
-                </div>
-              </div>
+                    <div
+                      className={
+                        "set-group" +
+                        (settingsSection === "username" ? " on" : "")
+                      }
+                    >
+                      <div className="set-gh">
+                        <div className="set-gt">Username &amp; sharing</div>
+                        <div className="set-gs">
+                          Claim a handle under cortex.sui so others can share
+                          memories with you by name. Manage shares and your
+                          inbox in the Sharing view.
+                        </div>
+                      </div>
 
-              <div className="set-field">
-                <div className="set-fl">
-                  <span>Recall threshold (theta)</span>
-                  <span className="set-fv">{cfg.theta.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min={0.05}
-                  max={0.6}
-                  step={0.01}
-                  value={cfg.theta}
-                  onChange={(e) => s.setConfig({ theta: +e.target.value })}
-                />
-                <div className="set-fh">
-                  A memory stays in active recall while its strength is at or
-                  above this. Lower means Cortex holds on to more.
-                </div>
-              </div>
-              <div className="set-field">
-                <div className="set-fl">
-                  <span>Rehearsal bump</span>
-                  <span className="set-fv">+{cfg.accessBump.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min={0.05}
-                  max={0.4}
-                  step={0.01}
-                  value={cfg.accessBump}
-                  onChange={(e) => s.setConfig({ accessBump: +e.target.value })}
-                />
-                <div className="set-fh">
-                  How much strength a memory gains each time you use it. Higher
-                  means recall sticks faster.
-                </div>
-              </div>
-              <div className="set-field">
-                <div className="set-fl">
-                  <span>Inferred decay penalty</span>
-                  <span className="set-fv">
-                    {cfg.inferredPenalty.toFixed(1)}×
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={3}
-                  step={0.1}
-                  value={cfg.inferredPenalty}
-                  onChange={(e) =>
-                    s.setConfig({ inferredPenalty: +e.target.value })
-                  }
-                />
-                <div className="set-fh">
-                  Memories Cortex guessed (rather than you stating them) fade
-                  this much faster, so the loop never launders a guess into
-                  fact.
-                </div>
-              </div>
-              <div className="set-field">
-                <div className="set-fl">
-                  <span>Consolidation sweep</span>
-                  <span className="set-fv">every {cfg.sweepHours}h</span>
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={72}
-                  step={1}
-                  value={cfg.sweepHours}
-                  onChange={(e) => s.setConfig({ sweepHours: +e.target.value })}
-                />
-                <div className="set-fh">
-                  How often Cortex runs its quiet pass to fade, fold, promote
-                  and re-link, the way sleep consolidates memory.
-                </div>
-              </div>
+                      <div className="scard" style={{ marginBottom: 16 }}>
+                        <div className="int2-name">Username</div>
+                        <div className="ssub" style={{ marginTop: 4 }}>
+                          Claiming mints a real SuiNS subname under cortex.sui
+                          and points it at your wallet.
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            marginTop: 12,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <input
+                            className="cortex-input"
+                            style={{ flex: 1, minWidth: 180 }}
+                            placeholder="yourname"
+                            value={username}
+                            disabled={claimBusy}
+                            onChange={(e) => setUsername(e.target.value)}
+                          />
+                          <button
+                            className="pill-btn keep"
+                            disabled={!wallet || claimBusy || !username.trim()}
+                            onClick={() => void claimUsername()}
+                          >
+                            {claimBusy ? "Claiming…" : "Claim"}
+                          </button>
+                        </div>
+                        {claimedName && (
+                          <div className="ssub" style={{ marginTop: 10 }}>
+                            You hold{" "}
+                            <span
+                              style={{ fontFamily: "var(--mono,monospace)" }}
+                            >
+                              {claimedName}
+                            </span>{" "}
+                            — it points to your wallet.
+                          </div>
+                        )}
+                        {claimErr && (
+                          <div className="ssub" style={{ marginTop: 10 }}>
+                            {claimErr}
+                          </div>
+                        )}
+                        {!wallet && (
+                          <div className="ssub" style={{ marginTop: 10 }}>
+                            Sign in to claim a username.
+                          </div>
+                        )}
+                      </div>
 
-              <div className="set-fl" style={{ marginTop: 20 }}>
-                <span>Tiers</span>
-              </div>
-              <div className="set-tiers">
-                <div className="set-th">
-                  <span>Tier</span>
-                  <span>Floor</span>
-                  <span>Half life</span>
-                  <span>Auto forget</span>
-                </div>
-                {TIERS.map((t) => (
-                  <div className="set-tr" key={t}>
-                    <span>
-                      <b>T{t}</b> {TIER_NAME[t]}
-                    </span>
-                    <span>{cfg.floor[t].toFixed(2)}</span>
-                    <span>{fmtDays(cfg.halfLife[t])}</span>
-                    <span>{fmtDays(cfg.ttl[t])}</span>
+                      <button
+                        className="pill-btn"
+                        onClick={() => setShareHubOpen(true)}
+                      >
+                        Open Sharing
+                      </button>
+                    </div>
+
+                    <div
+                      className={
+                        "set-group" +
+                        (settingsSection === "devices" ? " on" : "")
+                      }
+                    >
+                      <div className="set-gh">
+                        <div className="set-gt">Devices &amp; Access</div>
+                        <div className="set-gs">
+                          Each device and agent that can read your memory has
+                          its own key, derived on that device and never stored —
+                          revoke any of them anytime.
+                        </div>
+                      </div>
+
+                      <div className="scard">
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 8,
+                          }}
+                        >
+                          <div className="int2-name">Authorized keys</div>
+                          <button
+                            className="pill-btn"
+                            disabled={!walletState?.wallet || delegatesLoading}
+                            onClick={() => void loadDelegates()}
+                          >
+                            {delegatesLoading ? "Refreshing…" : "Refresh"}
+                          </button>
+                        </div>
+                        {!walletState?.wallet ? (
+                          <div className="ssub" style={{ marginTop: 10 }}>
+                            Sign in to manage access.
+                          </div>
+                        ) : !contractsEnabled() || delegates.length === 0 ? (
+                          <div className="ssub" style={{ marginTop: 10 }}>
+                            Keys appear here once your memory is provisioned.
+                          </div>
+                        ) : (
+                          delegates.map((d) => {
+                            const label = d.isThisDevice
+                              ? "This device"
+                              : d.publicKey === CORTEX_ENV.mcpMemwalPubkey
+                                ? "MCP"
+                                : "Device / agent";
+                            return (
+                              <div
+                                key={d.publicKey}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 10,
+                                  padding: "8px 0",
+                                  borderTop:
+                                    "1px solid var(--line, rgba(0,0,0,0.08))",
+                                }}
+                              >
+                                <span
+                                  style={{ minWidth: 110, fontWeight: 600 }}
+                                >
+                                  {label}
+                                </span>
+                                <span
+                                  className="ssub"
+                                  style={{
+                                    flex: 1,
+                                    fontFamily: "var(--mono,monospace)",
+                                  }}
+                                >
+                                  {d.publicKey.slice(0, 10) +
+                                    "…" +
+                                    d.publicKey.slice(-6)}
+                                </span>
+                                {!d.isThisDevice && (
+                                  <button
+                                    className="pill-btn"
+                                    disabled={revokingKey === d.publicKey}
+                                    onClick={() =>
+                                      void revokeDelegate(d.publicKey)
+                                    }
+                                  >
+                                    {revokingKey === d.publicKey
+                                      ? "Revoking…"
+                                      : "Revoke"}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+
+                    <div
+                      className={
+                        "set-group" +
+                        (settingsSection === "memory" ? " on" : "")
+                      }
+                    >
+                      <div className="set-gh">
+                        <div className="set-gt">Memory model</div>
+                        <div className="set-gs">
+                          How Cortex forgets and remembers. It mirrors human
+                          memory: it forgets by default and keeps what earns it.
+                          These are the dials.
+                        </div>
+                      </div>
+
+                      <div className="set-field">
+                        <div className="set-fl">
+                          <span>Recall threshold (theta)</span>
+                          <span className="set-fv">{cfg.theta.toFixed(2)}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.05}
+                          max={0.6}
+                          step={0.01}
+                          value={cfg.theta}
+                          onChange={(e) =>
+                            s.setConfig({ theta: +e.target.value })
+                          }
+                        />
+                        <div className="set-fh">
+                          A memory stays in active recall while its strength is
+                          at or above this. Lower means Cortex holds on to more.
+                        </div>
+                      </div>
+                      <div className="set-field">
+                        <div className="set-fl">
+                          <span>Rehearsal bump</span>
+                          <span className="set-fv">
+                            +{cfg.accessBump.toFixed(2)}
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.05}
+                          max={0.4}
+                          step={0.01}
+                          value={cfg.accessBump}
+                          onChange={(e) =>
+                            s.setConfig({ accessBump: +e.target.value })
+                          }
+                        />
+                        <div className="set-fh">
+                          How much strength a memory gains each time you use it.
+                          Higher means recall sticks faster.
+                        </div>
+                      </div>
+                      <div className="set-field">
+                        <div className="set-fl">
+                          <span>Inferred decay penalty</span>
+                          <span className="set-fv">
+                            {cfg.inferredPenalty.toFixed(1)}×
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={1}
+                          max={3}
+                          step={0.1}
+                          value={cfg.inferredPenalty}
+                          onChange={(e) =>
+                            s.setConfig({ inferredPenalty: +e.target.value })
+                          }
+                        />
+                        <div className="set-fh">
+                          Memories Cortex guessed (rather than you stating them)
+                          fade this much faster, so the loop never launders a
+                          guess into fact.
+                        </div>
+                      </div>
+                      <div className="set-field">
+                        <div className="set-fl">
+                          <span>Consolidation sweep</span>
+                          <span className="set-fv">
+                            every {cfg.sweepHours}h
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={1}
+                          max={72}
+                          step={1}
+                          value={cfg.sweepHours}
+                          onChange={(e) =>
+                            s.setConfig({ sweepHours: +e.target.value })
+                          }
+                        />
+                        <div className="set-fh">
+                          How often Cortex runs its quiet pass to fade, fold,
+                          promote and re-link, the way sleep consolidates
+                          memory.
+                        </div>
+                      </div>
+
+                      <div className="set-fl" style={{ marginTop: 20 }}>
+                        <span>Tiers</span>
+                      </div>
+                      <div className="set-tiers">
+                        <div className="set-th">
+                          <span>Tier</span>
+                          <span>Floor</span>
+                          <span>Half life</span>
+                          <span>Auto forget</span>
+                        </div>
+                        {TIERS.map((t) => (
+                          <div className="set-tr" key={t}>
+                            <span>
+                              <b>T{t}</b> {TIER_NAME[t]}
+                            </span>
+                            <span>{cfg.floor[t].toFixed(2)}</span>
+                            <span>{fmtDays(cfg.halfLife[t])}</span>
+                            <span>{fmtDays(cfg.ttl[t])}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="set-fh" style={{ marginTop: 8 }}>
+                        Floor is the strength a tier can never fall below. Tier
+                        4 sits at 1.0, so a core memory (an allergy, a hard
+                        rule) can never drop out of recall.
+                      </div>
+
+                      <div className="set-actions">
+                        <button
+                          className="pill-btn keep"
+                          onClick={() => {
+                            const sum = s.runSweep();
+                            flash(
+                              `Swept ${sum.scanned}: ${sum.deindexed} faded, ${sum.merged} folded, ${sum.promoted} promoted.`,
+                            );
+                          }}
+                        >
+                          Run consolidation now
+                        </button>
+                        <button
+                          className="pill-btn"
+                          onClick={() => {
+                            s.resetConfig();
+                            flash("Memory model reset to defaults.");
+                          }}
+                        >
+                          Reset to defaults
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      className={
+                        "set-group" + (settingsSection === "reset" ? " on" : "")
+                      }
+                    >
+                      <div className="set-gh">
+                        <div className="set-gt">Reset memory</div>
+                        <div className="set-gs">
+                          Clear this browser&apos;s working memory and start
+                          from a blank slate. Your durable record on Walrus is
+                          not touched — this only wipes the local index.
+                        </div>
+                      </div>
+                      <button
+                        className="pill-btn danger"
+                        onClick={() => {
+                          if (
+                            !window.confirm(
+                              "Clear your local memory and start fresh? This wipes the working index in this browser. Your Walrus record is kept.",
+                            )
+                          )
+                            return;
+                          s.resetMemory();
+                          setSettingsOpen(false);
+                          setView("home");
+                          flash("Memory cleared. Starting fresh.");
+                        }}
+                      >
+                        Reset memory
+                      </button>
+                    </div>
                   </div>
-                ))}
-              </div>
-              <div className="set-fh" style={{ marginTop: 8 }}>
-                Floor is the strength a tier can never fall below. Tier 4 sits
-                at 1.0, so a core memory (an allergy, a hard rule) can never
-                drop out of recall.
-              </div>
-
-              <div className="set-actions">
-                <button
-                  className="pill-btn keep"
-                  onClick={() => {
-                    const sum = s.runSweep();
-                    flash(
-                      `Swept ${sum.scanned}: ${sum.deindexed} faded, ${sum.merged} folded, ${sum.promoted} promoted.`,
-                    );
-                  }}
-                >
-                  Run consolidation now
-                </button>
-                <button
-                  className="pill-btn"
-                  onClick={() => {
-                    s.resetConfig();
-                    flash("Memory model reset to defaults.");
-                  }}
-                >
-                  Reset to defaults
-                </button>
-              </div>
-            </div>
-
-            <div className="set-group">
-              <div className="set-gh">
-                <div className="set-gt">Reset memory</div>
-                <div className="set-gs">
-                  Clear this browser&apos;s working memory and start from a blank
-                  slate. Your durable record on Walrus is not touched — this only
-                  wipes the local index.
                 </div>
               </div>
-              <button
-                className="pill-btn danger"
-                onClick={() => {
-                  if (
-                    !window.confirm(
-                      "Clear your local memory and start fresh? This wipes the working index in this browser. Your Walrus record is kept.",
-                    )
-                  )
-                    return;
-                  s.resetMemory();
-                  setView("home");
-                  flash("Memory cleared. Starting fresh.");
-                }}
-              >
-                Reset memory
-              </button>
             </div>
-          </section>
+          )}
         </div>
 
         {/* BRAIN — full-bleed memory map */}
@@ -4471,260 +4630,257 @@ export function CortexApp({
         )}
 
         {/* GLOBAL COMPOSER (hidden on full-page views) */}
-        {view !== "studio" &&
-          view !== "integrations" &&
-          view !== "settings" &&
-          view !== "agents" && (
-            <div className="composer-dock">
-              <div className="capture" ref={composerRef}>
-                <div className="ask-docs">
-                  {s.docs.map((d, i) => (
-                    <span className="ask-doc" key={i}>
-                      <svg viewBox="0 0 24 24">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                        <path d="M14 2v6h6" />
-                      </svg>
-                      {d}
-                      <button className="adx" onClick={() => s.removeDoc(i)}>
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <textarea
-                  ref={ta}
-                  rows={1}
-                  placeholder={
-                    s.mode === "ask"
-                      ? "Ask anything about your memories…"
-                      : "What's on your mind?"
-                  }
-                  value={input}
-                  onChange={(e) => {
-                    setInput(e.target.value);
-                    grow(e.target);
-                  }}
-                  onKeyDown={onKey}
-                />
-                <div className="capture-bar">
+        {view !== "studio" && view !== "integrations" && view !== "agents" && (
+          <div className="composer-dock">
+            <div className="capture" ref={composerRef}>
+              <div className="ask-docs">
+                {s.docs.map((d, i) => (
+                  <span className="ask-doc" key={i}>
+                    <svg viewBox="0 0 24 24">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <path d="M14 2v6h6" />
+                    </svg>
+                    {d}
+                    <button className="adx" onClick={() => s.removeDoc(i)}>
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <textarea
+                ref={ta}
+                rows={1}
+                placeholder={
+                  s.mode === "ask"
+                    ? "Ask anything about your memories…"
+                    : "What's on your mind?"
+                }
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  grow(e.target);
+                }}
+                onKeyDown={onKey}
+              />
+              <div className="capture-bar">
+                <button
+                  className="cap-tool icon"
+                  onClick={() => fileRef.current?.click()}
+                  aria-label="Attach"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M21.4 11 12 20.4a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 1 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 1 1-2.6-2.6l7.8-7.8" />
+                  </svg>
+                </button>
+                <div className="mode-toggle">
                   <button
-                    className="cap-tool icon"
-                    onClick={() => fileRef.current?.click()}
-                    aria-label="Attach"
+                    className={s.mode === "ask" ? "on" : ""}
+                    onClick={() => s.setMode("ask")}
                   >
                     <svg viewBox="0 0 24 24">
-                      <path d="M21.4 11 12 20.4a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 1 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 1 1-2.6-2.6l7.8-7.8" />
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                     </svg>
+                    Ask
                   </button>
-                  <div className="mode-toggle">
+                  {view !== "knowledge" && (
                     <button
-                      className={s.mode === "ask" ? "on" : ""}
-                      onClick={() => s.setMode("ask")}
+                      className={s.mode === "remember" ? "on" : ""}
+                      onClick={() => s.setMode("remember")}
                     >
                       <svg viewBox="0 0 24 24">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        <path d="M12 3l1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6z" />
                       </svg>
-                      Ask
+                      Remember
                     </button>
-                    {view !== "knowledge" && (
-                      <button
-                        className={s.mode === "remember" ? "on" : ""}
-                        onClick={() => s.setMode("remember")}
-                      >
-                        <svg viewBox="0 0 24 24">
-                          <path d="M12 3l1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6z" />
-                        </svg>
-                        Remember
-                      </button>
-                    )}
-                  </div>
-                  <div className="cap-tail">
-                    <div className="model-anchor ask-only">
-                      <button
-                        className="cap-tool model-chip"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setModelOpen((o) => !o);
-                        }}
-                      >
-                        <span className="mdot" />
-                        <span>{s.model.name}</span>{" "}
-                        <span className="mchev">▾</span>
-                      </button>
-                      {modelOpen && (
-                        <div className="model-pop">
-                          <div className="mp-up">
-                            <div>
-                              <div className="mp-up-t">Use any model</div>
-                              <div className="mp-up-s">
-                                Free while Cortex is in preview
-                              </div>
+                  )}
+                </div>
+                <div className="cap-tail">
+                  <div className="model-anchor ask-only">
+                    <button
+                      className="cap-tool model-chip"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setModelOpen((o) => !o);
+                      }}
+                    >
+                      <span className="mdot" />
+                      <span>{s.model.name}</span>{" "}
+                      <span className="mchev">▾</span>
+                    </button>
+                    {modelOpen && (
+                      <div className="model-pop">
+                        <div className="mp-up">
+                          <div>
+                            <div className="mp-up-t">Use any model</div>
+                            <div className="mp-up-s">
+                              Free while Cortex is in preview
                             </div>
-                            <span className="mp-badge">Preview</span>
                           </div>
-                          <label className="mp-search">
-                            <svg viewBox="0 0 24 24">
-                              <circle cx="11" cy="11" r="7" />
-                              <path d="M21 21l-4.3-4.3" />
-                            </svg>
-                            <input
-                              placeholder="Search models…"
-                              value={modelSearch}
-                              onChange={(e) => setModelSearch(e.target.value)}
-                              autoFocus
-                            />
-                          </label>
-                          <div className="mp-list">
-                            {modelList.map((m) => (
-                              <button
-                                key={m.name}
-                                className={
-                                  "mp-item" +
-                                  (m.name === s.model.name ? " on" : "")
-                                }
-                                onClick={() => {
-                                  s.setModel(m.name);
-                                  setModelOpen(false);
-                                  const custom = s.customModels.find(
-                                    (c) => c.label === m.name,
-                                  );
-                                  if (custom && !s.byokKeys[custom.id])
-                                    s.unlockByok();
-                                }}
-                              >
-                                <span className="mp-av">{m.prov[0]}</span>
-                                <span className="mp-meta">
-                                  <span className="mp-name">
-                                    {m.name}{" "}
-                                    <span
-                                      className={
-                                        "mp-price" +
-                                        (m.price.length > 2 ? " hi" : "")
-                                      }
-                                    >
-                                      {m.price}
-                                    </span>
-                                  </span>
-                                  <span className="mp-desc">
-                                    {m.prov} · {m.desc}
+                          <span className="mp-badge">Preview</span>
+                        </div>
+                        <label className="mp-search">
+                          <svg viewBox="0 0 24 24">
+                            <circle cx="11" cy="11" r="7" />
+                            <path d="M21 21l-4.3-4.3" />
+                          </svg>
+                          <input
+                            placeholder="Search models…"
+                            value={modelSearch}
+                            onChange={(e) => setModelSearch(e.target.value)}
+                            autoFocus
+                          />
+                        </label>
+                        <div className="mp-list">
+                          {modelList.map((m) => (
+                            <button
+                              key={m.name}
+                              className={
+                                "mp-item" +
+                                (m.name === s.model.name ? " on" : "")
+                              }
+                              onClick={() => {
+                                s.setModel(m.name);
+                                setModelOpen(false);
+                                const custom = s.customModels.find(
+                                  (c) => c.label === m.name,
+                                );
+                                if (custom && !s.byokKeys[custom.id])
+                                  s.unlockByok();
+                              }}
+                            >
+                              <span className="mp-av">{m.prov[0]}</span>
+                              <span className="mp-meta">
+                                <span className="mp-name">
+                                  {m.name}{" "}
+                                  <span
+                                    className={
+                                      "mp-price" +
+                                      (m.price.length > 2 ? " hi" : "")
+                                    }
+                                  >
+                                    {m.price}
                                   </span>
                                 </span>
-                                {m.name === s.model.name && (
-                                  <span className="mp-check">✓</span>
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                          <button
-                            className="mp-add"
-                            onClick={() => {
-                              setModelOpen(false);
-                              openAddModel();
-                            }}
-                          >
-                            <span className="mp-add-ic">
-                              <svg viewBox="0 0 24 24">
-                                <path d="M12 5v14M5 12h14" />
-                              </svg>
-                            </span>
-                            <span className="mp-meta">
-                              <span className="mp-name">Add model</span>
-                              <span className="mp-desc">
-                                Bring your own API key
+                                <span className="mp-desc">
+                                  {m.prov} · {m.desc}
+                                </span>
                               </span>
-                            </span>
-                          </button>
+                              {m.name === s.model.name && (
+                                <span className="mp-check">✓</span>
+                              )}
+                            </button>
+                          ))}
                         </div>
-                      )}
-                    </div>
+                        <button
+                          className="mp-add"
+                          onClick={() => {
+                            setModelOpen(false);
+                            openAddModel();
+                          }}
+                        >
+                          <span className="mp-add-ic">
+                            <svg viewBox="0 0 24 24">
+                              <path d="M12 5v14M5 12h14" />
+                            </svg>
+                          </span>
+                          <span className="mp-meta">
+                            <span className="mp-name">Add model</span>
+                            <span className="mp-desc">
+                              Bring your own API key
+                            </span>
+                          </span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    className={
+                      "cap-tool web-chip ask-only" + (s.web ? " on" : "")
+                    }
+                    onClick={() => s.toggleWeb()}
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="9" />
+                      <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+                    </svg>{" "}
+                    Web
+                  </button>
+                  <div className="imp-anchor remember-only">
+                    <button
+                      className={"cap-tool imp-chip" + (impOpen ? " on" : "")}
+                      onClick={() => setImpOpen((o) => !o)}
+                      aria-haspopup="true"
+                      aria-expanded={impOpen}
+                    >
+                      {s.importance === "low"
+                        ? "Passing"
+                        : s.importance === "normal"
+                          ? "Normal"
+                          : "Keep close"}
+                      <span className="mchev">▾</span>
+                    </button>
+                    {impOpen && (
+                      <div className="imp-pop">
+                        <div className="importance">
+                          {(["low", "normal", "high"] as const).map((lv) => (
+                            <button
+                              key={lv}
+                              className={s.importance === lv ? "on" : ""}
+                              onClick={() => {
+                                s.setImportance(lv);
+                                setImpOpen(false);
+                              }}
+                            >
+                              {lv === "low"
+                                ? "Passing"
+                                : lv === "normal"
+                                  ? "Normal"
+                                  : "Keep close"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {dictation.supported && (
                     <button
                       className={
-                        "cap-tool web-chip ask-only" + (s.web ? " on" : "")
+                        "cap-tool speak-tool" +
+                        (dictation.recording ? " on" : "")
                       }
-                      onClick={() => s.toggleWeb()}
+                      onClick={() => void toggleDictation()}
+                      disabled={dictation.busy}
+                      title={
+                        dictation.recording
+                          ? "Stop and transcribe"
+                          : "Speak your prompt"
+                      }
                     >
                       <svg viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="9" />
-                        <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+                        <rect x="9" y="3" width="6" height="11" rx="3" />
+                        <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
                       </svg>{" "}
-                      Web
+                      {dictation.busy
+                        ? "…"
+                        : dictation.recording
+                          ? "Listening"
+                          : "Speak"}
                     </button>
-                    <div className="imp-anchor remember-only">
-                      <button
-                        className={"cap-tool imp-chip" + (impOpen ? " on" : "")}
-                        onClick={() => setImpOpen((o) => !o)}
-                        aria-haspopup="true"
-                        aria-expanded={impOpen}
-                      >
-                        {s.importance === "low"
-                          ? "Passing"
-                          : s.importance === "normal"
-                            ? "Normal"
-                            : "Keep close"}
-                        <span className="mchev">▾</span>
-                      </button>
-                      {impOpen && (
-                        <div className="imp-pop">
-                          <div className="importance">
-                            {(["low", "normal", "high"] as const).map((lv) => (
-                              <button
-                                key={lv}
-                                className={s.importance === lv ? "on" : ""}
-                                onClick={() => {
-                                  s.setImportance(lv);
-                                  setImpOpen(false);
-                                }}
-                              >
-                                {lv === "low"
-                                  ? "Passing"
-                                  : lv === "normal"
-                                    ? "Normal"
-                                    : "Keep close"}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    {dictation.supported && (
-                      <button
-                        className={
-                          "cap-tool speak-tool" +
-                          (dictation.recording ? " on" : "")
-                        }
-                        onClick={() => void toggleDictation()}
-                        disabled={dictation.busy}
-                        title={
-                          dictation.recording
-                            ? "Stop and transcribe"
-                            : "Speak your prompt"
-                        }
-                      >
-                        <svg viewBox="0 0 24 24">
-                          <rect x="9" y="3" width="6" height="11" rx="3" />
-                          <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-                        </svg>{" "}
-                        {dictation.busy
-                          ? "…"
-                          : dictation.recording
-                            ? "Listening"
-                            : "Speak"}
-                      </button>
-                    )}
-                    <button
-                      className="cap-send"
-                      onClick={submit}
-                      aria-label={s.mode === "ask" ? "Ask" : "Remember"}
-                    >
-                      <svg viewBox="0 0 24 24">
-                        <path d="M12 19V5M5 12l7-7 7 7" />
-                      </svg>
-                    </button>
-                  </div>
+                  )}
+                  <button
+                    className="cap-send"
+                    onClick={submit}
+                    aria-label={s.mode === "ask" ? "Ask" : "Remember"}
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M12 19V5M5 12l7-7 7 7" />
+                    </svg>
+                  </button>
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        )}
         {/* shared file input — available on every view (Studio attach, etc.) */}
         <input
           ref={fileRef}
@@ -4839,11 +4995,9 @@ export function CortexApp({
               {amError && <div className="am-err">{amError}</div>}
               <div className="am-note">
                 Your key is encrypted and stored only on this device
-                {passkeySupported()
-                  ? ", unlocked with a passkey"
-                  : ""}
-                . It never touches our servers — calls go straight from your
-                browser to the provider.
+                {passkeySupported() ? ", unlocked with a passkey" : ""}. It
+                never touches our servers — calls go straight from your browser
+                to the provider.
               </div>
             </div>
             <button
@@ -4911,9 +5065,10 @@ export function CortexApp({
                     </div>
                   </div>
                   <div className="mm-note" style={{ marginTop: 16 }}>
-                    Shared with you, read-only. It lives in {m.sharedBy || "the"}
-                    {m.sharedBy ? "’s" : " owner’s"} memory — you can read it, but
-                    only they can change it.
+                    Shared with you, read-only. It lives in{" "}
+                    {m.sharedBy || "the"}
+                    {m.sharedBy ? "’s" : " owner’s"} memory — you can read it,
+                    but only they can change it.
                   </div>
                 </>
               );
@@ -5094,7 +5249,9 @@ export function CortexApp({
                         />
                         <button
                           className="pill-btn keep"
-                          disabled={!wallet || shareBusy || !shareRecipient.trim()}
+                          disabled={
+                            !wallet || shareBusy || !shareRecipient.trim()
+                          }
                           onClick={() => void shareMemory(m)}
                         >
                           {shareBusy ? "Sharing…" : "Share"}

@@ -807,6 +807,37 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .set-tr span:not(:first-child){font-family:var(--mono,monospace);color:var(--muted)}
 .set-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:22px}
 
+/* ── Settings console (floating over the page) ── */
+.cset-backdrop{position:fixed;inset:0;z-index:70;display:grid;place-items:center;padding:24px;background:rgba(0,0,0,.55);backdrop-filter:blur(4px)}
+.cset-modal{position:relative;display:flex;width:min(1080px,100%);height:min(720px,90vh);background:var(--surface);border:1px solid var(--line2);border-radius:16px;box-shadow:var(--shadow-lg);overflow:hidden;animation:rise .22s cubic-bezier(.2,.7,.2,1)}
+.cset-nav{flex-shrink:0;width:268px;display:flex;flex-direction:column;padding:18px 14px;background:var(--paper);border-right:1px solid var(--line)}
+.cset-search{display:flex;align-items:center;gap:9px;padding:9px 12px;margin-bottom:14px;border-radius:var(--r);background:var(--surface2);border:1px solid var(--line)}
+.cset-search svg{width:16px;height:16px;stroke:var(--faint);fill:none;stroke-width:1.8;stroke-linecap:round;flex-shrink:0}
+.cset-search input{flex:1;min-width:0;background:none;border:none;outline:none;color:var(--ink);font-size:14px;font-family:inherit}
+.cset-search input::placeholder{color:var(--faint)}
+.cset-nav-label{font-size:12px;letter-spacing:.03em;color:var(--muted);padding:4px 12px 6px}
+.cset-nav-list{display:flex;flex-direction:column;gap:2px}
+.cset-nav-item{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border-radius:var(--r);color:var(--muted);font-size:14.5px;text-align:left;transition:background .14s,color .14s}
+.cset-nav-item svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.cset-nav-item:hover{color:var(--ink);background:var(--surface2)}
+.cset-nav-item.on{color:var(--ink);background:var(--surface2);font-weight:500}
+.cset-body{position:relative;flex:1;min-width:0;display:flex;flex-direction:column;background:var(--surface)}
+.cset-x{position:absolute;top:18px;right:18px;z-index:2;width:32px;height:32px;border-radius:var(--r);display:grid;place-items:center;color:var(--muted);transition:background .12s,color .12s}
+.cset-x:hover{background:var(--surface2);color:var(--ink)}
+.cset-x svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.cset-scroll{flex:1;overflow-y:auto;padding:40px 44px 44px}
+.cset-scroll .set-group{display:none;margin:0;border:none;background:none;box-shadow:none;padding:0}
+.cset-scroll .set-group.on{display:block}
+.cset-scroll .set-gt{font-size:21px}
+@media(max-width:760px){
+  .cset-modal{flex-direction:column;width:100%;height:90vh}
+  .cset-nav{width:auto;padding:12px;border-right:none;border-bottom:1px solid var(--line)}
+  .cset-nav-label{display:none}
+  .cset-nav-list{flex-direction:row;overflow-x:auto;gap:6px}
+  .cset-nav-item{white-space:nowrap}
+  .cset-scroll{padding:28px 22px}
+}
+
 /* ── Overview (Home) ── */
 .ov-hero{text-align:center;max-width:660px;margin:48px auto 0;padding-top:20px}
 .ov-hello{font-family:var(--head);font-weight:700;font-size:clamp(36px,5vw,54px);line-height:1.04;letter-spacing:-.03em;color:var(--ink)}
