@@ -61,7 +61,7 @@ export function FaqSection() {
       <div className="mx-auto max-w-7xl px-6 md:px-12 lg:px-16">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-16">
           <div className="flex flex-col gap-6">
-            <div className="flex w-fit items-center gap-3 rounded-full border border-ink/20 bg-ink/10 px-4 py-2">
+            <div className="flex w-fit items-center gap-3 rounded-[var(--r)] border border-ink/20 bg-ink/10 px-4 py-2">
               <div className="h-2.5 w-2.5 bg-ink" />
               <span className="text-sm font-medium tracking-wide text-ink/70">
                 FAQ

@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="currentColor" role="img" aria-label="cortex">
-  <!-- transparent background; inherits color via currentColor → black on light, white on dark -->
-  <circle cx="60" cy="60" r="9"/>
-  <path d="M54 43 L54 27 L49 17 L60 24 L71 17 L66 27 L66 43 L60 48 Z"/>
-  <path d="M54 43 L54 27 L49 17 L60 24 L71 17 L66 27 L66 43 L60 48 Z" transform="rotate(45 60 60)"/>
-  <path d="M54 43 L54 27 L49 17 L60 24 L71 17 L66 27 L66 43 L60 48 Z" transform="rotate(90 60 60)"/>
-  <path d="M54 43 L54 27 L49 17 L60 24 L71 17 L66 27 L66 43 L60 48 Z" transform="rotate(135 60 60)"/>
-  <path d="M54 43 L54 27 L49 17 L60 24 L71 17 L66 27 L66 43 L60 48 Z" transform="rotate(180 60 60)"/>
-  <path d="M54 43 L54 27 L49 17 L60 24 L71 17 L66 27 L66 43 L60 48 Z" transform="rotate(225 60 60)"/>
-  <path d="M54 43 L54 27 L49 17 L60 24 L71 17 L66 27 L66 43 L60 48 Z" transform="rotate(270 60 60)"/>
-  <path d="M54 43 L54 27 L49 17 L60 24 L71 17 L66 27 L66 43 L60 48 Z" transform="rotate(315 60 60)"/>
+  <!-- transparent background; inherits color via currentColor → adapts to light/dark -->
+  <circle cx="60" cy="60" r="13"/>
+  <g transform="rotate(0 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
+  <g transform="rotate(45 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
+  <g transform="rotate(90 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
+  <g transform="rotate(135 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
+  <g transform="rotate(180 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
+  <g transform="rotate(225 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
+  <g transform="rotate(270 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
+  <g transform="rotate(315 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
 </svg>

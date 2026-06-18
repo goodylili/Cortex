@@ -371,11 +371,11 @@ export function MemoryMap({
       ctx.arc(x, y, r, 0, PI2);
       ctx.fill();
     }
-    const LOGO_PETAL = new Path2D(
-      "M54 43 L54 27 L49 17 L60 24 L71 17 L66 27 L66 43 L60 48 Z",
-    );
-    const LOGO_TIP = 43;
-    const LOGO_CORE = 9;
+    const LOGO_TOOTH = new Path2D();
+    LOGO_TOOTH.roundRect(51.5, 19, 6.5, 25, 3.25);
+    LOGO_TOOTH.roundRect(62, 19, 6.5, 25, 3.25);
+    const LOGO_TIP = 41;
+    const LOGO_CORE = 13;
     function centerGlow(x: number, y: number, r: number) {
       const g = ctx.createRadialGradient(x, y, 0, x, y, r);
       g.addColorStop(0, "rgba(167,139,250,0.5)");
@@ -395,7 +395,7 @@ export function MemoryMap({
         ctx.rotate((a * Math.PI) / 180);
         ctx.scale(s, s);
         ctx.translate(-60, -60);
-        ctx.fill(LOGO_PETAL);
+        ctx.fill(LOGO_TOOTH);
         ctx.restore();
       }
       ctx.beginPath();

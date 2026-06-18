@@ -92,7 +92,7 @@ export function FeaturesSection() {
           transition={{ duration: 0.6 }}
           className="mb-16 flex flex-col gap-6"
         >
-          <div className="flex w-fit items-center gap-3 rounded-full border border-ink/20 bg-ink/10 px-4 py-2">
+          <div className="flex w-fit items-center gap-3 rounded-[var(--r)] border border-ink/20 bg-ink/10 px-4 py-2">
             <div className="h-2.5 w-2.5 bg-ink" />
             <span className="text-sm font-medium tracking-wide text-ink/70">
               Core Features
@@ -155,7 +155,7 @@ export function FeaturesSection() {
           <Button
             asChild
             size="lg"
-            className="bg-ink px-8 text-canvas hover:bg-ink/90"
+            className="rounded-[var(--r)] bg-ink px-8 text-canvas hover:bg-ink/90"
           >
             <Link href="/app">Explore Full Features</Link>
           </Button>
@@ -163,7 +163,7 @@ export function FeaturesSection() {
             asChild
             size="lg"
             variant="outline"
-            className="border-ink/20 bg-transparent px-8 text-ink hover:bg-ink/10 hover:text-ink"
+            className="rounded-[var(--r)] border-ink/20 bg-transparent px-8 text-ink hover:bg-ink/10 hover:text-ink"
           >
             <Link href="#faq">View Documentation</Link>
           </Button>

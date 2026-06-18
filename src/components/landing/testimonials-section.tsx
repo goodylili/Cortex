@@ -97,7 +97,7 @@ export function TestimonialsSection() {
     <section className="w-full border-b border-ink/10 bg-canvas py-24 md:py-32">
       <div className="mx-auto max-w-7xl px-6 md:px-12 lg:px-16">
         <div className="mb-12 flex flex-col gap-6 md:mb-16">
-          <div className="flex w-fit items-center gap-3 rounded-full border border-ink/20 bg-ink/10 px-4 py-2">
+          <div className="flex w-fit items-center gap-3 rounded-[var(--r)] border border-ink/20 bg-ink/10 px-4 py-2">
             <div className="h-2.5 w-2.5 bg-ink" />
             <span className="text-sm font-medium tracking-wide text-ink/70">
               Voices
@@ -121,14 +121,14 @@ export function TestimonialsSection() {
             <div className="flex flex-shrink-0 gap-2">
               <button
                 onClick={prev}
-                className="rounded border border-ink/10 bg-transparent p-2 text-ink transition-colors hover:bg-ink/5 md:p-3"
+                className="rounded-[var(--r)] border border-ink/10 bg-transparent p-2 text-ink transition-colors hover:bg-ink/5 md:p-3"
                 aria-label="Previous testimonial"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <button
                 onClick={next}
-                className="rounded border border-ink/10 bg-transparent p-2 text-ink transition-colors hover:bg-ink/5 md:p-3"
+                className="rounded-[var(--r)] border border-ink/10 bg-transparent p-2 text-ink transition-colors hover:bg-ink/5 md:p-3"
                 aria-label="Next testimonial"
               >
                 <ChevronRight className="h-5 w-5" />
