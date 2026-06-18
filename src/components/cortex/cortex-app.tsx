@@ -3339,15 +3339,17 @@ export function CortexApp({
                             {agMode !== "remember" && (
                               <button
                                 className={
-                                  "cap-tool web-chip" + (s.web ? " on" : "")
+                                  "cap-tool icon web-chip" +
+                                  (s.web ? " on" : "")
                                 }
                                 onClick={() => s.toggleWeb()}
+                                title="Search the web"
+                                aria-label="Search the web"
                               >
                                 <svg viewBox="0 0 24 24">
                                   <circle cx="12" cy="12" r="9" />
                                   <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
-                                </svg>{" "}
-                                Web
+                                </svg>
                               </button>
                             )}
                             {agMode === "remember" && (
@@ -3786,15 +3788,17 @@ export function CortexApp({
                       )}
                     </div>
                     <button
-                      className={"cap-tool web-chip" + (s.web ? " on" : "")}
+                      className={
+                        "cap-tool icon web-chip" + (s.web ? " on" : "")
+                      }
                       onClick={() => s.toggleWeb()}
                       title="Search the web"
+                      aria-label="Search the web"
                     >
                       <svg viewBox="0 0 24 24">
                         <circle cx="12" cy="12" r="9" />
                         <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
-                      </svg>{" "}
-                      Web
+                      </svg>
                     </button>
                     <div className="cap-tail">
                       <button
@@ -3809,19 +3813,19 @@ export function CortexApp({
                             ? loopBusy || !studioTask.trim()
                             : studioLoading
                         }
+                        aria-label={
+                          studioMode === "loop" ? "Generate loop" : "Generate"
+                        }
                         title={
                           studioMode === "loop"
-                            ? "Write a self-correcting loop from this goal and your memory, then run it"
-                            : "Generate a prompt from this task and your memory"
+                            ? loopBusy
+                              ? "Writing the loop…"
+                              : "Write a self-correcting loop from this goal and your memory, then run it"
+                            : studioLoading
+                              ? "Generating…"
+                              : "Generate a prompt from this task and your memory"
                         }
                       >
-                        {studioMode === "loop"
-                          ? loopBusy
-                            ? "Writing the loop…"
-                            : "Generate loop"
-                          : studioLoading
-                            ? "Generating…"
-                            : "Generate"}
                         <svg viewBox="0 0 24 24">
                           <path d="M5 12h14M13 6l6 6-6 6" />
                         </svg>
@@ -5855,15 +5859,16 @@ export function CortexApp({
                   </div>
                   <button
                     className={
-                      "cap-tool web-chip ask-only" + (s.web ? " on" : "")
+                      "cap-tool icon web-chip ask-only" + (s.web ? " on" : "")
                     }
                     onClick={() => s.toggleWeb()}
+                    title="Search the web"
+                    aria-label="Search the web"
                   >
                     <svg viewBox="0 0 24 24">
                       <circle cx="12" cy="12" r="9" />
                       <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
-                    </svg>{" "}
-                    Web
+                    </svg>
                   </button>
                   <div className="imp-anchor remember-only">
                     <button
