@@ -4315,7 +4315,7 @@ export function CortexApp({
                           <div className="ssub" style={{ marginTop: 10 }}>
                             You hold{" "}
                             <span
-                              style={{ fontFamily: "var(--mono,monospace)" }}
+                              style={{ fontFamily: "var(--mono)" }}
                             >
                               {claimedName}
                             </span>{" "}
@@ -4757,7 +4757,7 @@ export function CortexApp({
                       className="ssub"
                       style={{
                         marginTop: 10,
-                        fontFamily: "var(--mono,monospace)",
+                        fontFamily: "var(--mono)",
                       }}
                     >
                       {CORTEX_ENV.mcpAddress
@@ -5275,7 +5275,7 @@ export function CortexApp({
                           className="ssub"
                           style={{
                             marginTop: 10,
-                            fontFamily: "var(--mono,monospace)",
+                            fontFamily: "var(--mono)",
                           }}
                         >
                           {CORTEX_ENV.mcpAddress
@@ -5366,7 +5366,7 @@ export function CortexApp({
                           <div className="ssub" style={{ marginTop: 10 }}>
                             You hold{" "}
                             <span
-                              style={{ fontFamily: "var(--mono,monospace)" }}
+                              style={{ fontFamily: "var(--mono)" }}
                             >
                               {claimedName}
                             </span>{" "}
@@ -5462,7 +5462,7 @@ export function CortexApp({
                                   className="ssub"
                                   style={{
                                     flex: 1,
-                                    fontFamily: "var(--mono,monospace)",
+                                    fontFamily: "var(--mono)",
                                   }}
                                 >
                                   {d.publicKey.slice(0, 10) +
