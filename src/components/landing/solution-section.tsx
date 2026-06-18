@@ -31,7 +31,7 @@ const STEPS: SolutionStep[] = [
     description:
       "Hand Cortex a thought, file, note, or link. It reads what you give it and keeps only what's worth holding onto. No folders to organize, no tags to invent.",
     icon: <Brain className="h-5 w-5" />,
-    image: "/images/solution-learn.png",
+    image: "/images/keep-walrus.png",
   },
   {
     id: 2,
@@ -39,7 +39,7 @@ const STEPS: SolutionStep[] = [
     description:
       "Cortex links what belongs together, tidies repeats, surfaces patterns, and draws the constellation of your memory.",
     icon: <Database className="h-5 w-5" />,
-    image: "/images/solution-detect.png",
+    image: "/images/connect-sui.jpg",
   },
   {
     id: 3,
@@ -47,7 +47,7 @@ const STEPS: SolutionStep[] = [
     description:
       "Ask in plain words from any tool you use. Answers are grounded in what you actually saved—private, and yours alone.",
     icon: <Share2 className="h-5 w-5" />,
-    image: "/images/solution-neutralize.png",
+    image: "/images/recall-memwal.png",
   },
 ];
 
