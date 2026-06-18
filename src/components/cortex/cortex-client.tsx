@@ -6,14 +6,7 @@ import dynamic from "next/dynamic";
 // client-only; SSR/prerender would try to evaluate the wasm and fail.
 const CortexShell = dynamic(
   () => import("./cortex-shell").then((m) => m.CortexShell),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="cortex-boot" aria-busy="true" aria-label="Loading">
-        <span className="cortex-boot-mark" />
-      </div>
-    ),
-  },
+  { ssr: false, loading: () => null },
 );
 
 export function CortexClient() {

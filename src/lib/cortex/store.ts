@@ -135,6 +135,7 @@ export interface ChatMsg {
   savedNote: string;
   docs: string[];
   streaming?: boolean;
+  rating?: "up" | "down";
 }
 
 type Mode = "remember" | "ask";
@@ -260,6 +261,7 @@ interface State {
   resetConfig: () => void;
   resetMemory: () => void;
   setChat: (chat: ChatMsg[]) => void;
+  rateChat: (index: number, rating: "up" | "down") => void;
   setEvents: (events: CortexEvent[]) => void;
   setDocuments: (documents: CortexDocument[]) => void;
   newSession: () => void;
@@ -1140,6 +1142,21 @@ export const useCortex = create<State>((set, get) => ({
         memories: get().memories,
         events: get().events,
         cost: get().cost,
+        chat,
+      });
+      return { chat };
+    }),
+  rateChat: (index, rating) =>
+    set((s) => {
+      const chat = s.chat.map((m, i) =>
+        i === index
+          ? { ...m, rating: m.rating === rating ? undefined : rating }
+          : m,
+      );
+      persist({
+        memories: s.memories,
+        events: s.events,
+        cost: s.cost,
         chat,
       });
       return { chat };
