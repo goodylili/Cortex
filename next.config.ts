@@ -10,6 +10,14 @@ const nextConfig: NextConfig = {
     // not needed and would otherwise require a configured loader at runtime.
     unoptimized: true,
   },
+  // Turbopack (dev) equivalent of the webpack tweak below: point the optional
+  // Privy peers we don't use at an empty module so they resolve cleanly.
+  turbopack: {
+    resolveAlias: {
+      "@stripe/crypto": "./src/lib/empty-module.ts",
+      "@farcaster/mini-app-solana": "./src/lib/empty-module.ts",
+    },
+  },
   webpack: (config) => {
     config.ignoreWarnings = [
       ...(config.ignoreWarnings ?? []),
