@@ -1357,6 +1357,56 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 @media(max-width:1100px){.pr-thread{display:none}}
 @media(max-width:820px){.pr-side{display:none}}
 
+/* collapsible sidebar sections + agent roster management */
+.pr-grp-toggle{display:flex;align-items:center;gap:6px;flex:1;min-width:0;background:none;border:none;padding:0;cursor:pointer}
+.pr-grp-toggle .pr-grp-l{transition:color .12s}
+.pr-grp-toggle:hover .pr-grp-l{color:var(--muted)}
+.pr-caret{width:13px;height:13px;flex:none;fill:none;stroke:var(--faint);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+.pr-caret.open{transform:rotate(90deg)}
+.pr-add-agent{flex:none;width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--muted);transition:background .12s,color .12s}
+.pr-add-agent:hover{background:var(--surface2);color:var(--ink)}
+.pr-add-agent svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.pr-member-acts{flex:none;display:flex;align-items:center;gap:2px}
+.pr-member:hover{background:var(--surface2)}
+.pr-member-ic{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--muted);font-size:13px;font-weight:600;opacity:0;transition:background .12s,color .12s,opacity .12s}
+.pr-member:hover .pr-member-ic{opacity:1}
+.pr-member-ic:hover{background:var(--line2);color:var(--ink)}
+.pr-member-ic.danger:hover{color:#e0654f}
+.pr-member-ic svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.pr-rename-input{width:100%;border:1px solid var(--line2);border-radius:6px;background:var(--paper);color:var(--ink);font-family:inherit;font-size:13px;padding:3px 7px;outline:none}
+.pr-rename-input:focus{border-color:var(--faint)}
+
+/* rich composer purposed for the agents page */
+.pr-composer .capture{margin-top:0;width:100%}
+.pr-mode .pr-mode-ic{margin:0}
+
+/* forward / reassign control in the thread actions */
+.pr-assign{display:flex;align-items:center;gap:8px;width:100%;margin-top:4px}
+.pr-assign-l{font-size:12px;color:var(--muted);flex:none}
+.pr-assign-sel{position:relative;flex:1;min-width:0}
+.pr-assign-sel select{width:100%;appearance:none;-webkit-appearance:none;cursor:pointer;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line2);border-radius:7px;padding:7px 30px 7px 11px;font-family:inherit;outline:none}
+.pr-assign-sel select:focus{border-color:var(--faint)}
+.pr-assign-sel svg{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;fill:none;stroke:var(--muted);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+
+/* create-agent modal */
+.am-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:18px 24px 24px}
+.am-cancel{font-size:14px;color:var(--muted);padding:12px 16px;border-radius:var(--r);transition:color .12s,background .12s}
+.am-cancel:hover{background:var(--surface2);color:var(--ink)}
+.am-save{padding:13px 20px;border-radius:var(--r);background:var(--accent);color:var(--accent-ink,#fff);font-size:14.5px;font-weight:600;transition:opacity .15s}
+.am-save:hover{opacity:.9}
+.am-save:disabled{opacity:.5;cursor:default}
+.ag-preview{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface2)}
+.ag-preview .pr-av{width:40px;height:40px;border-radius:10px;font-size:13px;border:none}
+.ag-preview-n{font-size:15px;font-weight:600;color:var(--ink)}
+.ag-preview-r{font-size:12.5px;color:var(--muted);margin-top:2px}
+.ag-input{width:100%;font-size:14px;color:var(--ink);background:var(--paper);border:1px solid var(--line2);border-radius:var(--r);padding:13px 15px;font-family:var(--sans);resize:vertical;transition:border-color .15s}
+.ag-input::placeholder{color:var(--muted)}
+.ag-input:focus{outline:none;border-color:var(--faint)}
+.ag-accents{display:flex;flex-wrap:wrap;gap:10px}
+.ag-accent{width:30px;height:30px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:transform .1s,box-shadow .12s}
+.ag-accent:hover{transform:scale(1.1)}
+.ag-accent.on{box-shadow:0 0 0 2px var(--paper),0 0 0 4px var(--ink)}
+
 /* ============================================================
    Responsive hardening — phones & small tablets
    Consolidated overrides so every view holds up on narrow screens.

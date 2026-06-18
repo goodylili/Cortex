@@ -16,6 +16,7 @@ interface StepMemory {
 
 interface Body {
   agentId: string;
+  system?: string;
   goal: string;
   observations: string[];
   memories: StepMemory[];
@@ -58,11 +59,19 @@ export async function POST(req: Request) {
     return Response.json({ error: "bad request" }, { status: 400 });
   }
 
-  const { agentId, goal, observations = [], memories = [], model } = body;
+  const {
+    agentId,
+    system,
+    goal,
+    observations = [],
+    memories = [],
+    model,
+  } = body;
   const agent = agentById(agentId);
-  if (!agent) {
+  const systemPrompt = agent?.system ?? system;
+  if (!systemPrompt) {
     return Response.json(
-      { error: `unknown agentId "${agentId}"` },
+      { error: `unknown agentId "${agentId}" and no system prompt supplied` },
       { status: 400 },
     );
   }
@@ -80,7 +89,7 @@ export async function POST(req: Request) {
 
   const result = await complete({
     model: chosen,
-    system: agent.system,
+    system: systemPrompt,
     user,
     maxTokens: MAX_TOKENS,
   });

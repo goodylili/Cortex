@@ -72,6 +72,58 @@ export const AGENTS: AgentDef[] = [
   },
 ];
 
+export const ROLE_LABELS: Record<AgentRole, string> = {
+  researcher: "Researcher",
+  curator: "Curator",
+  planner: "Planner",
+  critic: "Critic",
+};
+
+const ROLE_SPECIALTY: Record<AgentRole, string> = {
+  researcher: "gathering facts, sources, and links, and proposing new memories worth keeping",
+  curator: "organizing, deduping, and tagging the shared memory, and deciding what is worth keeping",
+  planner: "breaking a goal into ordered steps, sequencing the work, and assigning handoffs",
+  critic: "reviewing the team's outputs, flagging gaps, contradictions, and unsupported claims",
+};
+
+export const ACCENTS = [
+  "#3b82f6",
+  "#10b981",
+  "#f59e0b",
+  "#ef4444",
+  "#8b5cf6",
+  "#ec4899",
+  "#14b8a6",
+  "#f97316",
+];
+
+export const isBuiltInAgent = (id: string): boolean =>
+  AGENTS.some((a) => a.id === id);
+
+export const makeAgent = (input: {
+  name: string;
+  role: AgentRole;
+  accent: string;
+  blurb?: string;
+}): AgentDef => {
+  const name = input.name.trim();
+  const blurb = (input.blurb ?? "").trim();
+  const specialty = blurb || ROLE_SPECIALTY[input.role];
+  return {
+    id: uid("agent"),
+    name,
+    role: input.role,
+    blurb: blurb || `Specializes in ${ROLE_SPECIALTY[input.role]}.`,
+    system: `You are ${name}, a ${input.role} on the team. Your specialty is ${specialty}. ${SHARED_MEMORY_CLAUSE}`,
+    accent: input.accent,
+  };
+};
+
+export const findAgent = (
+  roster: AgentDef[],
+  id: string,
+): AgentDef | undefined => roster.find((a) => a.id === id);
+
 export const agentById = (id: string): AgentDef | undefined =>
   AGENTS.find((a) => a.id === id);
 

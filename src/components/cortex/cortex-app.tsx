@@ -41,7 +41,13 @@ import {
 import type { CortexWalletState } from "@/lib/cortex/use-wallet";
 import { CORTEX_ENV, contractsEnabled } from "@/lib/cortex/walrus/env";
 import { getSuiClient } from "@/lib/cortex/walrus/clients";
-import { AGENTS, agentById } from "@/lib/cortex/agents";
+import {
+  AGENTS,
+  type AgentRole,
+  ACCENTS,
+  ROLE_LABELS,
+  isBuiltInAgent,
+} from "@/lib/cortex/agents";
 import { useDictation, useReadAloud } from "@/lib/cortex/use-voice";
 import { CaptureModal } from "./capture";
 import { Markdown } from "./markdown";
@@ -171,7 +177,10 @@ const clock = (ts: number): string =>
     minute: "2-digit",
     hour12: false,
   });
-const renderMessageText = (text: string): React.ReactNode[] => {
+const renderMessageText = (
+  text: string,
+  names: string[] = AGENT_NAMES,
+): React.ReactNode[] => {
   const nodes: React.ReactNode[] = [];
   text.split(/(`[^`]+`)/g).forEach((part, pi) => {
     if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
@@ -186,7 +195,7 @@ const renderMessageText = (text: string): React.ReactNode[] => {
       if (!tok) return;
       const isMention =
         tok.startsWith("@") &&
-        AGENT_NAMES.some((n) => n.toLowerCase() === tok.slice(1).toLowerCase());
+        names.some((n) => n.toLowerCase() === tok.slice(1).toLowerCase());
       nodes.push(
         isMention ? (
           <span className="pr-mention" key={`m${pi}-${ti}`}>
@@ -231,13 +240,22 @@ export function CortexApp({
   const [memFilter, setMemFilter] = useState("all");
   const [memTab, setMemTab] = useState<"cards" | "timeline">("cards");
   const [captureOpen, setCaptureOpen] = useState(false);
-  const [agentGoal, setAgentGoal] = useState("");
   const [agentAssignee, setAgentAssignee] = useState<string>(AGENTS[0]!.id);
   const [roomTaskId, setRoomTaskId] = useState<string | null>(null);
   const [threadTaskId, setThreadTaskId] = useState<string | null>(null);
   const [threadReply, setThreadReply] = useState("");
   const [roomRailOpen, setRoomRailOpen] = useState(true);
   const [roomsExpanded, setRoomsExpanded] = useState(false);
+  const [secRooms, setSecRooms] = useState(true);
+  const [secAgents, setSecAgents] = useState(true);
+  const [agModalOpen, setAgModalOpen] = useState(false);
+  const [agName, setAgName] = useState("");
+  const [agRole, setAgRole] = useState<AgentRole>("researcher");
+  const [agBlurb, setAgBlurb] = useState("");
+  const [agAccent, setAgAccent] = useState<string>(ACCENTS[0]!);
+  const [agRenameId, setAgRenameId] = useState<string | null>(null);
+  const [agRenameVal, setAgRenameVal] = useState("");
+  const [agMode, setAgMode] = useState<"task" | "ask" | "remember">("task");
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
   const [autoTaskId, setAutoTaskId] = useState<string | null>(null);
   const autoStop = useRef(false);
@@ -315,7 +333,6 @@ export function CortexApp({
   const ta = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const roomComposerRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     s.hydrate();
@@ -1554,19 +1571,78 @@ export function CortexApp({
     }
   }
   async function sendRoomMessage() {
-    const text = agentGoal.trim();
+    const text = input.trim();
     if (!text) return;
-    const mentioned = AGENTS.find((a) =>
+    const st = useCortex.getState();
+    const roster = st.agents;
+    const mentioned = roster.find((a) =>
       new RegExp(`@${a.name}\\b`, "i").test(text),
     );
-    const assignee = mentioned?.id ?? agentAssignee;
+    if (!mentioned && agMode === "ask") {
+      s.ask(text);
+      setInput("");
+      grow(ta.current);
+      return;
+    }
+    if (!mentioned && agMode === "remember") {
+      s.remember(text, s.importance);
+      if (wallet)
+        void wallet
+          .remember(text)
+          .catch((err) =>
+            flash(`Saved locally; Walrus memory failed: ${(err as Error).message}`),
+          );
+      setInput("");
+      grow(ta.current);
+      flash(
+        s.importance === "high"
+          ? "Kept close."
+          : "Kept. Cortex will look after it.",
+      );
+      return;
+    }
+    const roomTask = roomTaskId
+      ? st.tasks.find((t) => t.id === roomTaskId)
+      : undefined;
+    const assignee =
+      mentioned?.id ??
+      roomTask?.assignedTo ??
+      (roster.some((a) => a.id === agentAssignee)
+        ? agentAssignee
+        : roster[0]!.id);
     const id = s.createTask(text, assignee);
-    setAgentGoal("");
+    setInput("");
+    grow(ta.current);
     if (id) {
       setAgentAssignee(assignee);
       setRoomTaskId(id);
       await autoRunTask(id);
     }
+  }
+  function createAgentFromForm() {
+    const name = agName.trim();
+    if (!name) return;
+    const id = s.addAgent({
+      name,
+      role: agRole,
+      accent: agAccent,
+      blurb: agBlurb,
+    });
+    if (id) {
+      setAgentAssignee(id);
+      flash(`${name} joined the team.`);
+    }
+    setAgName("");
+    setAgBlurb("");
+    setAgRole("researcher");
+    setAgAccent(ACCENTS[0]!);
+    setAgModalOpen(false);
+  }
+  function commitRename(id: string) {
+    const next = agRenameVal.trim();
+    if (next) s.renameAgent(id, next);
+    setAgRenameId(null);
+    setAgRenameVal("");
   }
   async function replyInThread() {
     const id = threadTaskId;
@@ -1574,7 +1650,9 @@ export function CortexApp({
     const text = threadReply.trim();
     setThreadReply("");
     const mentioned = text
-      ? AGENTS.find((a) => new RegExp(`@${a.name}\\b`, "i").test(text))
+      ? useCortex
+          .getState()
+          .agents.find((a) => new RegExp(`@${a.name}\\b`, "i").test(text))
       : undefined;
     if (mentioned) s.handoffTask(id, mentioned.id);
     await autoRunTask(id);
@@ -2532,6 +2610,9 @@ export function CortexApp({
           {/* AGENTS — Pipeline Room: a Slack-style room where agents are members */}
           {view === "agents" &&
             (() => {
+              const roster = s.agents;
+              const byId = (id: string) => roster.find((a) => a.id === id);
+              const rosterNames = roster.map((a) => a.name);
               const tasks = [...s.tasks].sort(
                 (a, b) => b.createdAt - a.createdAt,
               );
@@ -2561,7 +2642,7 @@ export function CortexApp({
                     ? 35
                     : Math.min(20 + t.observations.length * 22, 92);
               const roomAgents = room
-                ? AGENTS.filter(
+                ? roster.filter(
                     (a) =>
                       a.id === room.assignedTo ||
                       room.observations.some((o) => o.agentId === a.id),
@@ -2592,7 +2673,8 @@ export function CortexApp({
                         onClick={() => {
                           setRoomTaskId(null);
                           setThreadTaskId(null);
-                          roomComposerRef.current?.focus();
+                          setAgMode("task");
+                          ta.current?.focus();
                         }}
                       >
                         <svg viewBox="0 0 24 24">
@@ -2602,8 +2684,20 @@ export function CortexApp({
                       </button>
                       <div className="pr-side-scroll">
                         <div className="pr-grp">
-                          <span className="pr-grp-l">Task Rooms</span>
-                          {tasks.length > ROOM_PREVIEW_CAP && (
+                          <button
+                            className="pr-grp-toggle"
+                            onClick={() => setSecRooms((v) => !v)}
+                            aria-expanded={secRooms}
+                          >
+                            <svg
+                              className={"pr-caret" + (secRooms ? " open" : "")}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M9 6l6 6-6 6" />
+                            </svg>
+                            <span className="pr-grp-l">Task Rooms</span>
+                          </button>
+                          {tasks.length > ROOM_PREVIEW_CAP && secRooms && (
                             <button
                               className="pr-viewall"
                               onClick={() => setRoomsExpanded((v) => !v)}
@@ -2612,60 +2706,159 @@ export function CortexApp({
                             </button>
                           )}
                         </div>
-                        {tasks.length === 0 && (
-                          <div className="pr-side-empty">
-                            No rooms yet. @mention an agent below.
-                          </div>
-                        )}
-                        {(roomsExpanded
-                          ? tasks
-                          : tasks.slice(0, ROOM_PREVIEW_CAP)
-                        ).map((t) => (
-                          <button
-                            key={t.id}
-                            className={
-                              "pr-room" + (room?.id === t.id ? " on" : "")
-                            }
-                            onClick={() => setRoomTaskId(t.id)}
-                          >
-                            <span
-                              className={
-                                "pr-room-dot" + (room?.id === t.id ? " on" : "")
-                              }
-                            />
-                            <span className="pr-hash">#</span>
-                            <span className="pr-room-name">
-                              {roomSlug(t.goal)}
-                            </span>
-                            {t.observations.length > 0 && (
-                              <span className="pr-room-badge">
-                                {t.observations.length}
-                              </span>
+                        {secRooms && (
+                          <>
+                            {tasks.length === 0 && (
+                              <div className="pr-side-empty">
+                                No rooms yet. @mention an agent below.
+                              </div>
                             )}
-                          </button>
-                        ))}
+                            {(roomsExpanded
+                              ? tasks
+                              : tasks.slice(0, ROOM_PREVIEW_CAP)
+                            ).map((t) => (
+                              <button
+                                key={t.id}
+                                className={
+                                  "pr-room" + (room?.id === t.id ? " on" : "")
+                                }
+                                onClick={() => setRoomTaskId(t.id)}
+                              >
+                                <span
+                                  className={
+                                    "pr-room-dot" +
+                                    (room?.id === t.id ? " on" : "")
+                                  }
+                                />
+                                <span className="pr-hash">#</span>
+                                <span className="pr-room-name">
+                                  {roomSlug(t.goal)}
+                                </span>
+                                {t.observations.length > 0 && (
+                                  <span className="pr-room-badge">
+                                    {t.observations.length}
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </>
+                        )}
 
                         <div className="pr-grp">
-                          <span className="pr-grp-l">
-                            Agents · {AGENTS.length}
-                          </span>
+                          <button
+                            className="pr-grp-toggle"
+                            onClick={() => setSecAgents((v) => !v)}
+                            aria-expanded={secAgents}
+                          >
+                            <svg
+                              className={"pr-caret" + (secAgents ? " open" : "")}
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M9 6l6 6-6 6" />
+                            </svg>
+                            <span className="pr-grp-l">
+                              Agents · {roster.length}
+                            </span>
+                          </button>
+                          <button
+                            className="pr-add-agent"
+                            onClick={() => setAgModalOpen(true)}
+                            aria-label="Create agent"
+                            title="Create agent"
+                          >
+                            <svg viewBox="0 0 24 24">
+                              <path d="M12 5v14M5 12h14" />
+                            </svg>
+                          </button>
                         </div>
-                        {AGENTS.map((a) => {
-                          const st = agentStatus(a.id);
-                          return (
-                            <div className="pr-member" key={a.id}>
-                              <span className="pr-av">
-                                {a.name.slice(0, 2).toUpperCase()}
-                                <span className={"pr-presence " + st} />
-                              </span>
-                              <div className="pr-member-m">
-                                <div className="pr-member-n">{a.name}</div>
-                                <div className="pr-member-r">{a.role}</div>
+                        {secAgents &&
+                          roster.map((a) => {
+                            const st = agentStatus(a.id);
+                            const custom = !isBuiltInAgent(a.id);
+                            return (
+                              <div className="pr-member" key={a.id}>
+                                <span
+                                  className="pr-av"
+                                  style={{ background: a.accent, color: "#fff" }}
+                                >
+                                  {a.name.slice(0, 2).toUpperCase()}
+                                  <span className={"pr-presence " + st} />
+                                </span>
+                                <div className="pr-member-m">
+                                  {agRenameId === a.id ? (
+                                    <input
+                                      className="pr-rename-input"
+                                      value={agRenameVal}
+                                      autoFocus
+                                      onChange={(e) =>
+                                        setAgRenameVal(e.target.value)
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") commitRename(a.id);
+                                        if (e.key === "Escape")
+                                          setAgRenameId(null);
+                                      }}
+                                      onBlur={() => commitRename(a.id)}
+                                    />
+                                  ) : (
+                                    <div className="pr-member-n">{a.name}</div>
+                                  )}
+                                  <div className="pr-member-r">
+                                    {ROLE_LABELS[a.role]}
+                                  </div>
+                                </div>
+                                <div className="pr-member-acts">
+                                  <button
+                                    className="pr-member-ic"
+                                    aria-label={`Mention ${a.name}`}
+                                    title={`@${a.name}`}
+                                    onClick={() => {
+                                      setInput((v) =>
+                                        v && !v.endsWith(" ")
+                                          ? `${v} @${a.name} `
+                                          : `${v}@${a.name} `,
+                                      );
+                                      ta.current?.focus();
+                                    }}
+                                  >
+                                    @
+                                  </button>
+                                  {custom && (
+                                    <>
+                                      <button
+                                        className="pr-member-ic"
+                                        aria-label={`Rename ${a.name}`}
+                                        title="Rename"
+                                        onClick={() => {
+                                          setAgRenameId(a.id);
+                                          setAgRenameVal(a.name);
+                                        }}
+                                      >
+                                        <svg viewBox="0 0 24 24">
+                                          <path d="M4 20h4l10-10-4-4L4 16z" />
+                                        </svg>
+                                      </button>
+                                      <button
+                                        className="pr-member-ic danger"
+                                        aria-label={`Remove ${a.name}`}
+                                        title="Remove"
+                                        onClick={() => s.removeAgent(a.id)}
+                                      >
+                                        <svg viewBox="0 0 24 24">
+                                          <path d="M6 6l12 12M18 6L6 18" />
+                                        </svg>
+                                      </button>
+                                    </>
+                                  )}
+                                  {!custom && (
+                                    <span className={"pr-status " + st}>
+                                      {st}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                              <span className={"pr-status " + st}>{st}</span>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
 
                         <div className="pr-grp">
                           <span className="pr-grp-l">Direct</span>
@@ -2715,17 +2908,6 @@ export function CortexApp({
                             </span>
                           ))}
                         </div>
-                        <button className="pr-icon" aria-label="Pin">
-                          <svg viewBox="0 0 24 24">
-                            <path d="M12 17v5M9 3h6l-1 7 3 3H7l3-3z" />
-                          </svg>
-                        </button>
-                        <button className="pr-icon" aria-label="Members">
-                          <svg viewBox="0 0 24 24">
-                            <circle cx="9" cy="8" r="3" />
-                            <path d="M3 20a6 6 0 0 1 12 0M16 6a3 3 0 0 1 0 6M21 20a5 5 0 0 0-4-4.9" />
-                          </svg>
-                        </button>
                       </div>
                     </div>
 
@@ -2750,18 +2932,18 @@ export function CortexApp({
                               </div>
                               <div className="pr-msg-text">
                                 {renderMessageText(
-                                  "@" +
-                                    (agentById(room.assignedTo)?.name ??
-                                      "team") +
-                                    " " +
-                                    room.goal,
-                                )}
+                                    "@" +
+                                      (byId(room.assignedTo)?.name ?? "team") +
+                                      " " +
+                                      room.goal,
+                                    rosterNames,
+                                  )}
                               </div>
                             </div>
                           </div>
 
                           {room.observations.map((o) => {
-                            const oa = agentById(o.agentId);
+                            const oa = byId(o.agentId);
                             return (
                               <div className="pr-msg" key={o.id}>
                                 <span className="pr-av">
@@ -2778,7 +2960,7 @@ export function CortexApp({
                                     </span>
                                   </div>
                                   <div className="pr-msg-text">
-                                    {renderMessageText(o.text)}
+                                    {renderMessageText(o.text, rosterNames)}
                                   </div>
                                   <button
                                     className="pr-save"
@@ -2793,14 +2975,14 @@ export function CortexApp({
 
                           <div className="pr-msg">
                             <span className="pr-av">
-                              {(agentById(room.assignedTo)?.name ?? "??")
+                              {(byId(room.assignedTo)?.name ?? "??")
                                 .slice(0, 2)
                                 .toUpperCase()}
                             </span>
                             <div className="pr-msg-body">
                               <div className="pr-msg-head">
                                 <b>
-                                  {agentById(room.assignedTo)?.name ?? "Agent"}
+                                  {byId(room.assignedTo)?.name ?? "Agent"}
                                 </b>
                                 <span className="pr-sysline">
                                   opened a task
@@ -2834,11 +3016,11 @@ export function CortexApp({
                                 <div className="pr-tc-assign">
                                   Assigned to{" "}
                                   <span className="pr-av xs">
-                                    {(agentById(room.assignedTo)?.name ?? "??")
+                                    {(byId(room.assignedTo)?.name ?? "??")
                                       .slice(0, 2)
                                       .toUpperCase()}
                                   </span>{" "}
-                                  {agentById(room.assignedTo)?.name}
+                                  {byId(room.assignedTo)?.name}
                                 </div>
                                 <div className="pr-tc-foot">
                                   <span className="pr-priority">
@@ -2887,18 +3069,41 @@ export function CortexApp({
                     </div>
 
                     <div className="pr-composer">
-                      <div className="pr-composer-box">
+                      <div className="capture pr-capture" ref={composerRef}>
+                        <div className="ask-docs">
+                          {s.docs.map((d, i) => (
+                            <span className="ask-doc" key={i}>
+                              <svg viewBox="0 0 24 24">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <path d="M14 2v6h6" />
+                              </svg>
+                              {d}
+                              <button
+                                className="adx"
+                                onClick={() => s.removeDoc(i)}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
                         <textarea
-                          ref={roomComposerRef}
-                          className="pr-input"
+                          ref={ta}
                           rows={1}
                           placeholder={
-                            room
-                              ? `Message #${roomSlug(room.goal)}, or @mention an agent`
-                              : "Message the team, or @mention an agent to queue a task"
+                            agMode === "ask"
+                              ? "Ask anything about your shared memory…"
+                              : agMode === "remember"
+                                ? "Write a fact into the team's shared memory…"
+                                : room
+                                  ? `Message #${roomSlug(room.goal)}, or @mention an agent`
+                                  : "Message the team, or @mention an agent to queue a task"
                           }
-                          value={agentGoal}
-                          onChange={(e) => setAgentGoal(e.target.value)}
+                          value={input}
+                          onChange={(e) => {
+                            setInput(e.target.value);
+                            grow(e.target);
+                          }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && !e.shiftKey) {
                               e.preventDefault();
@@ -2906,47 +3111,254 @@ export function CortexApp({
                             }
                           }}
                         />
-                        <div className="pr-composer-bar">
-                          <div className="pr-composer-tools">
-                            <button className="pr-ic2" aria-label="Attach">
-                              <svg viewBox="0 0 24 24">
-                                <path d="M21.4 11 12 20.4a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 1 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 1 1-2.6-2.6l7.8-7.8" />
-                              </svg>
-                            </button>
+                        <div className="capture-bar">
+                          <button
+                            className="cap-tool icon"
+                            onClick={() => fileRef.current?.click()}
+                            aria-label="Attach"
+                          >
+                            <svg viewBox="0 0 24 24">
+                              <path d="M21.4 11 12 20.4a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 1 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 1 1-2.6-2.6l7.8-7.8" />
+                            </svg>
+                          </button>
+                          <button
+                            className="cap-tool icon"
+                            aria-label="Mention an agent"
+                            title="Mention an agent"
+                            onClick={() => {
+                              setInput((v) =>
+                                v && !v.endsWith(" ") ? v + " @" : v + "@",
+                              );
+                              ta.current?.focus();
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24">
+                              <circle cx="12" cy="12" r="4" />
+                              <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" />
+                            </svg>
+                          </button>
+                          <div className="mode-toggle pr-mode">
                             <button
-                              className="pr-ic2"
-                              aria-label="Mention an agent"
-                              onClick={() => {
-                                setAgentGoal((v) =>
-                                  v && !v.endsWith(" ") ? v + " @" : v + "@",
-                                );
-                                roomComposerRef.current?.focus();
-                              }}
-                            >
-                              <svg viewBox="0 0 24 24">
-                                <circle cx="12" cy="12" r="4" />
-                                <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" />
-                              </svg>
-                            </button>
-                            <button
-                              className="pr-ic2"
-                              aria-label="Queue as task"
+                              className={agMode === "task" ? "on" : ""}
+                              onClick={() => setAgMode("task")}
                             >
                               <svg viewBox="0 0 24 24">
                                 <path d="M9 11l3 3L20 6M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" />
                               </svg>
+                              Task
+                            </button>
+                            <button
+                              className={agMode === "ask" ? "on" : ""}
+                              onClick={() => setAgMode("ask")}
+                            >
+                              <svg viewBox="0 0 24 24">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                              </svg>
+                              Ask
+                            </button>
+                            <button
+                              className={agMode === "remember" ? "on" : ""}
+                              onClick={() => setAgMode("remember")}
+                            >
+                              <svg viewBox="0 0 24 24">
+                                <path d="M12 3l1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6z" />
+                              </svg>
+                              Remember
                             </button>
                           </div>
-                          <button
-                            className="pr-send"
-                            disabled={!agentGoal.trim() || runningId !== null}
-                            onClick={() => void sendRoomMessage()}
-                            aria-label="Send"
-                          >
-                            <svg viewBox="0 0 24 24">
-                              <path d="M12 19V5M5 12l7-7 7 7" />
-                            </svg>
-                          </button>
+                          <div className="cap-tail">
+                            {agMode !== "remember" && (
+                              <div className="model-anchor">
+                                <button
+                                  className="cap-tool model-chip"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setModelOpen((o) => !o);
+                                  }}
+                                >
+                                  <span className="mdot" />
+                                  <span>{s.model.name}</span>{" "}
+                                  <span className="mchev">▾</span>
+                                </button>
+                                {modelOpen && (
+                                  <div className="model-pop">
+                                    <label className="mp-search">
+                                      <svg viewBox="0 0 24 24">
+                                        <circle cx="11" cy="11" r="7" />
+                                        <path d="M21 21l-4.3-4.3" />
+                                      </svg>
+                                      <input
+                                        placeholder="Search models…"
+                                        value={modelSearch}
+                                        onChange={(e) =>
+                                          setModelSearch(e.target.value)
+                                        }
+                                        autoFocus
+                                      />
+                                    </label>
+                                    <div className="mp-list">
+                                      {modelList.map((m) => (
+                                        <button
+                                          key={m.name}
+                                          className={
+                                            "mp-item" +
+                                            (m.name === s.model.name
+                                              ? " on"
+                                              : "")
+                                          }
+                                          onClick={() => {
+                                            s.setModel(m.name);
+                                            setModelOpen(false);
+                                            const custom = s.customModels.find(
+                                              (c) => c.label === m.name,
+                                            );
+                                            if (custom && !s.byokKeys[custom.id])
+                                              s.unlockByok();
+                                          }}
+                                        >
+                                          <span className="mp-av">
+                                            {m.prov[0]}
+                                          </span>
+                                          <span className="mp-meta">
+                                            <span className="mp-name">
+                                              {m.name}
+                                            </span>
+                                            <span className="mp-desc">
+                                              {m.prov} · {m.desc}
+                                            </span>
+                                          </span>
+                                          {m.name === s.model.name && (
+                                            <span className="mp-check">✓</span>
+                                          )}
+                                        </button>
+                                      ))}
+                                    </div>
+                                    <button
+                                      className="mp-add"
+                                      onClick={() => {
+                                        setModelOpen(false);
+                                        openAddModel();
+                                      }}
+                                    >
+                                      <span className="mp-add-ic">
+                                        <svg viewBox="0 0 24 24">
+                                          <path d="M12 5v14M5 12h14" />
+                                        </svg>
+                                      </span>
+                                      <span className="mp-meta">
+                                        <span className="mp-name">
+                                          Add model
+                                        </span>
+                                        <span className="mp-desc">
+                                          Bring your own API key
+                                        </span>
+                                      </span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {agMode !== "remember" && (
+                              <button
+                                className={
+                                  "cap-tool web-chip" + (s.web ? " on" : "")
+                                }
+                                onClick={() => s.toggleWeb()}
+                              >
+                                <svg viewBox="0 0 24 24">
+                                  <circle cx="12" cy="12" r="9" />
+                                  <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+                                </svg>{" "}
+                                Web
+                              </button>
+                            )}
+                            {agMode === "remember" && (
+                              <div className="imp-anchor">
+                                <button
+                                  className={
+                                    "cap-tool imp-chip" + (impOpen ? " on" : "")
+                                  }
+                                  onClick={() => setImpOpen((o) => !o)}
+                                  aria-haspopup="true"
+                                  aria-expanded={impOpen}
+                                >
+                                  {s.importance === "low"
+                                    ? "Passing"
+                                    : s.importance === "normal"
+                                      ? "Normal"
+                                      : "Keep close"}
+                                  <span className="mchev">▾</span>
+                                </button>
+                                {impOpen && (
+                                  <div className="imp-pop">
+                                    <div className="importance">
+                                      {(["low", "normal", "high"] as const).map(
+                                        (lv) => (
+                                          <button
+                                            key={lv}
+                                            className={
+                                              s.importance === lv ? "on" : ""
+                                            }
+                                            onClick={() => {
+                                              s.setImportance(lv);
+                                              setImpOpen(false);
+                                            }}
+                                          >
+                                            {lv === "low"
+                                              ? "Passing"
+                                              : lv === "normal"
+                                                ? "Normal"
+                                                : "Keep close"}
+                                          </button>
+                                        ),
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {dictation.supported && (
+                              <button
+                                className={
+                                  "cap-tool speak-tool" +
+                                  (dictation.recording ? " on" : "")
+                                }
+                                onClick={() => void toggleDictation()}
+                                disabled={dictation.busy}
+                                title={
+                                  dictation.recording
+                                    ? "Stop and transcribe"
+                                    : "Speak your prompt"
+                                }
+                              >
+                                <svg viewBox="0 0 24 24">
+                                  <rect x="9" y="3" width="6" height="11" rx="3" />
+                                  <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+                                </svg>{" "}
+                                {dictation.busy
+                                  ? "…"
+                                  : dictation.recording
+                                    ? "Listening"
+                                    : "Speak"}
+                              </button>
+                            )}
+                            <button
+                              className="cap-send"
+                              disabled={!input.trim() || runningId !== null}
+                              onClick={() => void sendRoomMessage()}
+                              aria-label={
+                                agMode === "ask"
+                                  ? "Ask"
+                                  : agMode === "remember"
+                                    ? "Remember"
+                                    : "Queue task"
+                              }
+                            >
+                              <svg viewBox="0 0 24 24">
+                                <path d="M12 19V5M5 12l7-7 7 7" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2984,12 +3396,12 @@ export function CortexApp({
                             {thread.status.replace("_", " ")}
                           </span>
                           <span className="pr-av xs">
-                            {(agentById(thread.assignedTo)?.name ?? "??")
+                            {(byId(thread.assignedTo)?.name ?? "??")
                               .slice(0, 2)
                               .toUpperCase()}
                           </span>
                           <span className="pr-thread-assignee">
-                            {agentById(thread.assignedTo)?.name}
+                            {byId(thread.assignedTo)?.name}
                           </span>
                         </div>
 
@@ -2998,7 +3410,7 @@ export function CortexApp({
                             <span
                               style={{
                                 width: taskPct(thread) + "%",
-                                background: agentById(thread.assignedTo)
+                                background: byId(thread.assignedTo)
                                   ?.accent,
                               }}
                             />
@@ -3015,7 +3427,7 @@ export function CortexApp({
                           </div>
                         )}
                         {thread.observations.map((o) => {
-                          const oa = agentById(o.agentId);
+                          const oa = byId(o.agentId);
                           return (
                             <div className="pr-tmsg" key={o.id}>
                               <span className="pr-av">
@@ -3027,7 +3439,7 @@ export function CortexApp({
                                   <span className="pr-time">{clock(o.ts)}</span>
                                 </div>
                                 <div className="pr-msg-text">
-                                  {renderMessageText(o.text)}
+                                  {renderMessageText(o.text, rosterNames)}
                                 </div>
                               </div>
                             </div>
@@ -3054,21 +3466,30 @@ export function CortexApp({
                               Complete
                             </button>
                           )}
-                          {(() => {
-                            const next = AGENTS.find(
-                              (x) => x.id !== thread.assignedTo,
-                            );
-                            return next ? (
-                              <button
-                                className="pr-act ghost"
-                                onClick={() =>
-                                  s.handoffTask(thread.id, next.id)
-                                }
+                          <div className="pr-assign">
+                            <span className="pr-assign-l">Forward to</span>
+                            <div className="pr-assign-sel">
+                              <select
+                                value=""
+                                onChange={(e) => {
+                                  if (e.target.value)
+                                    s.handoffTask(thread.id, e.target.value);
+                                }}
                               >
-                                Forward @{next.name}
-                              </button>
-                            ) : null;
-                          })()}
+                                <option value="">Choose agent…</option>
+                                {roster
+                                  .filter((x) => x.id !== thread.assignedTo)
+                                  .map((x) => (
+                                    <option key={x.id} value={x.id}>
+                                      @{x.name} · {ROLE_LABELS[x.role]}
+                                    </option>
+                                  ))}
+                              </select>
+                              <svg viewBox="0 0 24 24">
+                                <path d="M6 9l6 6 6-6" />
+                              </svg>
+                            </div>
+                          </div>
                         </div>
                       </div>
                       <div className="pr-thread-reply">
@@ -5382,6 +5803,114 @@ export function CortexApp({
           flash={flash}
           onClose={() => setCaptureOpen(false)}
         />
+      )}
+
+      {/* CREATE AGENT */}
+      {agModalOpen && (
+        <div className="am-scrim" onClick={() => setAgModalOpen(false)}>
+          <div className="am-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="am-head">
+              <div className="am-title">Create agent</div>
+              <button
+                className="am-x"
+                onClick={() => setAgModalOpen(false)}
+                aria-label="Close"
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+            <div className="am-body">
+              <div className="ag-preview">
+                <span
+                  className="pr-av"
+                  style={{ background: agAccent, color: "#fff" }}
+                >
+                  {(agName || "New").slice(0, 2).toUpperCase()}
+                </span>
+                <div className="ag-preview-m">
+                  <div className="ag-preview-n">{agName || "New agent"}</div>
+                  <div className="ag-preview-r">{ROLE_LABELS[agRole]}</div>
+                </div>
+              </div>
+              <label className="am-field">
+                <span className="am-label">
+                  <i className="am-req">*</i> Name
+                </span>
+                <input
+                  className="ag-input"
+                  placeholder="e.g. Sable"
+                  value={agName}
+                  autoFocus
+                  onChange={(e) => setAgName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") createAgentFromForm();
+                  }}
+                />
+              </label>
+              <label className="am-field">
+                <span className="am-label">Role</span>
+                <div className="am-select">
+                  <select
+                    value={agRole}
+                    onChange={(e) => setAgRole(e.target.value as AgentRole)}
+                  >
+                    {(
+                      Object.keys(ROLE_LABELS) as (keyof typeof ROLE_LABELS)[]
+                    ).map((r) => (
+                      <option key={r} value={r}>
+                        {ROLE_LABELS[r]}
+                      </option>
+                    ))}
+                  </select>
+                  <svg viewBox="0 0 24 24">
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </div>
+              </label>
+              <label className="am-field">
+                <span className="am-label">Specialty</span>
+                <textarea
+                  className="ag-input"
+                  rows={2}
+                  placeholder="One line on what this agent is best at (optional)."
+                  value={agBlurb}
+                  onChange={(e) => setAgBlurb(e.target.value)}
+                />
+              </label>
+              <div className="am-field">
+                <span className="am-label">Accent</span>
+                <div className="ag-accents">
+                  {ACCENTS.map((c) => (
+                    <button
+                      key={c}
+                      className={"ag-accent" + (agAccent === c ? " on" : "")}
+                      style={{ background: c }}
+                      aria-label={`Accent ${c}`}
+                      onClick={() => setAgAccent(c)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="am-foot">
+              <button
+                className="am-cancel"
+                onClick={() => setAgModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="am-save"
+                disabled={!agName.trim()}
+                onClick={createAgentFromForm}
+              >
+                Create agent
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ADD MODEL (bring your own key) */}
