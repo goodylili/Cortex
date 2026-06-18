@@ -1,35 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@font-face {
-  font-family: "Neue Montreal";
-  src: url("/fonts/NeueMontreal-Light.otf") format("opentype");
-  font-weight: 300;
-}
-
-@font-face {
-  font-family: "Neue Montreal";
-  src: url("/fonts/NeueMontreal-Regular.otf") format("opentype");
-  font-weight: 400;
-}
-
-@font-face {
-  font-family: "Neue Montreal";
-  src: url("/fonts/NeueMontreal-Medium.otf") format("opentype");
-  font-weight: 500;
-}
-
-@font-face {
-  font-family: "Neue Montreal";
-  src: url("/fonts/NeueMontreal-Medium.otf") format("opentype");
-  font-weight: 600;
-}
-
-@font-face {
-  font-family: "Neue Montreal";
-  src: url("/fonts/NeueMontreal-Bold.otf") format("opentype");
-  font-weight: 700;
-}
+/* The two-family system, loaded in layout.tsx:
+   Expose (headings — Bold/Medium) and Roboto (all body text). */
 
 @custom-variant dark (&:is(.dark *));
 
@@ -106,8 +79,8 @@
 }
 
 @theme inline {
-  --font-sans: "Neue Montreal", system-ui, sans-serif;
-  --font-mono: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+  --font-sans: "Roboto", sans-serif;
+  --font-mono: "Roboto", sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -156,8 +129,10 @@
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
-    font-family: "Neue Montreal", sans-serif;
+    font-family: "Roboto", sans-serif;
     font-weight: 400;
+    font-size: 18px;
+    letter-spacing: -0.01em;
     @apply bg-[#F6F6F6] text-foreground;
   }
 }
@@ -165,6 +140,7 @@
 .cortex-landing {
   --canvas: #000000;
   --ink: #ffffff;
+  --radius: var(--r);
 }
 
 .cortex-landing.theme-light {
@@ -173,7 +149,15 @@
 }
 
 .cortex-landing :is(h1, h2, h3, h4) {
-  font-family: var(--font-instrument-sans), system-ui, sans-serif;
+  font-family: "Expose", sans-serif;
+}
+
+.cortex-landing :is(h1, h2) {
+  font-weight: 700;
+}
+
+.cortex-landing :is(h3, h4) {
+  font-weight: 500;
 }
 
 @keyframes cortex-marquee {
