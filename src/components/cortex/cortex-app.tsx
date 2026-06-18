@@ -133,6 +133,55 @@ const STUDIO_PRODUCTS: Record<
 };
 const CODE_TYPES = ["json", "xml", "yaml", "function", "multimodal", "schema"];
 
+const ROOM_SLUG_WORDS = 3;
+const AGENT_NAMES = AGENTS.map((a) => a.name);
+const roomSlug = (goal: string): string => {
+  const words = goal
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, ROOM_SLUG_WORDS);
+  return words.length ? words.join("-") : "task";
+};
+const taskCode = (id: string): string => "TASK-" + id.slice(-3).toUpperCase();
+const clock = (ts: number): string =>
+  new Date(ts).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+const renderMessageText = (text: string): React.ReactNode[] => {
+  const nodes: React.ReactNode[] = [];
+  text.split(/(`[^`]+`)/g).forEach((part, pi) => {
+    if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
+      nodes.push(
+        <code className="pr-code" key={`c${pi}`}>
+          {part.slice(1, -1)}
+        </code>,
+      );
+      return;
+    }
+    part.split(/(@\w+)/g).forEach((tok, ti) => {
+      if (!tok) return;
+      const isMention =
+        tok.startsWith("@") &&
+        AGENT_NAMES.some((n) => n.toLowerCase() === tok.slice(1).toLowerCase());
+      nodes.push(
+        isMention ? (
+          <span className="pr-mention" key={`m${pi}-${ti}`}>
+            {tok}
+          </span>
+        ) : (
+          <span key={`t${pi}-${ti}`}>{tok}</span>
+        ),
+      );
+    });
+  });
+  return nodes;
+};
+
 export function CortexApp({
   walletState,
 }: {
@@ -160,8 +209,9 @@ export function CortexApp({
   const [captureOpen, setCaptureOpen] = useState(false);
   const [agentGoal, setAgentGoal] = useState("");
   const [agentAssignee, setAgentAssignee] = useState<string>(AGENTS[0]!.id);
-  const [awActive, setAwActive] = useState(true);
-  const [awLogs, setAwLogs] = useState(false);
+  const [roomTaskId, setRoomTaskId] = useState<string | null>(null);
+  const [threadTaskId, setThreadTaskId] = useState<string | null>(null);
+  const [threadReply, setThreadReply] = useState("");
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
   const [autoTaskId, setAutoTaskId] = useState<string | null>(null);
   const autoStop = useRef(false);
@@ -239,6 +289,7 @@ export function CortexApp({
   const ta = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const roomComposerRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     s.hydrate();
@@ -1449,12 +1500,31 @@ export function CortexApp({
       setAutoTaskId(null);
     }
   }
-  async function createAndRun() {
-    const goal = agentGoal.trim();
-    if (!goal) return;
-    const id = s.createTask(goal, agentAssignee);
+  async function sendRoomMessage() {
+    const text = agentGoal.trim();
+    if (!text) return;
+    const mentioned = AGENTS.find((a) =>
+      new RegExp(`@${a.name}\\b`, "i").test(text),
+    );
+    const assignee = mentioned?.id ?? agentAssignee;
+    const id = s.createTask(text, assignee);
     setAgentGoal("");
-    if (id) await autoRunTask(id);
+    if (id) {
+      setAgentAssignee(assignee);
+      setRoomTaskId(id);
+      await autoRunTask(id);
+    }
+  }
+  async function replyInThread() {
+    const id = threadTaskId;
+    if (!id) return;
+    const text = threadReply.trim();
+    setThreadReply("");
+    const mentioned = text
+      ? AGENTS.find((a) => new RegExp(`@${a.name}\\b`, "i").test(text))
+      : undefined;
+    if (mentioned) s.handoffTask(id, mentioned.id);
+    await autoRunTask(id);
   }
   async function makeLoopFromStudio() {
     const goal = studioTask.trim();
@@ -2406,131 +2476,220 @@ export function CortexApp({
             )}
           </section>
 
-          {/* AGENTS — team workspace: manage agents, assign tasks, track progress */}
-          <section
-            className={"view agents-ws" + (view === "agents" ? " on" : "")}
-          >
-            <div className="aw-grid">
-              <aside className="aw-left">
-                <div className="aw-left-h">Workspace Settings</div>
-                <div className="aw-sec">View Options</div>
-                <label className="aw-opt">
-                  <input
-                    type="checkbox"
-                    checked={awActive}
-                    onChange={() => setAwActive((v) => !v)}
-                  />
-                  <span>Active Agents</span>
-                </label>
-                <label className="aw-opt">
-                  <input
-                    type="checkbox"
-                    checked={awLogs}
-                    onChange={() => setAwLogs((v) => !v)}
-                  />
-                  <span>System Logs</span>
-                </label>
-                <div className="aw-sec">L3 Protocols</div>
-                <div className="aw-proto on">
-                  <span>Isolation</span>
-                  <span className="aw-badge ok">SECURE</span>
-                </div>
-                <div className="aw-proto">
-                  <span>Sync Mode</span>
-                  <span className="aw-badge">STRICT</span>
-                </div>
-                <div className="aw-sec">Context History</div>
-                <button className="aw-ctx on">Current Session</button>
-                {s.sessions.slice(0, 4).map((se) => (
-                  <button
-                    key={se.id}
-                    className="aw-ctx"
-                    onClick={() => {
-                      s.switchSession(se.id);
-                      setView("home");
-                    }}
-                  >
-                    {se.title || "New chat"}
-                  </button>
-                ))}
-              </aside>
+          {/* AGENTS — Pipeline Room: a Slack-style room where agents are members */}
+          {view === "agents" &&
+            (() => {
+              const tasks = [...s.tasks].sort(
+                (a, b) => b.createdAt - a.createdAt,
+              );
+              const room =
+                (roomTaskId && tasks.find((t) => t.id === roomTaskId)) ||
+                tasks[0] ||
+                null;
+              const thread = threadTaskId
+                ? (tasks.find((t) => t.id === threadTaskId) ?? null)
+                : null;
+              const runningId = autoTaskId ?? runningTaskId;
+              const agentStatus = (id: string) => {
+                if (
+                  tasks.some((t) => t.assignedTo === id && t.id === runningId)
+                )
+                  return "working";
+                if (
+                  tasks.some((t) => t.assignedTo === id && t.status !== "done")
+                )
+                  return "active";
+                return "idle";
+              };
+              const taskPct = (t: (typeof tasks)[number]) =>
+                t.status === "done"
+                  ? 100
+                  : t.status === "blocked"
+                    ? 35
+                    : Math.min(20 + t.observations.length * 22, 92);
+              const roomAgents = room
+                ? AGENTS.filter(
+                    (a) =>
+                      a.id === room.assignedTo ||
+                      room.observations.some((o) => o.agentId === a.id),
+                  )
+                : [];
+              const youInitials = (walletState?.label ?? "You")
+                .slice(0, 2)
+                .toUpperCase();
+              return (
+                <div className="pr-shell">
+                  <aside className="pr-side">
+                    <div className="pr-side-head">
+                      <div className="pr-side-title">Pipeline Room</div>
+                      <div className="pr-side-sub">
+                        {AGENTS.length} agents · 1 human · {tasks.length}
+                        {tasks.length === 1 ? " task room" : " task rooms"}
+                      </div>
+                    </div>
+                    <div className="pr-side-scroll">
+                      <div className="pr-grp">
+                        <span className="pr-grp-l">Task Rooms</span>
+                        <button
+                          className="pr-grp-add"
+                          onClick={() => {
+                            setRoomTaskId(null);
+                            roomComposerRef.current?.focus();
+                          }}
+                          aria-label="New task room"
+                        >
+                          +
+                        </button>
+                      </div>
+                      {tasks.length === 0 && (
+                        <div className="pr-side-empty">
+                          No rooms yet. @mention an agent below.
+                        </div>
+                      )}
+                      {tasks.map((t) => (
+                        <button
+                          key={t.id}
+                          className={
+                            "pr-room" + (room?.id === t.id ? " on" : "")
+                          }
+                          onClick={() => setRoomTaskId(t.id)}
+                        >
+                          <span className="pr-hash">#</span>
+                          <span className="pr-room-name">
+                            {roomSlug(t.goal)}
+                          </span>
+                          {t.observations.length > 0 && (
+                            <span className="pr-room-badge">
+                              {t.observations.length}
+                            </span>
+                          )}
+                        </button>
+                      ))}
 
-              <div className="aw-center">
-                <div className="aw-head">
-                  <div className="aw-head-l">
-                    <div className="aw-head-t">
-                      Agent Team Workspace
-                      <span className="aw-live" />
-                    </div>
-                    <div className="aw-head-s">
-                      {AGENTS.length} specialists synchronized in cluster
-                    </div>
-                  </div>
-                  <div className="aw-cluster">
-                    {AGENTS.map((a) => (
-                      <span
-                        key={a.id}
-                        className="aw-av"
-                        style={{ background: a.accent }}
-                        title={`${a.name} · ${a.role}`}
-                      >
-                        {a.name.slice(0, 2).toUpperCase()}
-                      </span>
-                    ))}
-                    <button
-                      className="aw-av aw-add"
-                      onClick={() => setAgentAssignee(AGENTS[0]!.id)}
-                      title="Assign a task"
-                      aria-label="Assign a task"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
+                      <div className="pr-grp">
+                        <span className="pr-grp-l">
+                          Agents · {AGENTS.length}
+                        </span>
+                      </div>
+                      {AGENTS.map((a) => {
+                        const st = agentStatus(a.id);
+                        return (
+                          <div className="pr-member" key={a.id}>
+                            <span className="pr-av">
+                              {a.name.slice(0, 2).toUpperCase()}
+                              <span className={"pr-presence " + st} />
+                            </span>
+                            <div className="pr-member-m">
+                              <div className="pr-member-n">{a.name}</div>
+                              <div className="pr-member-r">{a.role}</div>
+                            </div>
+                            <span className={"pr-status " + st}>{st}</span>
+                          </div>
+                        );
+                      })}
 
-                <div className="aw-feed">
-                  <div className="aw-session">
-                    SESSION INITIALIZED · {AGENTS.length} AGENTS ONLINE
-                  </div>
-                  {s.tasks.length === 0 && (
-                    <div className="aw-empty">
-                      No operations yet. Mention an agent below and give the
-                      team a goal to begin.
+                      <div className="pr-grp">
+                        <span className="pr-grp-l">Direct</span>
+                      </div>
+                      <div className="pr-member">
+                        <span className="pr-av human">{youInitials}</span>
+                        <div className="pr-member-m">
+                          <div className="pr-member-n">You</div>
+                          <div className="pr-member-r">director</div>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                  {awActive &&
-                    [...s.tasks].reverse().map((t) => {
-                      const a = agentById(t.assignedTo);
-                      const running =
-                        runningTaskId === t.id || autoTaskId === t.id;
-                      const next = AGENTS.find((x) => x.id !== t.assignedTo);
-                      return (
-                        <div className="aw-block" key={t.id}>
-                          <div className="aw-op-row">
-                            <span className="aw-op-tag">HUMAN OPERATOR</span>
-                            <div className="aw-op-bubble">
-                              <b>@{a?.name ?? "team"}</b> {t.goal}
+                  </aside>
+
+                  <div className="pr-main">
+                    <div className="pr-chan-head">
+                      <div className="pr-chan-id">
+                        <span className="pr-hash">#</span>
+                        <b>{room ? roomSlug(room.goal) : "no-room"}</b>
+                        {room && (
+                          <span className="pr-chan-topic">{room.goal}</span>
+                        )}
+                      </div>
+                      <div className="pr-chan-tools">
+                        <div className="pr-stack">
+                          {roomAgents.map((a) => (
+                            <span
+                              key={a.id}
+                              className="pr-av xs"
+                              title={a.name}
+                            >
+                              {a.name.slice(0, 2).toUpperCase()}
+                            </span>
+                          ))}
+                        </div>
+                        <button className="pr-icon" aria-label="Pin">
+                          <svg viewBox="0 0 24 24">
+                            <path d="M12 17v5M9 3h6l-1 7 3 3H7l3-3z" />
+                          </svg>
+                        </button>
+                        <button className="pr-icon" aria-label="Members">
+                          <svg viewBox="0 0 24 24">
+                            <circle cx="9" cy="8" r="3" />
+                            <path d="M3 20a6 6 0 0 1 12 0M16 6a3 3 0 0 1 0 6M21 20a5 5 0 0 0-4-4.9" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="pr-feed">
+                      {!room && (
+                        <div className="pr-feed-empty">
+                          No task rooms yet. @mention an agent in the box below
+                          to queue the first task.
+                        </div>
+                      )}
+                      {room && (
+                        <>
+                          <div className="pr-day">Today</div>
+                          <div className="pr-msg">
+                            <span className="pr-av human">{youInitials}</span>
+                            <div className="pr-msg-body">
+                              <div className="pr-msg-head">
+                                <b>You</b>
+                                <span className="pr-time">
+                                  {clock(room.createdAt)}
+                                </span>
+                              </div>
+                              <div className="pr-msg-text">
+                                {renderMessageText(
+                                  "@" +
+                                    (agentById(room.assignedTo)?.name ??
+                                      "team") +
+                                    " " +
+                                    room.goal,
+                                )}
+                              </div>
                             </div>
                           </div>
-                          {t.observations.map((o) => {
+
+                          {room.observations.map((o) => {
                             const oa = agentById(o.agentId);
                             return (
-                              <div className="aw-msg" key={o.id}>
-                                <span
-                                  className="aw-av sm"
-                                  style={{ background: oa?.accent }}
-                                >
+                              <div className="pr-msg" key={o.id}>
+                                <span className="pr-av">
                                   {(oa?.name ?? "??").slice(0, 2).toUpperCase()}
                                 </span>
-                                <div className="aw-msg-body">
-                                  <div className="aw-msg-head">
+                                <div className="pr-msg-body">
+                                  <div className="pr-msg-head">
                                     <b>{oa?.name ?? "Agent"}</b>
-                                    <span className="aw-role">{oa?.role}</span>
+                                    {oa?.role && (
+                                      <span className="pr-tag">{oa.role}</span>
+                                    )}
+                                    <span className="pr-time">
+                                      {clock(o.ts)}
+                                    </span>
                                   </div>
-                                  <div className="aw-bubble">{o.text}</div>
+                                  <div className="pr-msg-text">
+                                    {renderMessageText(o.text)}
+                                  </div>
                                   <button
-                                    className="aw-mini-btn"
-                                    onClick={() => saveFinding(t.id, o.id)}
+                                    className="pr-save"
+                                    onClick={() => saveFinding(room.id, o.id)}
                                   >
                                     Save to memory
                                   </button>
@@ -2538,190 +2697,316 @@ export function CortexApp({
                               </div>
                             );
                           })}
-                          <div className="aw-ask">
-                            <div className="aw-ask-head">
-                              <span
-                                className={
-                                  "aw-ask-tag" +
-                                  (t.status === "done" ? " done" : "")
-                                }
-                              >
-                                {t.status === "done"
-                                  ? "ASK COMPLETED"
-                                  : "ASK ASSIGNED"}
-                              </span>
-                              <span className="aw-ask-id">
-                                ID: #{t.id.slice(-4).toUpperCase()}
-                              </span>
-                            </div>
-                            <div className="aw-ask-title">{t.goal}</div>
-                            <div className="aw-ask-meta">
-                              Assigned to{" "}
-                              <b style={{ color: a?.accent }}>@{a?.name}</b> ·{" "}
-                              {t.status.replace("_", " ")} · {ago(t.updatedAt)}
-                            </div>
-                            <div className="aw-ask-acts">
-                              {t.status !== "done" && (
+
+                          <div className="pr-msg">
+                            <span className="pr-av">
+                              {(agentById(room.assignedTo)?.name ?? "??")
+                                .slice(0, 2)
+                                .toUpperCase()}
+                            </span>
+                            <div className="pr-msg-body">
+                              <div className="pr-msg-head">
+                                <b>
+                                  {agentById(room.assignedTo)?.name ?? "Agent"}
+                                </b>
+                                <span className="pr-sysline">
+                                  opened a task
+                                </span>
+                              </div>
+                              <div className="pr-taskcard">
+                                <div className="pr-tc-top">
+                                  <span className="pr-tc-ic">
+                                    <svg viewBox="0 0 24 24">
+                                      <path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                                    </svg>
+                                  </span>
+                                  <span className="pr-tc-label">TASK</span>
+                                  <span
+                                    className={
+                                      "pr-pill " +
+                                      (room.status === "done"
+                                        ? "done"
+                                        : room.status === "blocked"
+                                          ? "blocked"
+                                          : "prog")
+                                    }
+                                  >
+                                    {room.status.replace("_", " ")}
+                                  </span>
+                                  <span className="pr-tc-id">
+                                    {taskCode(room.id)}
+                                  </span>
+                                </div>
+                                <div className="pr-tc-title">{room.goal}</div>
+                                <div className="pr-tc-assign">
+                                  Assigned to{" "}
+                                  <span className="pr-av xs">
+                                    {(agentById(room.assignedTo)?.name ?? "??")
+                                      .slice(0, 2)
+                                      .toUpperCase()}
+                                  </span>{" "}
+                                  {agentById(room.assignedTo)?.name}
+                                </div>
+                                <div className="pr-tc-foot">
+                                  <span className="pr-priority">
+                                    <svg viewBox="0 0 24 24">
+                                      <path d="M4 21V4h12l-2 4 2 4H6" />
+                                    </svg>
+                                    {room.status === "blocked"
+                                      ? "Blocked"
+                                      : "High priority"}
+                                  </span>
+                                  <button
+                                    className="pr-openthread"
+                                    onClick={() => setThreadTaskId(room.id)}
+                                  >
+                                    Open thread →
+                                  </button>
+                                </div>
+                              </div>
+                              {room.observations.length > 0 && (
                                 <button
-                                  className="aw-act"
-                                  disabled={running}
-                                  onClick={() => void autoRunTask(t.id)}
+                                  className="pr-replies"
+                                  onClick={() => setThreadTaskId(room.id)}
                                 >
-                                  {running ? "Running…" : "Run step"}
-                                </button>
-                              )}
-                              {t.status !== "done" && (
-                                <button
-                                  className="aw-act"
-                                  onClick={() => s.completeTask(t.id)}
-                                >
-                                  Complete
-                                </button>
-                              )}
-                              {next && (
-                                <button
-                                  className="aw-act ghost"
-                                  onClick={() => s.handoffTask(t.id, next.id)}
-                                >
-                                  Forward @{next.name}
+                                  <span className="pr-replies-avs">
+                                    {roomAgents.slice(0, 3).map((a) => (
+                                      <span key={a.id} className="pr-av xs">
+                                        {a.name.slice(0, 2).toUpperCase()}
+                                      </span>
+                                    ))}
+                                  </span>
+                                  <span className="pr-replies-n">
+                                    {room.observations.length}
+                                    {room.observations.length === 1
+                                      ? " reply"
+                                      : " replies"}
+                                  </span>
+                                  <span className="pr-replies-t">
+                                    last reply {ago(room.updatedAt)}
+                                  </span>
                                 </button>
                               )}
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  {awLogs && s.agentMessages.length > 0 && (
-                    <div className="aw-syslog">
-                      <div className="aw-syslog-h">SYSTEM LOGS</div>
-                      {s.agentMessages.slice(0, 12).map((m) => (
-                        <div className="aw-syslog-row" key={m.id}>
-                          <span>{agentById(m.from)?.name ?? "system"}</span>
-                          <span className="aw-syslog-k">{m.kind}</span>
-                          <span className="aw-syslog-c">{m.content}</span>
-                        </div>
-                      ))}
+                        </>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                <div className="aw-composer">
-                  <div className="aw-assignees">
-                    {AGENTS.map((a) => (
-                      <button
-                        key={a.id}
-                        className={
-                          "aw-chip" + (agentAssignee === a.id ? " on" : "")
-                        }
-                        onClick={() => setAgentAssignee(a.id)}
-                      >
-                        <span
-                          className="aw-dot"
-                          style={{ background: a.accent }}
+                    <div className="pr-composer">
+                      <div className="pr-composer-box">
+                        <textarea
+                          ref={roomComposerRef}
+                          className="pr-input"
+                          rows={1}
+                          placeholder={
+                            room
+                              ? `Message #${roomSlug(room.goal)}, or @mention an agent`
+                              : "Message the team, or @mention an agent to queue a task"
+                          }
+                          value={agentGoal}
+                          onChange={(e) => setAgentGoal(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              void sendRoomMessage();
+                            }
+                          }}
                         />
-                        @{a.name}
-                      </button>
-                    ))}
+                        <div className="pr-composer-bar">
+                          <div className="pr-composer-tools">
+                            <button className="pr-ic2" aria-label="Attach">
+                              <svg viewBox="0 0 24 24">
+                                <path d="M21.4 11 12 20.4a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 1 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 1 1-2.6-2.6l7.8-7.8" />
+                              </svg>
+                            </button>
+                            <button
+                              className="pr-ic2"
+                              aria-label="Mention an agent"
+                              onClick={() => {
+                                setAgentGoal((v) =>
+                                  v && !v.endsWith(" ") ? v + " @" : v + "@",
+                                );
+                                roomComposerRef.current?.focus();
+                              }}
+                            >
+                              <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="4" />
+                                <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" />
+                              </svg>
+                            </button>
+                            <button
+                              className="pr-ic2"
+                              aria-label="Queue as task"
+                            >
+                              <svg viewBox="0 0 24 24">
+                                <path d="M9 11l3 3L20 6M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" />
+                              </svg>
+                            </button>
+                          </div>
+                          <button
+                            className="pr-send"
+                            disabled={!agentGoal.trim() || runningId !== null}
+                            onClick={() => void sendRoomMessage()}
+                            aria-label="Send"
+                          >
+                            <svg viewBox="0 0 24 24">
+                              <path d="M12 19V5M5 12l7-7 7 7" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <textarea
-                    className="aw-input"
-                    rows={2}
-                    placeholder={`Message @${
-                      agentById(agentAssignee)?.name ?? "team"
-                    } — give the team a goal…`}
-                    value={agentGoal}
-                    onChange={(e) => setAgentGoal(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey))
-                        void createAndRun();
-                    }}
-                  />
-                  <button
-                    className="aw-send"
-                    disabled={
-                      !agentGoal.trim() ||
-                      runningTaskId !== null ||
-                      autoTaskId !== null
-                    }
-                    onClick={() => void createAndRun()}
-                  >
-                    Assign &amp; run
-                  </button>
-                </div>
-              </div>
 
-              <aside className="aw-right">
-                <div className="aw-right-h">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M4 19V5M4 19h16M8 16v-5M13 16V8M18 16v-9" />
-                  </svg>
-                  Team Progress
-                </div>
-                <div className="aw-sec">Active Tasks</div>
-                {s.tasks.filter((t) => t.status !== "done").length === 0 && (
-                  <div className="aw-empty sm">No active tasks.</div>
-                )}
-                {s.tasks
-                  .filter((t) => t.status !== "done")
-                  .slice(0, 6)
-                  .map((t) => {
-                    const a = agentById(t.assignedTo);
-                    const pct =
-                      t.status === "blocked"
-                        ? 35
-                        : Math.min(20 + t.observations.length * 22, 92);
-                    return (
-                      <div className="aw-prog" key={t.id}>
-                        <div className="aw-prog-top">
-                          <b>{a?.name}</b>
-                          <span className="aw-pct" style={{ color: a?.accent }}>
-                            {pct}%
+                  {thread && (
+                    <aside className="pr-thread">
+                      <div className="pr-thread-head">
+                        <div className="pr-thread-crumb">
+                          THREAD · {taskCode(thread.id)}
+                        </div>
+                        <button
+                          className="pr-icon"
+                          onClick={() => setThreadTaskId(null)}
+                          aria-label="Close thread"
+                        >
+                          <svg viewBox="0 0 24 24">
+                            <path d="M6 6l12 12M18 6L6 18" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="pr-thread-scroll">
+                        <div className="pr-thread-title">{thread.goal}</div>
+                        <div className="pr-thread-meta">
+                          <span
+                            className={
+                              "pr-pill " +
+                              (thread.status === "done"
+                                ? "done"
+                                : thread.status === "blocked"
+                                  ? "blocked"
+                                  : "prog")
+                            }
+                          >
+                            {thread.status.replace("_", " ")}
+                          </span>
+                          <span className="pr-av xs">
+                            {(agentById(thread.assignedTo)?.name ?? "??")
+                              .slice(0, 2)
+                              .toUpperCase()}
+                          </span>
+                          <span className="pr-thread-assignee">
+                            {agentById(thread.assignedTo)?.name}
                           </span>
                         </div>
-                        <div className="aw-bar">
-                          <span
-                            style={{ width: pct + "%", background: a?.accent }}
-                          />
+
+                        <div className="pr-prog">
+                          <div className="pr-prog-bar">
+                            <span
+                              style={{
+                                width: taskPct(thread) + "%",
+                                background: agentById(thread.assignedTo)
+                                  ?.accent,
+                              }}
+                            />
+                          </div>
+                          <div className="pr-prog-row">
+                            <span>{thread.status.replace("_", " ")}</span>
+                            <span>{taskPct(thread)}%</span>
+                          </div>
                         </div>
-                        <div className="aw-prog-sub">
-                          <span
-                            className="aw-dot"
-                            style={{ background: a?.accent }}
-                          />
-                          {t.goal}
+
+                        {thread.observations.length === 0 && (
+                          <div className="pr-side-empty">
+                            No replies yet. Run a step below.
+                          </div>
+                        )}
+                        {thread.observations.map((o) => {
+                          const oa = agentById(o.agentId);
+                          return (
+                            <div className="pr-tmsg" key={o.id}>
+                              <span className="pr-av">
+                                {(oa?.name ?? "??").slice(0, 2).toUpperCase()}
+                              </span>
+                              <div className="pr-msg-body">
+                                <div className="pr-msg-head">
+                                  <b>{oa?.name ?? "Agent"}</b>
+                                  <span className="pr-time">{clock(o.ts)}</span>
+                                </div>
+                                <div className="pr-msg-text">
+                                  {renderMessageText(o.text)}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        <div className="pr-thread-acts">
+                          {thread.status !== "done" && (
+                            <button
+                              className="pr-act"
+                              disabled={runningId !== null}
+                              onClick={() => void autoRunTask(thread.id)}
+                            >
+                              {runningId === thread.id
+                                ? "Running…"
+                                : "Run step"}
+                            </button>
+                          )}
+                          {thread.status !== "done" && (
+                            <button
+                              className="pr-act"
+                              onClick={() => s.completeTask(thread.id)}
+                            >
+                              Complete
+                            </button>
+                          )}
+                          {(() => {
+                            const next = AGENTS.find(
+                              (x) => x.id !== thread.assignedTo,
+                            );
+                            return next ? (
+                              <button
+                                className="pr-act ghost"
+                                onClick={() =>
+                                  s.handoffTask(thread.id, next.id)
+                                }
+                              >
+                                Forward @{next.name}
+                              </button>
+                            ) : null;
+                          })()}
                         </div>
                       </div>
-                    );
-                  })}
-                <div className="aw-sec">Live Operations</div>
-                {s.agentMessages.length === 0 && (
-                  <div className="aw-empty sm">No operations logged.</div>
-                )}
-                {s.agentMessages.slice(0, 6).map((m) => {
-                  const from = agentById(m.from);
-                  return (
-                    <div className="aw-op-item" key={m.id}>
-                      <span
-                        className="aw-op-ic"
-                        style={{ borderColor: from?.accent }}
-                      />
-                      <div className="aw-op-meta">
-                        <div className="aw-op-t">
-                          {m.kind === "handoff"
-                            ? "Handoff"
-                            : m.kind === "result"
-                              ? "Result"
-                              : "Note"}{" "}
-                          · {from?.name}
-                        </div>
-                        <div className="aw-op-s">{m.content}</div>
+                      <div className="pr-thread-reply">
+                        <input
+                          className="pr-input2"
+                          placeholder="Reply in thread…"
+                          value={threadReply}
+                          onChange={(e) => setThreadReply(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              void replyInThread();
+                            }
+                          }}
+                        />
+                        <button
+                          className="pr-send sm"
+                          disabled={runningId !== null}
+                          onClick={() => void replyInThread()}
+                          aria-label="Send reply"
+                        >
+                          <svg viewBox="0 0 24 24">
+                            <path d="M12 19V5M5 12l7-7 7 7" />
+                          </svg>
+                        </button>
                       </div>
-                    </div>
-                  );
-                })}
-              </aside>
-            </div>
-          </section>
+                    </aside>
+                  )}
+                </div>
+              );
+            })()}
 
           {/* STUDIO — compile memory into a prompt */}
           <section className={"view" + (view === "studio" ? " on" : "")}>
