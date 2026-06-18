@@ -52,8 +52,14 @@ import type { ShareSummary } from "./walrus/sharing";
 import {
   type AgentTask,
   type AgentMessage,
+  type AgentDef,
+  type AgentRole,
   AGENTS,
+  ROLE_LABELS,
   agentById,
+  findAgent,
+  makeAgent,
+  isBuiltInAgent,
   newTask,
   newObservation,
   newMessage,
@@ -159,6 +165,7 @@ interface SessionCache {
   chatsById?: Record<string, ChatMsg[]>;
   tasks?: AgentTask[];
   agentMessages?: AgentMessage[];
+  agents?: AgentDef[];
   loops?: LoopRun[];
 }
 
@@ -173,6 +180,7 @@ interface State {
   activeId: string;
   tasks: AgentTask[];
   agentMessages: AgentMessage[];
+  agents: AgentDef[];
   loops: LoopRun[];
   // memories other users have shared with me (cortex::sharing). Decrypted from each
   // active share on sign-in, shown in the brain tagged "shared" with the owner's
@@ -262,6 +270,15 @@ interface State {
   saveObservationAsMemory: (taskId: string, obsId: string) => string | null;
   setTasks: (tasks: AgentTask[]) => void;
   setAgentMessages: (messages: AgentMessage[]) => void;
+  addAgent: (input: {
+    name: string;
+    role: AgentRole;
+    accent: string;
+    blurb?: string;
+  }) => string;
+  renameAgent: (id: string, name: string) => void;
+  removeAgent: (id: string) => void;
+  setAgents: (agents: AgentDef[]) => void;
   // agentic loops
   generateLoop: (task: string, assignTo: string) => Promise<string>;
   startLoop: (loopId: string) => void;
@@ -292,6 +309,7 @@ function persist(s: {
   activeId?: string;
   tasks?: AgentTask[];
   agentMessages?: AgentMessage[];
+  agents?: AgentDef[];
   loops?: LoopRun[];
 }) {
   sessionCache.memories = s.memories;
@@ -304,6 +322,7 @@ function persist(s: {
   if (s.activeId !== undefined) sessionCache.activeId = s.activeId;
   if (s.tasks !== undefined) sessionCache.tasks = s.tasks;
   if (s.agentMessages !== undefined) sessionCache.agentMessages = s.agentMessages;
+  if (s.agents !== undefined) sessionCache.agents = s.agents;
   if (s.loops !== undefined) sessionCache.loops = s.loops;
   const activeId = sessionCache.activeId ?? "";
   if (s.chat !== undefined && activeId) {
@@ -333,6 +352,7 @@ export const useCortex = create<State>((set, get) => ({
   activeId: "",
   tasks: [],
   agentMessages: [],
+  agents: AGENTS,
   loops: [],
   sharedMemories: [],
   shares: [],
@@ -385,6 +405,8 @@ export const useCortex = create<State>((set, get) => ({
     const chat = chatsById[activeId] ?? [];
     const tasks = data.tasks ?? [];
     const agentMessages = data.agentMessages ?? [];
+    const custom = (data.agents ?? []).filter((a) => !isBuiltInAgent(a.id));
+    const agents = [...AGENTS, ...custom];
     const loops = (data.loops ?? []).map((r) =>
       r.status === "running" ? setRunStatus(r, "paused", now) : r,
     );
@@ -400,6 +422,7 @@ export const useCortex = create<State>((set, get) => ({
       activeId,
       tasks,
       agentMessages,
+      agents,
       loops,
     });
     set({
@@ -414,6 +437,7 @@ export const useCortex = create<State>((set, get) => ({
       activeId,
       tasks,
       agentMessages,
+      agents,
       loops,
       ready: true,
     });
@@ -1153,7 +1177,7 @@ export const useCortex = create<State>((set, get) => ({
     const g = goal.trim();
     if (!g) return "";
     const now = Date.now();
-    const agent = agentById(assignTo) ?? AGENTS[0]!;
+    const agent = findAgent(get().agents, assignTo) ?? get().agents[0]!;
     const task = newTask(g, agent.id, "user", now);
     const msg = newMessage(
       "user",
@@ -1187,7 +1211,7 @@ export const useCortex = create<State>((set, get) => ({
     const state = get();
     const task = state.tasks.find((t) => t.id === taskId);
     if (!task) return;
-    const agent = agentById(task.assignedTo) ?? AGENTS[0]!;
+    const agent = findAgent(state.agents, task.assignedTo) ?? state.agents[0]!;
     const now = Date.now();
     const cfg = state.config;
     const live = state.live().filter((m) => isRetrievable(m, now, cfg));
@@ -1207,6 +1231,7 @@ export const useCortex = create<State>((set, get) => ({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           agentId: agent.id,
+          system: agent.system,
           goal: task.goal,
           observations: task.observations.map((o) => o.text),
           memories: cites.map((c) => ({
@@ -1262,9 +1287,9 @@ export const useCortex = create<State>((set, get) => ({
     set((s) => {
       const now = Date.now();
       const task = s.tasks.find((t) => t.id === taskId);
-      const to = agentById(toAgentId);
+      const to = findAgent(s.agents, toAgentId);
       if (!task || !to) return {};
-      const from = agentById(task.assignedTo);
+      const from = findAgent(s.agents, task.assignedTo);
       const tasks = s.tasks.map((t) =>
         t.id === taskId ? taskHandoff(t, toAgentId, now) : t,
       );
@@ -1297,7 +1322,7 @@ export const useCortex = create<State>((set, get) => ({
       const now = Date.now();
       const task = s.tasks.find((t) => t.id === taskId);
       if (!task) return {};
-      const agent = agentById(task.assignedTo);
+      const agent = findAgent(s.agents, task.assignedTo);
       const lastObs = task.observations[task.observations.length - 1];
       let updated = taskSetStatus(task, "done", now);
       if (lastObs) updated = addOutput(updated, lastObs.text, now);
@@ -1331,7 +1356,7 @@ export const useCortex = create<State>((set, get) => ({
     const task = state.tasks.find((t) => t.id === taskId);
     const obs = task?.observations.find((o) => o.id === obsId);
     if (!task || !obs) return null;
-    const agent = agentById(obs.agentId);
+    const agent = findAgent(state.agents, obs.agentId);
     const now = Date.now();
     const base: Memory = {
       id: uid("mem"),
@@ -1369,6 +1394,45 @@ export const useCortex = create<State>((set, get) => ({
         agentMessages,
       });
       return { agentMessages };
+    }),
+  addAgent: (input) => {
+    const name = input.name.trim();
+    if (!name) return "";
+    const agent = makeAgent(input);
+    set((s) => {
+      const agents = [...s.agents, agent];
+      const events = logEvent(
+        s.events,
+        "agent",
+        `Added agent ${agent.name}`,
+        `${ROLE_LABELS[agent.role]} · ${agent.blurb}`,
+      );
+      persist({ memories: s.memories, events, cost: s.cost, agents });
+      return { agents, events };
+    });
+    return agent.id;
+  },
+  renameAgent: (id, name) =>
+    set((s) => {
+      const next = name.trim();
+      if (!next) return {};
+      const agents = s.agents.map((a) =>
+        a.id === id ? { ...a, name: next } : a,
+      );
+      persist({ memories: s.memories, events: s.events, cost: s.cost, agents });
+      return { agents };
+    }),
+  removeAgent: (id) =>
+    set((s) => {
+      if (isBuiltInAgent(id)) return {};
+      const agents = s.agents.filter((a) => a.id !== id);
+      persist({ memories: s.memories, events: s.events, cost: s.cost, agents });
+      return { agents };
+    }),
+  setAgents: (agents) =>
+    set((s) => {
+      persist({ memories: s.memories, events: s.events, cost: s.cost, agents });
+      return { agents };
     }),
   // ---- agentic loops ----
   // A loop spec is generated from the agent's memory (same generator as Studio),
