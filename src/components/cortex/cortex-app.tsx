@@ -1306,22 +1306,72 @@ export function CortexApp({
     cli: "Run this once",
     config: "Add to your MCP config",
   };
-  const MCP_TOOLS = [
-    "recall",
-    "remember",
-    "ingest",
-    "forget",
-    "consolidate",
-    "verify",
-    "run-agent",
-    "store-blob",
-    "read-context",
+  const MCP_TOOL_GROUPS: {
+    label: string;
+    blurb: string;
+    tools: { name: string; desc: string }[];
+  }[] = [
+    {
+      label: "Memory",
+      blurb: "Read, write and consolidate your durable memory.",
+      tools: [
+        { name: "recall", desc: "Recall memories from your namespace, verified first." },
+        { name: "remember", desc: "Write a durable memory." },
+        { name: "ingest", desc: "Ingest a note or document and extract memories from it." },
+        { name: "forget", desc: "De-index a memory — the record stays on Walrus, recall stops surfacing it." },
+        { name: "consolidate", desc: "Review and merge memory into a committed diff." },
+        { name: "verify", desc: "Check every blob is fetchable from the public aggregator." },
+        { name: "timeline", desc: "Walk the version history of your namespace." },
+        { name: "digest", desc: "Summarize a period of your memory." },
+      ],
+    },
+    {
+      label: "Agents",
+      blurb: "Drive the researcher, curator, planner and critic team over a shared board and bus.",
+      tools: [
+        { name: "agents", desc: "List the specialist agents that share this memory." },
+        { name: "task-create", desc: "Open a task and assign it to an agent." },
+        { name: "task-handoff", desc: "Reassign a task so another agent continues it." },
+        { name: "run-step", desc: "Run one collaborative step — recall, reason, record." },
+        { name: "message", desc: "Post to or read the durable agent message bus." },
+      ],
+    },
+    {
+      label: "Your data",
+      blurb: "Read by an MCP you authorize, revocable anytime.",
+      tools: [
+        { name: "profile", desc: "Read your public on-chain account, once you authorize it." },
+        { name: "memory", desc: "Recall your distilled memory facts." },
+        { name: "context", desc: "Read your durable context — sessions, events, docs." },
+      ],
+    },
+    {
+      label: "Execution",
+      blurb: "Act directly on Walrus and Sui under the server wallet.",
+      tools: [
+        { name: "store-blob", desc: "Store raw bytes on Walrus." },
+        { name: "read-blob", desc: "Fetch a raw Walrus blob by id." },
+        { name: "record-pointer", desc: "Record a namespace → manifest pointer on Sui." },
+        { name: "restore", desc: "Restore the full namespace head and memories from MemWal." },
+      ],
+    },
+    {
+      label: "Connectors",
+      blurb: "Bridge Cortex to the web and other services.",
+      tools: [
+        { name: "web-fetch", desc: "Fetch a URL into context, optionally as memory." },
+        { name: "notify", desc: "Push events to a Slack, Discord or Zapier webhook." },
+        { name: "export", desc: "Export a portable JSON bundle of your memory." },
+      ],
+    },
   ];
+  const MCP_TOOL_COUNT = MCP_TOOL_GROUPS.reduce((n, g) => n + g.tools.length, 0);
   const MCP_CLIENTS: {
     key: string;
     name: string;
     kind: "url" | "cli" | "config";
     blurb: string;
+    overview: string;
     steps: string[];
   }[] = [
     {
@@ -1330,6 +1380,8 @@ export function CortexApp({
       kind: "url",
       blurb:
         "Reach your Cortex memory from ChatGPT — and let every chat build it.",
+      overview:
+        "Cortex becomes a connector inside ChatGPT. Every prompt can read your durable memory, and once the connector is authorized each chat quietly writes back what's worth keeping — no copy-paste between conversations, no context lost when a thread ends.",
       steps: [
         "In ChatGPT, open Settings → Connectors (enable developer mode if prompted).",
         "Choose “Add connector” and pick a custom MCP server.",
@@ -1343,6 +1395,8 @@ export function CortexApp({
       kind: "url",
       blurb:
         "Add Cortex as a connector in Claude to recall and write memory in any chat.",
+      overview:
+        "Add Cortex to Claude once and your memory travels with you across every chat. Recall what you've kept, write new memories mid-conversation, and let the agent team work the same shared context.",
       steps: [
         "In Claude, open Settings → Connectors → Add custom connector.",
         "Paste your Cortex connector URL below.",
@@ -1356,6 +1410,8 @@ export function CortexApp({
       kind: "cli",
       blurb:
         "Your conventions, decisions and project context, remembered in the CLI.",
+      overview:
+        "Your conventions, decisions and project context live in Cortex and surface in the CLI. Claude Code reads and writes the same memory as the rest of your tools, so a choice made once is remembered everywhere.",
       steps: [
         "Open a terminal in the project you work in.",
         "Run the command below to register Cortex as an MCP server.",
@@ -1367,6 +1423,8 @@ export function CortexApp({
       name: "Cursor",
       kind: "config",
       blurb: "Persistent memory and MCP tools inside the editor.",
+      overview:
+        "Cortex memory and tools sit inside the editor. The agent recalls your past decisions and keeps new ones as it works, grounded in the same context as your other assistants.",
       steps: [
         "Open Cursor → Settings → MCP.",
         "Add a new server and paste the config below.",
@@ -1378,6 +1436,8 @@ export function CortexApp({
       name: "VS Code",
       kind: "config",
       blurb: "Bring Cortex memory into Copilot Chat and MCP-aware extensions.",
+      overview:
+        "Bring Cortex into Copilot Chat and any MCP-aware extension. Memory you've kept becomes available to the model, and new context flows back into the same durable store.",
       steps: [
         "Open the MCP servers view, or your settings JSON.",
         "Add the Cortex server config below.",
@@ -1389,6 +1449,8 @@ export function CortexApp({
       name: "Codex",
       kind: "config",
       blurb: "Persistent memory for the Codex CLI.",
+      overview:
+        "Persistent memory for the Codex CLI. Cortex tools load on start, so Codex can recall and refine the same memory plane your other tools share.",
       steps: [
         "Open your Codex MCP configuration.",
         "Add the Cortex server config below.",
@@ -1400,6 +1462,8 @@ export function CortexApp({
       name: "Windsurf",
       kind: "config",
       blurb: "Cortex memory and tools inside Windsurf.",
+      overview:
+        "Cortex memory and tools inside Windsurf. The agent works from your kept context and writes new memories back to the same shared store.",
       steps: [
         "Open Windsurf → Settings → MCP / Plugins.",
         "Add the Cortex server config below.",
@@ -1411,6 +1475,8 @@ export function CortexApp({
       name: "Cline",
       kind: "config",
       blurb: "Give Cline a durable memory across sessions.",
+      overview:
+        "Give Cline a durable memory across sessions. It recalls what you've kept and records new context to the same Walrus-backed store as the rest of Cortex.",
       steps: [
         "Open Cline’s MCP settings.",
         "Add the Cortex server config below.",
@@ -1502,6 +1568,14 @@ export function CortexApp({
       letter: "L",
       name: "LangChain",
       desc: "Pull your taste-tuned prompt and memories into any LangChain agent or chain, and write new memories back.",
+      overview:
+        "Pull your taste-tuned prompt and kept memories into any LangChain agent or chain, then write new memories back as the agent learns — all grounded in the same durable store as the rest of Cortex.",
+      steps: [
+        "Install the Cortex memory package alongside LangChain.",
+        "Set CORTEX_API_KEY from your account to connect your managed Cortex.",
+        "Pull your taste-tuned prompt and recall memory inside any chain.",
+        "Write new memories back as the agent learns.",
+      ],
       code: [
         "# pip install cortex-memory langchain",
         "from cortex_memory import CortexMemory",
@@ -1522,6 +1596,13 @@ export function CortexApp({
       letter: "sh",
       name: "skills.sh",
       desc: "Install Cortex skills and prompts into your agents, and let them recall, correct and refine memory on the fly.",
+      overview:
+        "Install Cortex skills and prompts into your agents, then let them recall, correct and refine memory on the fly — the same memory you keep on Walrus, sealed and owned by you.",
+      steps: [
+        "Add the Cortex skill to your agent with one command.",
+        "Authenticate with your Cortex account.",
+        "Call recall, remember, correct and prompt from any run.",
+      ],
       code: [
         "# add the Cortex skill to your agent",
         "npx skills.sh add cortex-memory",
@@ -1533,16 +1614,44 @@ export function CortexApp({
     },
   ];
   function intConnect(key: string) {
-    setIntOpen((o) => (o === key ? null : key));
-  }
-  function copySnippet(kind: "url" | "cli" | "config") {
-    navigator.clipboard?.writeText(mcpSnippet(kind));
-    flash("Setup copied to clipboard");
+    setIntOpen(key);
   }
   function copyText(text: string, label = "Setup copied to clipboard") {
     navigator.clipboard?.writeText(text);
     flash(label);
   }
+  const detailClient = MCP_CLIENTS.find((cl) => cl.key === intOpen);
+  const detailFw = FRAMEWORKS.find((cl) => cl.key === intOpen);
+  const openDetail = detailClient
+    ? {
+        name: detailClient.name,
+        blurb: detailClient.blurb,
+        overview: detailClient.overview,
+        steps: detailClient.steps,
+        av: clientLogo(detailClient.key),
+        avLetter: null as string | null,
+        snippetLabel: SNIPPET_LABEL[detailClient.kind],
+        snippet: mcpSnippet(detailClient.kind),
+        connectLabel:
+          detailClient.kind === "url"
+            ? "Copy connector URL"
+            : detailClient.kind === "cli"
+              ? "Copy command"
+              : "Copy config",
+      }
+    : detailFw
+      ? {
+          name: detailFw.name,
+          blurb: detailFw.desc,
+          overview: detailFw.overview,
+          steps: detailFw.steps,
+          av: null as React.ReactNode,
+          avLetter: detailFw.letter,
+          snippetLabel: "Add to your project",
+          snippet: detailFw.code,
+          connectLabel: "Copy code",
+        }
+      : null;
 
   // local zkLogin-style session: an ephemeral keypair generated in-browser.
   // Live testnet zkLogin needs a Google OAuth client id, a salt service and a prover.
@@ -4661,6 +4770,133 @@ export function CortexApp({
           {/* INTEGRATIONS — MCP clients, storage backends, sources */}
           <section className={"view" + (view === "integrations" ? " on" : "")}>
             <div className="int2">
+              {openDetail ? (
+                <div className="int2-detail">
+                  <button
+                    className="int2-back"
+                    onClick={() => setIntOpen(null)}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.7}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M15 18l-6-6 6-6" />
+                    </svg>
+                    Back to integrations
+                  </button>
+                  <div className="int2-dhead">
+                    <span
+                      className={"int2-dav" + (openDetail.av ? " logo" : "")}
+                    >
+                      {openDetail.av ?? openDetail.avLetter}
+                    </span>
+                    <div className="int2-dmeta">
+                      <h1 className="int2-dtitle">{openDetail.name}</h1>
+                      <p className="int2-dsub">{openDetail.blurb}</p>
+                    </div>
+                    <button
+                      className="pill-btn keep int2-dconnect"
+                      onClick={() =>
+                        copyText(openDetail.snippet, "Setup copied to clipboard")
+                      }
+                    >
+                      {openDetail.connectLabel}
+                    </button>
+                  </div>
+                  <p className="int2-over">{openDetail.overview}</p>
+                  <div className="int2-by">
+                    Built by <strong>Cortex</strong> · Connects to your managed
+                    memory over an encrypted channel. Your memory stays sealed on
+                    Walrus, owned by you.
+                  </div>
+                  <div className="int2-dsec">
+                    <div className="int2-dsl">
+                      Set up <span>{openDetail.steps.length} steps</span>
+                    </div>
+                    <ol className="int2-flow">
+                      {openDetail.steps.map((step, i) => (
+                        <li className="int2-fstep" key={i}>
+                          <span className="int2-fn">{i + 1}</span>
+                          <span className="int2-ft">{step}</span>
+                        </li>
+                      ))}
+                    </ol>
+                    <div className="int2-snip-h">
+                      <span>{openDetail.snippetLabel}</span>
+                      <button
+                        className="int2-copy"
+                        onClick={() =>
+                          copyText(
+                            openDetail.snippet,
+                            "Setup copied to clipboard",
+                          )
+                        }
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <pre>{openDetail.snippet}</pre>
+                  </div>
+                  <div className="int2-dsec">
+                    <div className="int2-dsl">
+                      Tools <span>{MCP_TOOL_COUNT}</span>
+                    </div>
+                    {MCP_TOOL_GROUPS.map((g) => (
+                      <div className="int2-tg" key={g.label}>
+                        <div className="int2-tgl">{g.label}</div>
+                        {g.tools.map((t) => (
+                          <div className="int2-trow" key={t.name}>
+                            <span className="int2-tn">{t.name}</span>
+                            <span className="int2-td">{t.desc}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="int2-dsec">
+                    <div className="int2-dsl">Details</div>
+                    <div className="int2-det">
+                      <div className="int2-detk">Connector URL</div>
+                      <div className="int2-detv">
+                        <code>{CORTEX_MCP_URL}</code>
+                        <button
+                          className="int2-copy"
+                          onClick={() =>
+                            copyText(CORTEX_MCP_URL, "Connector URL copied")
+                          }
+                        >
+                          Copy
+                        </button>
+                      </div>
+                      <div className="int2-detk">Built by</div>
+                      <div className="int2-detv">Cortex</div>
+                      <div className="int2-detk">More info</div>
+                      <div className="int2-detv int2-dlinks">
+                        <a
+                          href="https://github.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Documentation ↗
+                        </a>
+                        <a
+                          href="https://discord.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Support ↗
+                        </a>
+                        <a href="#">Privacy ↗</a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
               <div className="int2-head">
                 <h1 className="int2-title">Integrations</h1>
                 <p className="int2-sub">
@@ -4701,38 +4937,15 @@ export function CortexApp({
                       you authorize it) read your details, memory and context.
                     </div>
                     <div className="int2-tools">
-                      {MCP_TOOLS.map((t) => (
-                        <span className="int2-tool" key={t}>
-                          {t}
+                      {MCP_TOOL_GROUPS.flatMap((g) => g.tools).map((t) => (
+                        <span className="int2-tool" key={t.name}>
+                          {t.name}
                         </span>
                       ))}
                     </div>
-                    {(
-                      [
-                        [
-                          "Memory",
-                          "recall · remember · ingest · forget · consolidate · verify",
-                        ],
-                        [
-                          "Agents",
-                          "a researcher / curator / planner / critic team — task board + message bus",
-                        ],
-                        [
-                          "Your data",
-                          "profile · memory · context, read by an MCP you authorize",
-                        ],
-                        [
-                          "Execution",
-                          "store & read Walrus blobs · record Sui pointers · restore MemWal",
-                        ],
-                        [
-                          "Connectors",
-                          "fetch the web into memory · push events to webhooks",
-                        ],
-                      ] as const
-                    ).map(([k, v]) => (
+                    {MCP_TOOL_GROUPS.map((g) => (
                       <div
-                        key={k}
+                        key={g.label}
                         style={{
                           display: "flex",
                           gap: 10,
@@ -4741,9 +4954,9 @@ export function CortexApp({
                         }}
                       >
                         <span style={{ minWidth: 92, fontWeight: 600 }}>
-                          {k}
+                          {g.label}
                         </span>
-                        <span className="ssub">{v}</span>
+                        <span className="ssub">{g.blurb}</span>
                       </div>
                     ))}
                   </div>
@@ -4759,38 +4972,12 @@ export function CortexApp({
                             <div className="int2-desc">{c.blurb}</div>
                           </div>
                           <button
-                            className={
-                              "int2-btn" + (intOpen === c.key ? " on" : "")
-                            }
+                            className="int2-btn"
                             onClick={() => intConnect(c.key)}
                           >
-                            {intOpen === c.key ? "Hide" : "Connect"}
+                            Connect
                           </button>
                         </div>
-                        {intOpen === c.key && (
-                          <div className="int2-snip">
-                            <ol className="int2-steps">
-                              {c.steps.map((step, i) => (
-                                <li key={i}>{step}</li>
-                              ))}
-                            </ol>
-                            <div className="int2-snip-h">
-                              <span>{SNIPPET_LABEL[c.kind]}</span>
-                              <button
-                                className="int2-copy"
-                                onClick={() => copySnippet(c.kind)}
-                              >
-                                Copy
-                              </button>
-                            </div>
-                            <pre>{mcpSnippet(c.kind)}</pre>
-                            <div className="int2-snip-n">
-                              {c.kind === "url"
-                                ? "Connects to your managed Cortex over an encrypted channel — no local server to run."
-                                : "Points the client at your managed Cortex over an encrypted channel."}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -4864,32 +5051,12 @@ export function CortexApp({
                             <div className="int2-desc">{c.desc}</div>
                           </div>
                           <button
-                            className={
-                              "int2-btn" + (intOpen === c.key ? " on" : "")
-                            }
+                            className="int2-btn"
                             onClick={() => intConnect(c.key)}
                           >
-                            {intOpen === c.key ? "Hide" : "Connect"}
+                            Connect
                           </button>
                         </div>
-                        {intOpen === c.key && (
-                          <div className="int2-snip">
-                            <div className="int2-snip-h">
-                              <span>Pull prompts, skills and memory</span>
-                              <button
-                                className="int2-copy"
-                                onClick={() => copyText(c.code)}
-                              >
-                                Copy
-                              </button>
-                            </div>
-                            <pre>{c.code}</pre>
-                            <div className="int2-snip-n">
-                              Reads and refines the same memory, kept by you on
-                              Walrus and sealed.
-                            </div>
-                          </div>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -4935,6 +5102,8 @@ export function CortexApp({
                     ))}
                   </div>
                 </div>
+              )}
+                </>
               )}
             </div>
           </section>
