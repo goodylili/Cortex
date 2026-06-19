@@ -1290,22 +1290,32 @@ export function CortexApp({
   };
 
   // integrations: MCP clients, storage backends, import sources
-  const CORTEX_MCP_URL =
-    process.env.NEXT_PUBLIC_CORTEX_MCP_URL || "https://mcp.cortex.id/mcp";
+  const CORTEX_MCP_URL = process.env.NEXT_PUBLIC_CORTEX_MCP_URL || "";
+  const hostedMcp = CORTEX_MCP_URL.length > 0;
+  const CORTEX_MCP_CMD = "pnpm --filter cortex-mcp start";
   const mcpSnippet = (kind: "url" | "cli" | "config") =>
     kind === "url"
-      ? CORTEX_MCP_URL
+      ? hostedMcp
+        ? CORTEX_MCP_URL
+        : "A hosted Cortex connector is coming soon. For now use a stdio client below — it runs the Cortex MCP server locally over stdio."
       : kind === "cli"
-        ? `claude mcp add --transport http cortex ${CORTEX_MCP_URL}`
+        ? `claude mcp add cortex -- ${CORTEX_MCP_CMD}`
         : JSON.stringify(
-            { mcpServers: { cortex: { url: CORTEX_MCP_URL } } },
+            {
+              mcpServers: {
+                cortex: {
+                  command: "pnpm",
+                  args: ["--filter", "cortex-mcp", "start"],
+                },
+              },
+            },
             null,
             2,
           );
   const SNIPPET_LABEL: Record<"url" | "cli" | "config", string> = {
-    url: "Your Cortex connector URL",
-    cli: "Run this once",
-    config: "Add to your MCP config",
+    url: hostedMcp ? "Your Cortex connector URL" : "Hosted connector (coming soon)",
+    cli: "Run this once (stdio)",
+    config: "Add to your MCP config (stdio)",
   };
   const MCP_TOOL_GROUPS: {
     label: string;
@@ -4874,13 +4884,17 @@ export function CortexApp({
                   <div className="int2-dsec">
                     <div className="int2-dsl">Details</div>
                     <div className="int2-det">
-                      <div className="int2-detk">Connector URL</div>
+                      <div className="int2-detk">
+                        {hostedMcp ? "Connector URL" : "Local command"}
+                      </div>
                       <div className="int2-detv">
-                        <code>{CORTEX_MCP_URL}</code>
+                        <code>{hostedMcp ? CORTEX_MCP_URL : CORTEX_MCP_CMD}</code>
                         <button
                           className="int2-copy"
                           onClick={() =>
-                            copyText(CORTEX_MCP_URL, "Connector URL copied")
+                            hostedMcp
+                              ? copyText(CORTEX_MCP_URL, "Connector URL copied")
+                              : copyText(CORTEX_MCP_CMD, "Command copied")
                           }
                         >
                           Copy
