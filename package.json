@@ -13,6 +13,7 @@
     "start": "pnpm --filter cortex-frontend start",
     "start:docs": "pnpm --filter cortex-docs start",
     "start:mcp": "pnpm --filter cortex-mcp start",
+    "start:mcp:http": "pnpm --filter cortex-mcp start:http",
     "demo": "pnpm --filter @cortex/core demo",
     "lint": "pnpm --filter cortex-frontend lint",
     "typecheck": "pnpm -r --if-present typecheck",

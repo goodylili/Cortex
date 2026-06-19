@@ -6,6 +6,8 @@
   "scripts": {
     "start": "tsx server.ts",
     "dev": "tsx watch server.ts",
+    "start:http": "MCP_TRANSPORT=http tsx server.ts",
+    "dev:http": "MCP_TRANSPORT=http tsx watch server.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

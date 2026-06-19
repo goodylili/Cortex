@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Cortex MCP server — the all-inclusive connector and multi-agent hub. Exposes the
+// Cortex MCP server  -  the all-inclusive connector and multi-agent hub. Exposes the
 // full Cortex memory plane (recall, remember, ingest, list, timeline, tags, digest,
 // connections, extraction, head, forget, verify-stamp, dream, verify), the agent
 // collaboration layer (roster, durable task board, message bus, run-step) so MCP
@@ -38,11 +38,15 @@ import {
   executorGrantKbAccess,
   executorRenewKbFile,
 } from "@cortex/core";
+import { createServer } from "node:http";
+import { randomUUID } from "node:crypto";
 
 const DEFAULT_PERIOD = { from: "0000", to: "9999" };
 const SUMMARY_RECENT_LIMIT = 20;
 const FETCH_TIMEOUT_MS = 30_000;
 const RESOURCE_MIME = "application/json";
+const MCP_PATH = "/mcp";
+const HTTP_PORT = 8787;
 
 const cfg = loadConfig();
 const live = isLive(cfg);
@@ -87,7 +91,11 @@ async function main() {
   };
 
   if (!live) await seedDemo(c, cfg);
-  const server = new McpServer({ name: "cortex-memory", version: "0.3.0" });
+
+  // A fresh, fully-configured McpServer. The stdio path builds one; the hosted
+  // HTTP path builds one per client session (each transport binds one server).
+  const buildServer = () => {
+    const server = new McpServer({ name: "cortex-memory", version: "0.3.0" });
 
   // ---- memory: write / consolidate / verify ----
   server.tool(
@@ -697,22 +705,129 @@ async function main() {
     },
   );
 
-  await server.connect(new StdioServerTransport());
-  console.error(
-    `cortex-mcp connected (${live ? "live" : "mock"})\n` +
-      `  memory: memory_recall, memory_remember, memory_ingest, memory_forget, ` +
-      `memory_verify_stamp, memory_list, memory_timeline, memory_tags, memory_digest, ` +
-      `memory_connections, memory_extraction, memory_head, dream_run, verify_memory\n` +
-      `  agents: agent_list, task_create, task_list, task_get, task_observe, task_handoff, ` +
-      `task_complete, agent_run_step, agent_message_post, agent_message_list\n` +
-      `  loops: loop_create, loop_list, loop_get, loop_run_step, loop_stop\n` +
-      `  execution: wallet_info, walrus_put_blob, walrus_get_blob, sui_record_pointer, ` +
-      `sui_read_pointer, kb_grant_access, kb_renew, memwal_restore\n` +
-      `  users: user_profile, user_memory, user_context\n` +
-      `  connectors: web_fetch, service_notify, service_export\n` +
-      `  resources: cortex://memory, cortex://timeline, cortex://digest, cortex://agents, cortex://tasks\n` +
-      `  prompts: summarize_memory, daily_digest`,
-  );
+    return server;
+  };
+
+  const toolSummary =
+    `  memory: memory_recall, memory_remember, memory_ingest, memory_forget, ` +
+    `memory_verify_stamp, memory_list, memory_timeline, memory_tags, memory_digest, ` +
+    `memory_connections, memory_extraction, memory_head, dream_run, verify_memory\n` +
+    `  agents: agent_list, task_create, task_list, task_get, task_observe, task_handoff, ` +
+    `task_complete, agent_run_step, agent_message_post, agent_message_list\n` +
+    `  loops: loop_create, loop_list, loop_get, loop_run_step, loop_stop\n` +
+    `  execution: wallet_info, walrus_put_blob, walrus_get_blob, sui_record_pointer, ` +
+    `sui_read_pointer, kb_grant_access, kb_renew, memwal_restore\n` +
+    `  users: user_profile, user_memory, user_context\n` +
+    `  connectors: web_fetch, service_notify, service_export\n` +
+    `  resources: cortex://memory, cortex://timeline, cortex://digest, cortex://agents, cortex://tasks\n` +
+    `  prompts: summarize_memory, daily_digest`;
+
+  // Hosted transport: a Streamable-HTTP MCP endpoint at /mcp. Each client session
+  // gets its own transport + server (the SDK binds one transport per server), keyed
+  // by the Mcp-Session-Id header the SDK assigns on initialize.
+  const startHttp = async () => {
+    const { StreamableHTTPServerTransport } = await importExternal(
+      "@modelcontextprotocol/sdk/server/streamableHttp.js",
+    );
+    const { isInitializeRequest } = await importExternal(
+      "@modelcontextprotocol/sdk/types.js",
+    );
+    const port = Number(process.env.PORT ?? process.env.MCP_PORT ?? HTTP_PORT);
+    const sessions = new Map<string, any>();
+
+    const readBody = (req: any): Promise<unknown> =>
+      new Promise((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        req.on("data", (chunk: Buffer) => chunks.push(chunk));
+        req.on("end", () => {
+          const raw = Buffer.concat(chunks).toString("utf8");
+          if (!raw) return resolve(undefined);
+          try {
+            resolve(JSON.parse(raw));
+          } catch (err) {
+            reject(err);
+          }
+        });
+        req.on("error", reject);
+      });
+    const sendJson = (res: any, status: number, body: unknown) => {
+      res.writeHead(status, { "content-type": "application/json" });
+      res.end(JSON.stringify(body));
+    };
+
+    const httpServer = createServer(async (req: any, res: any) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        "content-type, mcp-session-id, mcp-protocol-version, authorization",
+      );
+      res.setHeader("Access-Control-Expose-Headers", "mcp-session-id");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+      if (req.method === "OPTIONS") {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+      const path = new URL(req.url ?? "/", "http://localhost").pathname;
+      if (path !== MCP_PATH) {
+        sendJson(res, 404, { error: "not found" });
+        return;
+      }
+      const sid = req.headers["mcp-session-id"] as string | undefined;
+      try {
+        if (req.method === "POST") {
+          const body = await readBody(req);
+          let transport = sid ? sessions.get(sid) : undefined;
+          if (!transport) {
+            if (!isInitializeRequest(body)) {
+              sendJson(res, 400, {
+                jsonrpc: "2.0",
+                error: {
+                  code: -32000,
+                  message: "No valid session — send an initialize request first.",
+                },
+                id: null,
+              });
+              return;
+            }
+            transport = new StreamableHTTPServerTransport({
+              sessionIdGenerator: () => randomUUID(),
+              onsessioninitialized: (id: string) => sessions.set(id, transport),
+            });
+            transport.onclose = () => {
+              if (transport.sessionId) sessions.delete(transport.sessionId);
+            };
+            await buildServer().connect(transport);
+          }
+          await transport.handleRequest(req, res, body);
+        } else if (req.method === "GET" || req.method === "DELETE") {
+          const transport = sid ? sessions.get(sid) : undefined;
+          if (!transport) {
+            sendJson(res, 400, { error: "Unknown or missing mcp-session-id" });
+            return;
+          }
+          await transport.handleRequest(req, res);
+        } else {
+          sendJson(res, 405, { error: "method not allowed" });
+        }
+      } catch (err) {
+        if (!res.headersSent) sendJson(res, 500, { error: String(err) });
+      }
+    });
+    httpServer.listen(port, () =>
+      console.error(
+        `cortex-mcp HTTP listening on http://localhost:${port}${MCP_PATH} (${live ? "live" : "mock"})\n` +
+          toolSummary,
+      ),
+    );
+  };
+
+  if ((process.env.MCP_TRANSPORT ?? "stdio").toLowerCase() === "http") {
+    await startHttp();
+  } else {
+    await buildServer().connect(new StdioServerTransport());
+    console.error(`cortex-mcp connected (${live ? "live" : "mock"})\n` + toolSummary);
+  }
 }
 
 main().catch((e) => {
