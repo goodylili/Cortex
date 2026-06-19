@@ -4,46 +4,45 @@ import { useRef, useState, useEffect } from "react";
 import { motion, useInView } from "framer-motion";
 
 const actors = [
-  { id: "browser", label: "Browser", sublabel: "Agentation" },
-  { id: "webhook", label: "Webhook", sublabel: "Server" },
-  { id: "service", label: "Service", sublabel: "Slack, GitHub..." },
+  { id: "web", label: "Web / Services", sublabel: "URLs, Slack…" },
+  { id: "mcp", label: "cortex-mcp", sublabel: "Outbound" },
+  { id: "memory", label: "Memory", sublabel: "Walrus-backed" },
 ];
 
 const messages = [
-  { from: 0, to: 1, label: "annotation.add", direction: "right", type: "request" as const },
-  { from: 1, to: 2, label: "POST /slack", direction: "right", type: "request" as const },
-  { from: 2, to: 1, label: "200 OK", direction: "left", type: "response" as const },
-  { from: 0, to: 1, label: "submit", direction: "right", type: "request" as const },
-  { from: 1, to: 2, label: "POST /github/issues", direction: "right", type: "request" as const },
-  { from: 2, to: 1, label: "201 Created", direction: "left", type: "response" as const },
+  { from: 1, to: 0, label: "web_fetch", direction: "left", type: "request" as const },
+  { from: 0, to: 1, label: "page text", direction: "right", type: "response" as const },
+  { from: 1, to: 2, label: "ingest → memory", direction: "right", type: "request" as const },
+  { from: 1, to: 0, label: "service_notify", direction: "left", type: "request" as const },
+  { from: 2, to: 1, label: "service_export", direction: "left", type: "request" as const },
+  { from: 1, to: 0, label: "JSON bundle", direction: "left", type: "response" as const },
 ];
 
-const PULSE_COLOR = "#60a5fa";
 const LOOP_INTERVAL = 1400;
 const INITIAL_DELAY = 2000;
 
 const PULSE_CSS = `
 @keyframes webhookPulseLabel {
-  0% { fill: rgba(0,0,0,0.45); }
-  17% { fill: ${PULSE_COLOR}; }
-  50% { fill: ${PULSE_COLOR}; }
-  100% { fill: rgba(0,0,0,0.45); }
+  0% { fill: var(--faint); }
+  17% { fill: var(--accent); }
+  50% { fill: var(--accent); }
+  100% { fill: var(--faint); }
 }
 @keyframes webhookPulseActor {
   0% {
-    border-color: rgba(0,0,0,0.1);
+    border-color: var(--line2);
     box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   }
   17% {
-    border-color: ${PULSE_COLOR}60;
-    box-shadow: 0 0 12px 4px ${PULSE_COLOR}25, 0 0 4px 1px ${PULSE_COLOR}20;
+    border-color: var(--accent);
+    box-shadow: 0 0 12px 2px var(--accent-soft);
   }
   50% {
-    border-color: ${PULSE_COLOR}60;
-    box-shadow: 0 0 12px 4px ${PULSE_COLOR}25, 0 0 4px 1px ${PULSE_COLOR}20;
+    border-color: var(--accent);
+    box-shadow: 0 0 12px 2px var(--accent-soft);
   }
   100% {
-    border-color: rgba(0,0,0,0.1);
+    border-color: var(--line2);
     box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   }
 }
@@ -69,7 +68,7 @@ function ActorPill({
       transition={{
         duration: 0.4,
         delay: index * 0.1,
-        ease: [0.16, 1, 0.3, 1]
+        ease: [0.16, 1, 0.3, 1],
       }}
       style={{
         display: "flex",
@@ -82,14 +81,16 @@ function ActorPill({
         key={isActive ? `active-${pulseKey}` : "inactive"}
         style={{
           padding: "8px 16px",
-          background: "#fff",
-          border: "1px solid rgba(0,0,0,0.1)",
+          background: "var(--surface)",
+          border: "1px solid var(--line2)",
           borderRadius: "8px",
           fontSize: "12px",
           fontWeight: 600,
-          color: "#1a1a1a",
-          fontFamily: "var(--font-docs)",
-          animation: isActive ? `webhookPulseActor ${LOOP_INTERVAL}ms ease-in-out forwards` : "none",
+          color: "var(--ink)",
+          fontFamily: "var(--font-mono)",
+          animation: isActive
+            ? `webhookPulseActor ${LOOP_INTERVAL}ms ease-in-out forwards`
+            : "none",
         }}
       >
         {actor.label}
@@ -97,8 +98,8 @@ function ActorPill({
       <div
         style={{
           fontSize: "10px",
-          color: "rgba(0,0,0,0.4)",
-          fontFamily: "var(--font-docs)",
+          color: "var(--faint)",
+          fontFamily: "var(--font-body)",
         }}
       >
         {actor.sublabel}
@@ -132,11 +133,10 @@ function MessageArrow({
   const endX = toX;
   const midX = (startX + endX) / 2;
 
-  const baseColor = isResponse ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.3)";
+  const baseColor = isResponse ? "var(--faint)" : "var(--muted)";
 
   return (
     <g>
-      {/* Arrow line */}
       {isResponse ? (
         <motion.line
           x1={startX}
@@ -167,7 +167,6 @@ function MessageArrow({
         />
       )}
 
-      {/* Arrow head */}
       <motion.polyline
         points={
           isLeft
@@ -188,14 +187,13 @@ function MessageArrow({
         }}
       />
 
-      {/* Label */}
       <motion.text
         x={midX}
         y={y - 7}
         textAnchor="middle"
         fontSize={10}
-        fontFamily="var(--font-docs)"
-        fill="rgba(0,0,0,0.45)"
+        fontFamily="var(--font-mono)"
+        fill="var(--faint)"
         initial={{ opacity: 0 }}
         animate={isVisible ? { opacity: 1 } : {}}
         transition={{ duration: 0.3, delay: 0.4 + index * 0.15 + 0.2 }}
@@ -203,7 +201,6 @@ function MessageArrow({
         {message.label}
       </motion.text>
 
-      {/* Label pulse overlay */}
       {isActive && (
         <text
           key={`label-pulse-${pulseKey}`}
@@ -211,7 +208,7 @@ function MessageArrow({
           y={y - 7}
           textAnchor="middle"
           fontSize={10}
-          fontFamily="var(--font-docs)"
+          fontFamily="var(--font-mono)"
           style={{
             animation: `webhookPulseLabel ${LOOP_INTERVAL}ms ease-in-out forwards`,
             pointerEvents: "none",
@@ -241,7 +238,7 @@ function VerticalLine({
       y1={10}
       x2={x}
       y2={height}
-      stroke="rgba(0,0,0,0.08)"
+      stroke="var(--line)"
       strokeWidth={1}
       strokeDasharray="3 3"
       initial={{ pathLength: 0, opacity: 0 }}
@@ -266,19 +263,19 @@ function Legend({ isVisible }: { isVisible: boolean }) {
         gap: "20px",
         marginTop: "12px",
         fontSize: "10px",
-        color: "rgba(0,0,0,0.4)",
-        fontFamily: "var(--font-docs)",
+        color: "var(--faint)",
+        fontFamily: "var(--font-body)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
         <svg width="24" height="2">
-          <line x1="0" y1="1" x2="24" y2="1" stroke="rgba(0,0,0,0.3)" strokeWidth="1.5" />
+          <line x1="0" y1="1" x2="24" y2="1" stroke="var(--muted)" strokeWidth="1.5" />
         </svg>
         <span>request</span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
         <svg width="24" height="2">
-          <line x1="0" y1="1" x2="24" y2="1" stroke="rgba(0,0,0,0.15)" strokeWidth="1.5" strokeDasharray="6 4" />
+          <line x1="0" y1="1" x2="24" y2="1" stroke="var(--faint)" strokeWidth="1.5" strokeDasharray="6 4" />
         </svg>
         <span>response</span>
       </div>
@@ -286,13 +283,12 @@ function Legend({ isVisible }: { isVisible: boolean }) {
   );
 }
 
-export function WebhooksDiagram() {
+export function WebhooksDiagram(): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const isInView = useInView(containerRef, { once: true, margin: "-50px" });
   const [activeMessageIndex, setActiveMessageIndex] = useState(-1);
   const [pulseKey, setPulseKey] = useState(0);
 
-  // Inject CSS
   useEffect(() => {
     const styleId = "webhooks-diagram-pulse-css";
     if (!document.getElementById(styleId)) {
@@ -307,7 +303,6 @@ export function WebhooksDiagram() {
     };
   }, []);
 
-  // Start loop
   useEffect(() => {
     if (!isInView) return;
     const startLoop = setTimeout(() => {
@@ -317,7 +312,6 @@ export function WebhooksDiagram() {
     return () => clearTimeout(startLoop);
   }, [isInView]);
 
-  // Loop through messages
   useEffect(() => {
     if (activeMessageIndex < 0) return;
     const interval = setInterval(() => {
@@ -327,7 +321,6 @@ export function WebhooksDiagram() {
     return () => clearInterval(interval);
   }, [activeMessageIndex]);
 
-  // Active actors
   const activeActors = new Set<number>();
   if (activeMessageIndex >= 0) {
     const msg = messages[activeMessageIndex];
@@ -335,8 +328,8 @@ export function WebhooksDiagram() {
     activeActors.add(msg.to);
   }
 
-  const width = 440;
-  const padding = 50;
+  const width = 460;
+  const padding = 60;
   const actorSpacing = (width - padding * 2) / (actors.length - 1);
   const actorPositions = actors.map((_, i) => padding + i * actorSpacing);
   const svgHeight = 32 + (messages.length - 1) * 42 + 30;
@@ -349,9 +342,9 @@ export function WebhooksDiagram() {
         marginTop: "1.5rem",
         marginBottom: "1rem",
         padding: "24px",
-        background: "#fafafa",
+        background: "var(--surface2)",
         borderRadius: "12px",
-        border: "1px solid rgba(0,0,0,0.06)",
+        border: "1px solid var(--line)",
         boxSizing: "border-box",
         overflow: "hidden",
       }}
@@ -364,7 +357,6 @@ export function WebhooksDiagram() {
           margin: "0 auto",
         }}
       >
-        {/* Actor pills */}
         <div
           style={{
             display: "flex",
@@ -384,13 +376,11 @@ export function WebhooksDiagram() {
           ))}
         </div>
 
-        {/* SVG */}
         <svg
           width="100%"
           viewBox={`0 0 ${width} ${svgHeight}`}
           style={{ display: "block" }}
         >
-          {/* Vertical lifelines */}
           {actorPositions.map((x, i) => (
             <VerticalLine
               key={i}
@@ -401,7 +391,6 @@ export function WebhooksDiagram() {
             />
           ))}
 
-          {/* Message arrows */}
           {messages.map((message, i) => (
             <MessageArrow
               key={i}
@@ -415,7 +404,6 @@ export function WebhooksDiagram() {
           ))}
         </svg>
 
-        {/* Legend */}
         <Legend isVisible={isInView} />
       </div>
     </div>

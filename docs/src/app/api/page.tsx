@@ -3,430 +3,363 @@
 import { Footer } from "../Footer";
 import { CodeBlock } from "../components/CodeBlock";
 
-export default function APIPage() {
+export default function APIPage(): React.JSX.Element {
   return (
     <>
       <article className="article">
         <header>
-          <h1>API</h1>
-          <p className="tagline">Programmatic access for developers</p>
+          <h1>Core API</h1>
+          <p className="tagline">
+            The <code>Cortex</code> facade — embed the local-first memory plane directly
+          </p>
         </header>
 
         <section>
           <h2 id="overview">Overview</h2>
           <p>
-            Agentation exposes callbacks that let you integrate annotations into
-            your own workflows — send to a backend, pipe to terminal, trigger
-            automations, or build custom AI integrations.
+            Cortex is local-first. There is no HTTP backend to call — the desktop and
+            mobile apps embed the runtime directly, and the only server in the system is
+            the <a href="/mcp">MCP connector</a>, which reaches the same memory plane
+            through this same facade.
           </p>
-          <ul>
-            <li>Sync annotations to a database or backend service</li>
-            <li>Build analytics dashboards tracking feedback patterns</li>
-            <li>Create custom AI integrations (MCP servers, agent tools)</li>
-          </ul>
-        </section>
-
-        <section>
-          <h2 id="props">Props</h2>
-          <div className="props-list">
-            <div className="prop-item">
-              <div className="prop-header">
-                <code className="prop-name">onAnnotationAdd</code>
-                <span className="prop-type">(annotation: Annotation) =&gt; void</span>
-              </div>
-              <p className="prop-desc">Called when an annotation is created</p>
-            </div>
-            <div className="prop-item">
-              <div className="prop-header">
-                <code className="prop-name">onAnnotationDelete</code>
-                <span className="prop-type">(annotation: Annotation) =&gt; void</span>
-              </div>
-              <p className="prop-desc">Called when an annotation is deleted</p>
-            </div>
-            <div className="prop-item">
-              <div className="prop-header">
-                <code className="prop-name">onAnnotationUpdate</code>
-                <span className="prop-type">(annotation: Annotation) =&gt; void</span>
-              </div>
-              <p className="prop-desc">Called when an annotation comment is edited</p>
-            </div>
-            <div className="prop-item">
-              <div className="prop-header">
-                <code className="prop-name">onAnnotationsClear</code>
-                <span className="prop-type">(annotations: Annotation[]) =&gt; void</span>
-              </div>
-              <p className="prop-desc">Called when all annotations are cleared</p>
-            </div>
-            <div className="prop-item">
-              <div className="prop-header">
-                <code className="prop-name">onCopy</code>
-                <span className="prop-type">(markdown: string) =&gt; void</span>
-              </div>
-              <p className="prop-desc">Callback with the markdown output when copy is clicked</p>
-            </div>
-            <div className="prop-item">
-              <div className="prop-header">
-                <code className="prop-name">onSubmit</code>
-                <span className="prop-type">(output: string, annotations: Annotation[]) =&gt; void</span>
-              </div>
-              <p className="prop-desc">Called when &quot;Send Annotations&quot; is clicked</p>
-            </div>
-            <div className="prop-item">
-              <div className="prop-header">
-                <code className="prop-name">copyToClipboard</code>
-                <span className="prop-type">boolean</span>
-                <span className="prop-default">default: true</span>
-              </div>
-              <p className="prop-desc">Set to false to prevent writing to clipboard (if handling via onCopy)</p>
-            </div>
-            <div className="prop-item">
-              <div className="prop-header">
-                <code className="prop-name">endpoint</code>
-                <span className="prop-type">string</span>
-              </div>
-              <p className="prop-desc">MCP server URL for syncing annotations</p>
-            </div>
-            <div className="prop-item">
-              <div className="prop-header">
-                <code className="prop-name">sessionId</code>
-                <span className="prop-type">string</span>
-              </div>
-              <p className="prop-desc">Pre-existing session ID to use</p>
-            </div>
-            <div className="prop-item">
-              <div className="prop-header">
-                <code className="prop-name">onSessionCreated</code>
-                <span className="prop-type">(sessionId: string) =&gt; void</span>
-              </div>
-              <p className="prop-desc">Called when a new session is created</p>
-            </div>
-            <div className="prop-item">
-              <div className="prop-header">
-                <code className="prop-name">webhookUrl</code>
-                <span className="prop-type">string</span>
-              </div>
-              <p className="prop-desc">Webhook URL to receive annotation events</p>
-            </div>
-          </div>
-        </section>
-
-        <section>
-          <h2 id="basic-usage">Basic usage</h2>
           <p>
-            Receive annotation data directly in your code:
+            The programmatic entry point is the <code>Cortex</code> class. It wraps the
+            ingest, recall, consolidation, and verification pipelines and exposes derived
+            read views over a namespace. Everything is exported from the
+            {" "}<code>@cortex/core</code> package.
           </p>
           <CodeBlock
-            code={`import { Agentation, Annotation } from "agentation";
+            language="typescript"
+            copyable
+            code={`import { openCortex } from "@cortex/core";
 
-function App() {
-  const handleAnnotation = (annotation: Annotation) => {
-    console.log(annotation.element, annotation.comment);
-  };
+// loadConfig() runs automatically; with no live credentials
+// configured, Cortex runs against mock infrastructure.
+const cortex = openCortex();
 
-  return (
-    <>
-      <YourApp />
-      <Agentation onAnnotationAdd={handleAnnotation} />
-    </>
-  );
+await cortex.ingestText("Shipped the v1 data model today.", "standup");
+const hits = await cortex.recall("data model");`}
+          />
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", marginTop: "0.5rem" }}>
+            <code>ingest</code> &rarr; extract memories &rarr; store on
+            {" "}Sui / Walrus / Seal / MemWal &rarr; <code>recall</code> &rarr; consolidate.
+          </p>
+        </section>
+
+        <section>
+          <h2 id="cortex-class">Cortex Class</h2>
+          <p>
+            Construct a <code>Cortex</code> directly or call <code>openCortex()</code>.
+            Both take an optional <code>Config</code>; when omitted, the constructor calls
+            {" "}<code>loadConfig()</code> for you. The instance builds its storage clients
+            once and reuses them for the lifetime of the object.
+          </p>
+          <CodeBlock
+            language="typescript"
+            code={`class Cortex {
+  readonly cfg: Config;
+  readonly clients: Clients;
+
+  constructor(cfg?: Config);   // defaults to loadConfig()
+
+  get namespace(): string;     // the active namespace from config
+  get live(): boolean;         // true once live infra is fully configured
+}
+
+function openCortex(cfg?: Config): Cortex;`}
+          />
+          <p>
+            <code>namespace</code> is the per-user memory space the facade reads and
+            writes; <code>live</code> reports whether all required live infrastructure
+            fields are present (see <a href="#configuration">Configuration</a>). When
+            {" "}<code>live</code> is <code>false</code>, every operation runs against the
+            deterministic mock clients.
+          </p>
+        </section>
+
+        <section>
+          <h2 id="ingest">Ingest</h2>
+          <p>
+            <code>ingest</code> takes a single source, extracts memories from it, writes
+            those memories into the live memory plane, and updates the namespace manifest.
+            <code>ingestText</code> is a convenience wrapper for inline notes.
+          </p>
+          <CodeBlock
+            language="typescript"
+            code={`ingest(input: IngestInput): Promise<IngestResult>;
+
+ingestText(text: string, title?: string): Promise<IngestResult>;
+
+interface IngestInput {
+  type: SourceKind;   // "note" | "document" | "image" | "audio"
+                      //  | "video" | "url" | "structured"
+  uri: string;        // path or URL
+  title?: string;
+  text?: string;
+  bytes?: Uint8Array;
+  hint?: string;
+}
+
+interface IngestResult {
+  source: Source;
+  extraction: Extraction;
+  memoryIds: string[];
+}`}
+          />
+          <CodeBlock
+            language="typescript"
+            copyable
+            code={`const { source, memoryIds } = await cortex.ingest({
+  type: "document",
+  uri: "file:///notes/architecture.md",
+  title: "Architecture notes",
+  text: rawMarkdown,
+});
+
+console.log(\`stored \${memoryIds.length} memories from \${source.id}\`);`}
+          />
+        </section>
+
+        <section>
+          <h2 id="recall">Recall</h2>
+          <p>
+            <code>recall</code> queries the namespace for relevant memories. Pass an empty
+            query to list everything, or a <code>limit</code> to cap results.
+            {" "}<code>memories</code> returns the full restored set without ranking.
+          </p>
+          <CodeBlock
+            language="typescript"
+            code={`recall(query?: string, limit?: number): Promise<Memory[]>;
+
+memories(): Promise<Memory[]>;   // full restored namespace
+
+head(): Promise<string>;         // current state hash of the namespace`}
+          />
+          <CodeBlock
+            language="typescript"
+            copyable
+            code={`const relevant = await cortex.recall("storage layer", 5);
+for (const m of relevant) {
+  console.log(m.confidence.toFixed(2), m.text);
 }`}
           />
         </section>
 
         <section>
-          <h2 id="annotation-type">Annotation type</h2>
+          <h2 id="consolidate">Consolidate</h2>
           <p>
-            The <code>Annotation</code> object passed to callbacks. See <a href="/schema">Agentation Format</a> for the full schema.
+            Consolidation runs in two stages so it is always inspectable and never
+            destructive by surprise. <code>dream</code> loads the namespace, asks the
+            consolidator to propose operations (merge, pattern, prune, verify), and commits
+            the resulting <code>MemoryDiff</code> to Walrus <em>before</em> anything mutates.
+            <code>apply</code> then mutates the live memory after an optimistic
+            parent-head concurrency check. <code>dreamAndApply</code> chains both.
           </p>
-          <CodeBlock
-            code={`type Annotation = {
-  // Required
-  id: string;              // Unique identifier
-  comment: string;         // User's annotation text
-  elementPath: string;     // CSS selector path
-  timestamp: number;       // Unix timestamp (ms)
-  x: number;               // % of viewport width (0-100)
-  y: number;               // px from document top
-  element: string;         // Tag name ("button", "div")
-
-  // Recommended
-  url?: string;            // Page URL
-  boundingBox?: {          // Element dimensions
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
-
-  // Context (varies by output format)
-  reactComponents?: string;   // Component tree
-  cssClasses?: string;
-  computedStyles?: string;
-  accessibility?: string;
-  nearbyText?: string;
-  selectedText?: string;      // If text was selected
-
-  // Browser component fields
-  isFixed?: boolean;       // Fixed-position element
-  isMultiSelect?: boolean; // Created via drag selection
-
-  // Annotation kind (defaults to "feedback")
-  kind?: "feedback" | "placement" | "rearrange";
-
-  // Layout mode data
-  placement?: {
-    componentType: string;
-    width: number;
-    height: number;
-    scrollY: number;
-    text?: string;
-  };
-  rearrange?: {
-    selector: string;
-    label: string;
-    tagName: string;
-    originalRect: { x: number; y: number; width: number; height: number };
-    currentRect: { x: number; y: number; width: number; height: number };
-  };
-};`}
-          />
-        </section>
-
-        <section>
-          <h2 id="http-api">HTTP API</h2>
-          <p>
-            The <code>agentation-mcp</code> server provides a REST API for programmatic access:
-          </p>
-
-          <h3 style={{ marginTop: "1.25rem" }}>Sessions</h3>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.75rem" }}>
-            <tbody>
-              <tr>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem", width: "5rem", color: "rgba(0,0,0,0.4)" }}>POST</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>/sessions</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "rgba(0,0,0,0.5)", textAlign: "right" }}>Create a new session</td>
-              </tr>
-              <tr>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem", color: "rgba(0,0,0,0.4)" }}>GET</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>/sessions</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "rgba(0,0,0,0.5)", textAlign: "right" }}>List all sessions</td>
-              </tr>
-              <tr>
-                <td style={{ padding: "0.375rem 0", fontFamily: "var(--font-docs)", fontSize: "0.6875rem", color: "rgba(0,0,0,0.4)" }}>GET</td>
-                <td style={{ padding: "0.375rem 0", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>/sessions/:id</td>
-                <td style={{ padding: "0.375rem 0", color: "rgba(0,0,0,0.5)", textAlign: "right" }}>Get session with annotations</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <h3 style={{ marginTop: "1.25rem" }}>Annotations</h3>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.75rem" }}>
-            <tbody>
-              <tr>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem", width: "5rem", color: "rgba(0,0,0,0.4)" }}>POST</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>/sessions/:id/annotations</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "rgba(0,0,0,0.5)", textAlign: "right" }}>Add annotation</td>
-              </tr>
-              <tr>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem", color: "rgba(0,0,0,0.4)" }}>GET</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>/annotations/:id</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "rgba(0,0,0,0.5)", textAlign: "right" }}>Get annotation</td>
-              </tr>
-              <tr>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem", color: "rgba(0,0,0,0.4)" }}>PATCH</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>/annotations/:id</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "rgba(0,0,0,0.5)", textAlign: "right" }}>Update annotation</td>
-              </tr>
-              <tr>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem", color: "rgba(0,0,0,0.4)" }}>DELETE</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>/annotations/:id</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "rgba(0,0,0,0.5)", textAlign: "right" }}>Delete annotation</td>
-              </tr>
-              <tr>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem", color: "rgba(0,0,0,0.4)" }}>POST</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>/annotations/:id/thread</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "rgba(0,0,0,0.5)", textAlign: "right" }}>Add thread message</td>
-              </tr>
-              <tr>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem", color: "rgba(0,0,0,0.4)" }}>GET</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>/sessions/:id/pending</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "rgba(0,0,0,0.5)", textAlign: "right" }}>Get pending annotations</td>
-              </tr>
-              <tr>
-                <td style={{ padding: "0.375rem 0", fontFamily: "var(--font-docs)", fontSize: "0.6875rem", color: "rgba(0,0,0,0.4)" }}>GET</td>
-                <td style={{ padding: "0.375rem 0", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>/pending</td>
-                <td style={{ padding: "0.375rem 0", color: "rgba(0,0,0,0.5)", textAlign: "right" }}>Get all pending annotations</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <h3 style={{ marginTop: "1.25rem" }}>Events (SSE)</h3>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.75rem" }}>
-            <tbody>
-              <tr>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem", width: "5rem", color: "rgba(0,0,0,0.4)" }}>GET</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>/sessions/:id/events</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "rgba(0,0,0,0.5)", textAlign: "right" }}>Session event stream</td>
-              </tr>
-              <tr>
-                <td style={{ padding: "0.375rem 0", fontFamily: "var(--font-docs)", fontSize: "0.6875rem", color: "rgba(0,0,0,0.4)" }}>GET</td>
-                <td style={{ padding: "0.375rem 0", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>/events</td>
-                <td style={{ padding: "0.375rem 0", color: "rgba(0,0,0,0.5)", textAlign: "right" }}>Global event stream (optionally filter with <code>?domain=...</code>)</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <h3 style={{ marginTop: "1.25rem" }}>Health</h3>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.75rem" }}>
-            <tbody>
-              <tr>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem", width: "5rem", color: "rgba(0,0,0,0.4)" }}>GET</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>/health</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "rgba(0,0,0,0.5)", textAlign: "right" }}>Health check</td>
-              </tr>
-              <tr>
-                <td style={{ padding: "0.375rem 0", fontFamily: "var(--font-docs)", fontSize: "0.6875rem", color: "rgba(0,0,0,0.4)" }}>GET</td>
-                <td style={{ padding: "0.375rem 0", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>/status</td>
-                <td style={{ padding: "0.375rem 0", color: "rgba(0,0,0,0.5)", textAlign: "right" }}>Server status</td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
-
-        <section>
-          <h2 id="real-time-events">Real-Time Events</h2>
-          <p>
-            Subscribe to real-time events via Server-Sent Events:
-          </p>
-          <CodeBlock
-            language="bash"
-            code={`# Session-level: events for a single page
-curl -N http://localhost:4747/sessions/:id/events
-
-# Global: events across ALL sessions
-curl -N http://localhost:4747/events
-
-# Filtered by domain: events for pages on a specific domain
-curl -N "http://localhost:4747/events?domain=localhost:3001"
-
-# Reconnect after disconnect (replay missed events)
-curl -N -H "Last-Event-ID: 42" http://localhost:4747/sessions/:id/events`}
-          />
-          <h3 style={{ marginTop: "1.25rem" }}>Event types</h3>
-          <ul style={{ fontSize: "0.8125rem", color: "rgba(0,0,0,0.65)", marginTop: "0.5rem" }}>
-            <li><code>annotation.created</code> &mdash; New annotation added (includes <code>kind</code> field for design annotations)</li>
-            <li><code>annotation.updated</code> &mdash; Annotation modified (comment, status, design data, etc.)</li>
-            <li><code>annotation.deleted</code> &mdash; Annotation removed</li>
-            <li><code>session.created</code> &mdash; New session started</li>
-            <li><code>session.updated</code> &mdash; Session updated</li>
-            <li><code>session.closed</code> &mdash; Session closed</li>
-            <li><code>action.requested</code> &mdash; Agent action requested</li>
-            <li><code>thread.message</code> &mdash; New message in annotation thread</li>
-          </ul>
-        </section>
-
-
-        <section>
-          <h2 id="environment-variables">Environment Variables</h2>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.75rem", marginTop: "1rem" }}>
-            <thead>
-              <tr>
-                <th style={{ padding: "0.5rem 0", borderBottom: "1px solid rgba(0,0,0,0.1)", textAlign: "left", fontWeight: 500 }}>Variable</th>
-                <th style={{ padding: "0.5rem 0", borderBottom: "1px solid rgba(0,0,0,0.1)", textAlign: "left", fontWeight: 500 }}>Description</th>
-                <th style={{ padding: "0.5rem 0", borderBottom: "1px solid rgba(0,0,0,0.1)", textAlign: "left", fontWeight: 500 }}>Default</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>AGENTATION_STORE</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "rgba(0,0,0,0.6)" }}>Storage backend (<code>memory</code> or <code>sqlite</code>)</td>
-                <td style={{ padding: "0.375rem 0", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>sqlite</td>
-              </tr>
-              <tr>
-                <td style={{ padding: "0.375rem 0", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>AGENTATION_EVENT_RETENTION_DAYS</td>
-                <td style={{ padding: "0.375rem 0", color: "rgba(0,0,0,0.6)" }}>Days to keep events</td>
-                <td style={{ padding: "0.375rem 0", fontFamily: "var(--font-docs)", fontSize: "0.6875rem" }}>7</td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
-
-        <section>
-          <h2 id="storage">Storage</h2>
-          <p>
-            By default, data is persisted to SQLite at <code>~/.agentation/store.db</code>. To use
-            in-memory storage:
-          </p>
-          <CodeBlock
-            language="bash"
-            copyable
-            code={`AGENTATION_STORE=memory npx agentation-mcp server`}
-          />
-        </section>
-
-        <section>
-          <h2 id="programmatic-usage">Programmatic Usage</h2>
           <CodeBlock
             language="typescript"
-            code={`import { startHttpServer, startMcpServer } from 'agentation-mcp';
+            code={`dream(): Promise<DreamResult>;
+apply(diff: MemoryDiff): Promise<ApplyResult>;
+dreamAndApply(): Promise<ApplyResult>;
 
-// Start HTTP server on port 4747
-startHttpServer(4747);
+interface DreamResult {
+  diff: MemoryDiff;       // proposed operations + parentHead guard
+  diffBlobId: string;     // already committed to Walrus
+}
 
-// Start MCP server (connects via stdio)
-await startMcpServer('http://localhost:4747');`}
+interface ApplyResult {
+  newHead: string;
+  suiTxn: string;
+  applied: number;        // operations applied
+}`}
           />
-          <p style={{ marginTop: "0.75rem", fontSize: "0.8125rem" }}>
-            See <a href="/mcp">MCP Server</a> for AI agent integration and available tools.
+          <CodeBlock
+            language="typescript"
+            copyable
+            code={`// Inspect before applying.
+const { diff } = await cortex.dream();
+console.log(diff.operations.map((op) => op.type));
+
+// apply throws if the head moved since the dream — re-run if so.
+const result = await cortex.apply(diff);
+console.log(\`applied \${result.applied}, new head \${result.newHead}\`);`}
+          />
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", marginTop: "0.5rem" }}>
+            <code>apply</code> rejects with <code>head moved</code> when another writer has
+            advanced the namespace since the dream was taken. Re-run <code>dream</code> to
+            rebase against the new head.
           </p>
+        </section>
+
+        <section>
+          <h2 id="views">Views</h2>
+          <p>
+            Derived read views are computed over the restored namespace. They are pure
+            projections — none of them mutate memory.
+          </p>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem", marginTop: "0.75rem", marginBottom: "1rem" }}>
+            <tbody>
+              <ViewRow sig="memories()" desc="Full restored memory set for the namespace" />
+              <ViewRow sig="tags()" desc="Tag counts across all memories" />
+              <ViewRow sig="digest(period?)" desc="Summary + highlights for a time window" />
+              <ViewRow sig="timeline()" desc="Ordered VersionRef history from the manifest" />
+              <ViewRow sig="connections()" desc="Inferred relations between memories" />
+              <ViewRow sig="head()" desc="Current state hash of the namespace" />
+            </tbody>
+          </table>
+          <CodeBlock
+            language="typescript"
+            code={`tags(): Promise<TagsArtifact>;
+digest(period?: { from: string; to: string }): Promise<Digest>;
+connections(): Promise<ConnectionsArtifact>;
+timeline(): Promise<VersionRef[]>;`}
+          />
+          <CodeBlock
+            language="typescript"
+            copyable
+            code={`const digest = await cortex.digest({ from: "2026-01", to: "2026-06" });
+console.log(digest.summary);
+console.log(digest.highlights);
+
+const { tags } = await cortex.tags();
+const top = tags.sort((a, b) => b.count - a.count)[0];`}
+          />
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", marginTop: "0.5rem" }}>
+            See <a href="/output">Memory Views</a> for the full shape of each artifact and
+            <a href="/schema"> Data Model</a> for the underlying types.
+          </p>
+        </section>
+
+        <section>
+          <h2 id="verify">Verify</h2>
+          <p>
+            <code>verify</code> is the developer trust layer. It fetches every blob in the
+            namespace manifest — sources, extractions, and diffs — straight from the Walrus
+            aggregator, bypassing the relayer, and reports how many were reachable. Use it
+            to confirm that committed state is actually durable on the live path.
+          </p>
+          <CodeBlock
+            language="typescript"
+            code={`verify(): Promise<{ fetched: number; total: number; head: string }>;`}
+          />
+          <CodeBlock
+            language="typescript"
+            copyable
+            code={`const { fetched, total, head } = await cortex.verify();
+if (fetched < total) {
+  console.warn(\`\${total - fetched} blob(s) not reachable at head \${head}\`);
+}`}
+          />
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", marginTop: "0.5rem" }}>
+            In mock mode every blob resolves locally, so <code>fetched</code> equals
+            {" "}<code>total</code>.
+          </p>
+        </section>
+
+        <section>
+          <h2 id="configuration">Configuration</h2>
+          <p>
+            <code>loadConfig()</code> reads <code>config/config.yaml</code> from the working
+            directory (if present), deep-merges it over the defaults, and applies environment
+            overrides for secrets. The deterministic core runs with none of it — these values
+            only wire the live clients.
+          </p>
+          <CodeBlock
+            language="typescript"
+            code={`function loadConfig(path?: string): Config;
+function isLive(cfg: Config): boolean;
+function missingForLive(cfg: Config): string[];
+
+interface Config {
+  namespace: string;
+  sui: { rpc: string; network: string };
+  walrus: { publisher: string; aggregator: string; epochs: number };
+  seal: {
+    policyPackage: string;
+    policyObject: string;
+    serverIds: string[];
+    threshold: number;
+  };
+  memwal: { url: string; apiKey: string };
+  delegateKey: string;
+  models: { chat: string; extract: string; anthropicApiKey: string };
+  watch: { paths: string[] };
+  webhookUrl: string;
+  accessRegistryId: string;
+  executorCapId: string;
+  workspaceId: string;
+}`}
+          />
+
+          <h3 style={{ marginTop: "1.25rem" }}>Mock vs. live</h3>
+          <p>
+            Cortex defaults to <strong>mock mode</strong>. It switches to the live path only
+            once every field <code>missingForLive</code> checks is populated:
+            {" "}<code>walrus.publisher</code>, <code>walrus.aggregator</code>,
+            {" "}<code>sui.rpc</code>, <code>memwal.url</code>, <code>memwal.apiKey</code>,
+            and <code>delegateKey</code>. <code>isLive(cfg)</code> (and the
+            {" "}<code>cortex.live</code> getter) returns <code>true</code> only when that
+            list is empty.
+          </p>
+
+          <h3 style={{ marginTop: "1.25rem" }}>Environment overrides</h3>
+          <p>
+            Secrets and deployment-specific ids can be supplied via environment variables,
+            which take precedence over the YAML file:
+          </p>
+          <CodeBlock
+            language="bash"
+            code={`CORTEX_DELEGATE_KEY     # signing key for the delegate
+MEMWAL_API_KEY          # MemWal relayer key
+ANTHROPIC_API_KEY       # model provider key for extraction/chat
+CORTEX_WEBHOOK_URL      # outbound notification target
+CORTEX_WORKSPACE_ID     # shared multi-agent workspace
+CORTEX_ACCESS_REGISTRY  # on-chain access registry object id
+CORTEX_EXECUTOR_CAP     # executor capability object id
+SEAL_SERVER_IDS         # comma-separated Seal key server ids
+SEAL_THRESHOLD          # Seal decryption threshold (integer)`}
+          />
+          <CodeBlock
+            language="typescript"
+            copyable
+            code={`import { loadConfig, isLive, openCortex } from "@cortex/core";
+
+const cfg = loadConfig();
+if (!isLive(cfg)) {
+  console.log("running in mock mode");
+}
+const cortex = openCortex(cfg);`}
+          />
         </section>
       </article>
 
-      <style>{`
-        .props-list {
-          display: flex;
-          flex-direction: column;
-        }
-        .prop-item {
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
-          padding: 0.625rem 0;
-          border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-        }
-        .prop-item:last-child {
-          border-bottom: none;
-        }
-        .prop-header {
-          display: flex;
-          align-items: baseline;
-          gap: 0.5rem;
-          flex-wrap: wrap;
-        }
-        .prop-name {
-          font-size: 0.8125rem;
-          font-family: var(--font-docs);
-          color: rgba(0, 0, 0, 0.8);
-        }
-        .prop-type {
-          font-size: 0.75rem;
-          font-family: var(--font-docs);
-          color: rgba(0, 0, 0, 0.4);
-        }
-        .prop-default {
-          font-size: 0.75rem;
-          color: rgba(0, 0, 0, 0.4);
-        }
-        .prop-desc {
-          font-size: 0.8125rem;
-          font-weight: 300;
-          line-height: 1.5;
-          color: rgba(0, 0, 0, 0.55);
-          margin: 0;
-        }
-      `}</style>
-
       <Footer />
     </>
+  );
+}
+
+function ViewRow({ sig, desc }: { sig: string; desc: string }): React.JSX.Element {
+  return (
+    <tr>
+      <td
+        style={{
+          padding: "0.375rem 0",
+          borderBottom: "1px solid var(--line)",
+          fontFamily: "var(--font-mono)",
+          fontSize: "0.75rem",
+          width: "12rem",
+        }}
+      >
+        {sig}
+      </td>
+      <td
+        style={{
+          padding: "0.375rem 0",
+          borderBottom: "1px solid var(--line)",
+          color: "var(--muted)",
+        }}
+      >
+        {desc}
+      </td>
+    </tr>
   );
 }

@@ -1,175 +1,226 @@
 "use client";
 
 import { Footer } from "../Footer";
-import { FeaturesDemo, SettingsDemo, SmartIdentificationDemo, MarkerKeyDemo, ComputedStylesDemo, ReactDetectionDemo, AgentChatDemo } from "../components/FeaturesDemo";
+import { CodeBlock } from "../components/CodeBlock";
+import { FeaturesDemo } from "../components/FeaturesDemo";
+
+const muted = { color: "var(--muted)" } as const;
 
 export default function FeaturesPage() {
   return (
     <>
       <article className="article">
-      <header>
-        <h1>Features</h1>
-        <p className="tagline">Everything Agentation can do</p>
-      </header>
+        <header>
+          <h1>Concepts</h1>
+          <p className="tagline">
+            How Cortex turns sources into durable, recallable memory
+          </p>
+        </header>
 
-      <section>
-        <h2 id="annotation-modes">Annotation modes</h2>
-        <p>
-          Click the tabs below to see examples of each annotation mode:
-        </p>
-        <FeaturesDemo />
-      </section>
+        <section>
+          <h2 id="memory-not-chat">Memory, Not Chat History</h2>
+          <p>
+            Cortex is a local-first persistent memory layer and multi-agent OS
+            for AI. It is built on one idea: AI should not lose your context
+            every time the session, tool, or model changes. A chat transcript is
+            a flat log that grows until it is truncated. Cortex is the opposite
+            &mdash; it ingests sources, extracts durable <code>Memory</code>{" "}
+            records, stores them on infrastructure you control, recalls the right
+            ones later, and corrects itself over time.
+          </p>
+          <p>
+            The difference is structure and durability. A memory has text, tags,
+            a confidence score, provenance back to its source, and timestamps.
+            Corrections become current truth rather than competing facts, and the
+            same memory plane is reachable across interfaces, models, and agents.
+          </p>
+          <FeaturesDemo />
+        </section>
 
-      <section>
-        <h2 id="toolbar-controls">Toolbar controls</h2>
-        <ul>
-          <li><svg style={{ display: 'inline-block', verticalAlign: '-0.38em', width: '1.5em', height: '1.5em', margin: '0 -0.1em 0 0' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 6L8 18" /><path d="M16 18L16 6" /></svg> <strong>Pause</strong> <span style={{ color: 'rgba(0,0,0,0.25)', margin: '0 0.25em' }}>•</span> Freeze all animations to annotate specific states</li>
-          <li><svg style={{ display: 'inline-block', verticalAlign: '-0.38em', width: '1.5em', height: '1.5em', margin: '0 -0.1em 0 0' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3.91752 12.7539C3.65127 12.2889 3.65127 11.7111 3.91752 11.2461C5.42678 8.59839 8.46097 6.25 12 6.25C15.539 6.25 18.5732 8.59839 20.0825 11.2461C20.3487 11.7111 20.3487 12.2889 20.0825 12.7539C18.5732 15.4016 15.539 17.75 12 17.75C8.46097 17.75 5.42678 15.4016 3.91752 12.7539Z" /><path d="M12 14.8261C13.5608 14.8261 14.8261 13.5608 14.8261 12C14.8261 10.4392 13.5608 9.17391 12 9.17391C10.4392 9.17391 9.17391 10.4392 9.17391 12C9.17391 13.5608 10.4392 14.8261 12 14.8261Z" /></svg> <strong>Visibility</strong> <span style={{ color: 'rgba(0,0,0,0.25)', margin: '0 0.25em' }}>•</span> Toggle annotation markers on/off while working</li>
-          <li><svg style={{ display: 'inline-block', verticalAlign: '-0.38em', width: '1.5em', height: '1.5em', margin: '0 -0.1em 0 0' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4.75 11.25C4.75 10.4216 5.42157 9.75 6.25 9.75H12.75C13.5784 9.75 14.25 10.4216 14.25 11.25V17.75C14.25 18.5784 13.5784 19.25 12.75 19.25H6.25C5.42157 19.25 4.75 18.5784 4.75 17.75V11.25Z" /><path d="M17.25 14.25H17.75C18.5784 14.25 19.25 13.5784 19.25 12.75V6.25C19.25 5.42157 18.5784 4.75 17.75 4.75H11.25C10.4216 4.75 9.75 5.42157 9.75 6.25V6.75" /></svg> <strong>Copy</strong> <span style={{ color: 'rgba(0,0,0,0.25)', margin: '0 0.25em' }}>•</span> Get structured markdown for AI agents</li>
-          <li><svg style={{ display: 'inline-block', verticalAlign: '-0.38em', width: '1.5em', height: '1.5em', margin: '0 -0.1em 0 0' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 11.5L10.125 15.5" /><path d="M14 11.5L13.87 15.5" /><path d="M9 7.5V6.25C9 5.42157 9.67157 4.75 10.5 4.75H13.5C14.3284 4.75 15 5.42157 15 6.25V7.5" /><path d="M5.5 7.75H18.5" /><path d="M6.75 7.75L7.11691 16.189C7.16369 17.2649 7.18708 17.8028 7.41136 18.2118C7.60875 18.5717 7.91211 18.8621 8.28026 19.0437C8.69854 19.25 9.23699 19.25 10.3139 19.25H13.6861C14.763 19.25 15.3015 19.25 15.7197 19.0437C16.0879 18.8621 16.3912 18.5717 16.5886 18.2118C16.8129 17.8028 16.8363 17.2649 16.8831 16.189L17.25 7.75" /></svg> <strong>Clear</strong> <span style={{ color: 'rgba(0,0,0,0.25)', margin: '0 0.25em' }}>•</span> Remove all annotations</li>
-          <li><svg style={{ display: 'inline-block', verticalAlign: '-0.38em', width: '1.5em', height: '1.5em', margin: '0 -0.1em 0 0' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9.875 14.125L12.3506 19.6951C12.7184 20.5227 13.9091 20.4741 14.2083 19.6193L18.8139 6.46032C19.0907 5.6695 18.3305 4.90933 17.5397 5.18611L4.38072 9.79174C3.52589 10.0909 3.47731 11.2816 4.30494 11.6494L9.875 14.125ZM9.875 14.125L13.375 10.625" /></svg> <strong>Send Annotations</strong><span style={{ fontSize: '0.65em', fontWeight: 300, position: 'relative', top: '-0.4em' }}>*</span> <span style={{ color: 'rgba(0,0,0,0.25)', margin: '0 0.25em' }}>•</span> Send annotations to your configured webhook</li>
-          <li><svg style={{ display: 'inline-block', verticalAlign: '-0.24em', width: '1.25em', height: '1.25em', margin: '0 0.05em 0 0.1em' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="9" x2="9" y2="21" /></svg> <strong>Layout Mode</strong> <span style={{ color: 'rgba(0,0,0,0.25)', margin: '0 0.25em' }}>•</span> Place components and rearrange page sections</li>
-          <li><svg style={{ display: 'inline-block', verticalAlign: '-0.38em', width: '1.5em', height: '1.5em', margin: '0 -0.1em 0 0' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.6504 5.81117C10.9939 4.39628 13.0061 4.39628 13.3496 5.81117C13.5715 6.72517 14.6187 7.15891 15.4219 6.66952C16.6652 5.91193 18.0881 7.33479 17.3305 8.57815C16.8411 9.38134 17.2748 10.4285 18.1888 10.6504C19.6037 10.9939 19.6037 13.0061 18.1888 13.3496C17.2748 13.5715 16.8411 14.6187 17.3305 15.4219C18.0881 16.6652 16.6652 18.0881 15.4219 17.3305C14.6187 16.8411 13.5715 17.2748 13.3496 18.1888C13.0061 19.6037 10.9939 19.6037 10.6504 18.1888C10.4285 17.2748 9.38135 16.8411 8.57815 17.3305C7.33479 18.0881 5.91193 16.6652 6.66952 15.4219C7.15891 14.6187 6.72517 13.5715 5.81117 13.3496C4.39628 13.0061 4.39628 10.9939 5.81117 10.6504C6.72517 10.4285 7.15891 9.38134 6.66952 8.57815C5.91193 7.33479 7.33479 5.91192 8.57815 6.66952C9.38135 7.15891 10.4285 6.72517 10.6504 5.81117Z"/><circle cx="12" cy="12" r="2.5"/></svg> <strong>Settings</strong> <span style={{ color: 'rgba(0,0,0,0.25)', margin: '0 0.25em' }}>•</span> Configure output detail, marker color, and behavior</li>
-        </ul>
-        <p style={{ fontSize: '0.875rem', color: 'rgba(0,0,0,0.5)', marginTop: '0.75rem' }}>
-          Drag the toolbar to reposition it. Click a marker to remove it, or right-click to edit.
-        </p>
-        <p style={{ fontSize: '0.75rem', color: 'rgba(0,0,0,0.4)', marginTop: '0.5rem' }}>
-          *Only visible when webhooks are enabled and auto-send is off
-        </p>
-      </section>
+        <section>
+          <h2 id="artifact-types">Artifact Types</h2>
+          <p>
+            Every persisted artifact is JSON, addressed by a content hash, and
+            (on the live path) Seal-encrypted before it reaches Walrus. The core
+            types are defined in <code>src/core/models.ts</code>:
+          </p>
+          <ul>
+            <li>
+              <strong>Source</strong> &mdash; a raw input you gave Cortex: a
+              note, document, image, audio, video, URL, or structured payload.
+            </li>
+            <li>
+              <strong>Memory</strong> &mdash; a single durable extracted memory
+              with text, tags, confidence, provenance, and timestamps.
+            </li>
+            <li>
+              <strong>Extraction</strong> &mdash; the result of running a model
+              over one source, carrying a summary and the memories it produced.
+            </li>
+            <li>
+              <strong>MemoryDiff</strong> &mdash; a structured consolidation
+              result whose operations can consolidate, pattern, prune, or verify
+              memories, each citing its evidence.
+            </li>
+            <li>
+              <strong>NamespaceManifest</strong> &mdash; the per-namespace
+              pointer record holding the current <code>head</code>, the version
+              chain, and the blob ids of every source, extraction, and diff.
+            </li>
+          </ul>
+          <p style={muted}>
+            See the <a href="/schema">Data Model</a> page for the full field-level
+            definitions.
+          </p>
+        </section>
 
-      <section>
-        <h2 id="marker-types">Marker types</h2>
-        <p>
-          Different annotation modes use different marker styles.
-        </p>
-        <MarkerKeyDemo />
-      </section>
+        <section>
+          <h2 id="local-first">Local-First &amp; Mock vs Live</h2>
+          <p>
+            The <code>Cortex</code> facade is embedded directly &mdash; desktop
+            and mobile run it in-process, and there is no HTTP backend. The only
+            server in the system is the MCP connector, which lets external agents
+            reach the same memory through the same facade.
+          </p>
+          <p>
+            With no live credentials configured, Cortex runs in{" "}
+            <strong>mock mode</strong>. That makes the whole pipeline usable for
+            development without Sui, Walrus, Seal, or MemWal. When the live path
+            is configured, Cortex uses:
+          </p>
+          <ul>
+            <li>
+              <strong>Sui</strong> for identity and coordination
+            </li>
+            <li>
+              <strong>Walrus</strong> for durable artifact storage
+            </li>
+            <li>
+              <strong>Seal</strong> for encryption and access gating
+            </li>
+            <li>
+              <strong>MemWal</strong> for persistent memory namespaces and recall
+            </li>
+          </ul>
+          <p>
+            The same code path runs in both modes; only the clients behind the
+            facade change.
+          </p>
+        </section>
 
-      <section>
-        <h2 id="smart-identification">Smart identification</h2>
-        <p>
-          Agentation automatically identifies elements in a way that&rsquo;s useful for code search.
-          This makes it easy for agents to <code>grep</code> for the exact element in your codebase.
-        </p>
-        <SmartIdentificationDemo />
-      </section>
+        <section>
+          <h2 id="ingestion">Ingestion &amp; Extraction</h2>
+          <p>
+            You give Cortex a source, it stores it, and a model extracts memories
+            from it. The facade exposes both a generic <code>ingest</code> and a
+            convenience <code>ingestText</code>:
+          </p>
+          <CodeBlock
+            language="typescript"
+            code={`import { openCortex } from "@cortex/core";
 
-      <section>
-        <h2 id="computed-styles">Computed styles</h2>
-        <p>
-          View the computed CSS styles for any element directly in the annotation popup.
-          Expand the collapsible section to see relevant properties like colors, fonts, and spacing.
-        </p>
-        <ComputedStylesDemo />
-      </section>
+const cortex = openCortex();
 
-      <section>
-        <h2 id="react-detection">React component detection</h2>
-        <p>
-          Agentation detects React component hierarchies automatically.
-          When you hover over an element, you&rsquo;ll see the full component tree, making it easy for AI agents to locate the exact component in your codebase.
-        </p>
-        <ReactDetectionDemo />
-        <p style={{ marginTop: '1rem' }}>
-          Toggle React detection on/off in settings. The detection mode adapts automatically based on your output format:
-        </p>
-        <ul>
-          <li><strong>Compact</strong> &mdash; No React data (keeps output minimal)</li>
-          <li><strong>Standard</strong> &mdash; Filtered &mdash; shows user components, hides framework internals</li>
-          <li><strong>Detailed</strong> &mdash; Smart &mdash; only components that correlate with CSS class names</li>
-          <li><strong>Forensic</strong> &mdash; All &mdash; every component including framework internals</li>
-        </ul>
-      </section>
+// quickest path: ingest a note inline
+await cortex.ingestText("Shipped the Walrus storage path today", "devlog");
 
-      <section>
-        <h2 id="layout-mode">Layout mode</h2>
-        <p>
-          Press <code>L</code> to enter layout mode. A component palette appears with 65+ types you can drag onto the page. You can also grab existing sections and reposition them. Changes sync to connected agents via MCP in real time.
-        </p>
-        <ul>
-          <li><strong>Place components</strong> – Drag from the palette to add new elements</li>
-          <li><strong>Rearrange sections</strong> – Grab and drag existing elements into position</li>
-          <li><strong>Wireframe new page</strong> – Toggle wireframe mode to fade out the current page and sketch a layout from scratch, with an opacity slider and a purpose field for context</li>
-          <li><strong>Agent sync</strong> – Changes appear as annotations with <code>kind: &quot;placement&quot;</code> or <code>kind: &quot;rearrange&quot;</code></li>
-        </ul>
-        <p style={{ fontSize: '0.8125rem', color: 'rgba(0,0,0,0.55)', marginTop: '0.5rem' }}>
-          Placements are spatial hints, not pixel-perfect specs. The agent receives component type, approximate position, and size relative to the viewport, then translates that into real CSS. Results will vary depending on the agent and your codebase.
-        </p>
-      </section>
+// or ingest any source kind
+await cortex.ingest({
+  type: "note",
+  uri: "inline://devlog",
+  title: "devlog",
+  text: "Shipped the Walrus storage path today",
+});`}
+          />
+          <p style={muted}>
+            Ingestion stores the <code>Source</code>, runs the extractor to
+            produce an <code>Extraction</code>, and persists the resulting{" "}
+            <code>Memory</code> records into the namespace.
+          </p>
+        </section>
 
-      <section>
-        <h2 id="keyboard-shortcuts">Keyboard shortcuts</h2>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-          <tbody>
-            <tr>
-              <td style={{ padding: '0.5rem 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}><code>Cmd+Shift+F</code> / <code>Ctrl+Shift+F</code></td>
-              <td style={{ padding: '0.5rem 0', borderBottom: '1px solid rgba(0,0,0,0.06)', color: 'rgba(0,0,0,0.5)', textAlign: 'right' }}>Toggle feedback mode</td>
-            </tr>
-            <tr>
-              <td style={{ padding: '0.5rem 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}><code>Esc</code></td>
-              <td style={{ padding: '0.5rem 0', borderBottom: '1px solid rgba(0,0,0,0.06)', color: 'rgba(0,0,0,0.5)', textAlign: 'right' }}>Close toolbar or cancel</td>
-            </tr>
-            <tr>
-              <td style={{ padding: '0.5rem 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}><code>L</code></td>
-              <td style={{ padding: '0.5rem 0', borderBottom: '1px solid rgba(0,0,0,0.06)', color: 'rgba(0,0,0,0.5)', textAlign: 'right' }}>Toggle layout mode</td>
-            </tr>
-            <tr>
-              <td style={{ padding: '0.5rem 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}><code>P</code></td>
-              <td style={{ padding: '0.5rem 0', borderBottom: '1px solid rgba(0,0,0,0.06)', color: 'rgba(0,0,0,0.5)', textAlign: 'right' }}>Pause/resume animations</td>
-            </tr>
-            <tr>
-              <td style={{ padding: '0.5rem 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}><code>H</code></td>
-              <td style={{ padding: '0.5rem 0', borderBottom: '1px solid rgba(0,0,0,0.06)', color: 'rgba(0,0,0,0.5)', textAlign: 'right' }}>Hide/show markers</td>
-            </tr>
-            <tr>
-              <td style={{ padding: '0.5rem 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}><code>C</code></td>
-              <td style={{ padding: '0.5rem 0', borderBottom: '1px solid rgba(0,0,0,0.06)', color: 'rgba(0,0,0,0.5)', textAlign: 'right' }}>Copy feedback</td>
-            </tr>
-            <tr>
-              <td style={{ padding: '0.5rem 0' }}><code>X</code></td>
-              <td style={{ padding: '0.5rem 0', color: 'rgba(0,0,0,0.5)', textAlign: 'right' }}>Clear all annotations</td>
-            </tr>
-          </tbody>
-        </table>
-        <p style={{ fontSize: '0.75rem', color: 'rgba(0,0,0,0.5)', marginTop: '0.75rem' }}>
-          Shortcuts are disabled when typing in an input field.
-        </p>
-      </section>
+        <section>
+          <h2 id="recall">Recall</h2>
+          <p>
+            Recall is how context comes back out. <code>recall(query, limit)</code>{" "}
+            returns the memories most relevant to a query from the current
+            namespace, and <code>memories()</code> returns the full live set.
+          </p>
+          <CodeBlock
+            language="typescript"
+            code={`const hits = await cortex.recall("walrus storage", 5);
+const all = await cortex.memories();`}
+          />
+          <p style={muted}>
+            See <a href="/output">Memory Views</a> for the derived read views built
+            on top of recall.
+          </p>
+        </section>
 
-      <section>
-        <h2 id="agent-sync">Agent sync</h2>
-        <p>
-          With <a href="/mcp">MCP integration</a> and the <a href="/schema">Annotation Format Schema</a>, annotations become a two-way conversation.
-          Agents can query, respond to, and manage your feedback:
-        </p>
-        <AgentChatDemo />
-        <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: 'rgba(0,0,0,0.5)' }}>
-          Agents can acknowledge, ask questions, resolve with summaries, or dismiss with reasons.
-        </p>
-      </section>
+        <section>
+          <h2 id="consolidation">Consolidation (the &ldquo;Dream&rdquo;)</h2>
+          <p>
+            Memory is not append-only. Cortex periodically consolidates &mdash; a
+            process it calls the <em>dream</em>. <code>dream()</code> proposes a{" "}
+            <code>MemoryDiff</code> over a window of memories; applying it merges
+            duplicates, records patterns, prunes stale memories, and re-verifies
+            others. Each operation cites the evidence it acted on.
+          </p>
+          <CodeBlock
+            language="typescript"
+            code={`// propose a diff and apply it in one step
+await cortex.dreamAndApply();
 
-      <section>
-        <h2 id="settings">Settings</h2>
-        <p>The <svg style={{ display: 'inline-block', verticalAlign: '-0.38em', width: '1.5em', height: '1.5em', margin: '0 -0.1em' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.6504 5.81117C10.9939 4.39628 13.0061 4.39628 13.3496 5.81117C13.5715 6.72517 14.6187 7.15891 15.4219 6.66952C16.6652 5.91193 18.0881 7.33479 17.3305 8.57815C16.8411 9.38134 17.2748 10.4285 18.1888 10.6504C19.6037 10.9939 19.6037 13.0061 18.1888 13.3496C17.2748 13.5715 16.8411 14.6187 17.3305 15.4219C18.0881 16.6652 16.6652 18.0881 15.4219 17.3305C14.6187 16.8411 13.5715 17.2748 13.3496 18.1888C13.0061 19.6037 10.9939 19.6037 10.6504 18.1888C10.4285 17.2748 9.38135 16.8411 8.57815 17.3305C7.33479 18.0881 5.91193 16.6652 6.66952 15.4219C7.15891 14.6187 6.72517 13.5715 5.81117 13.3496C4.39628 13.0061 4.39628 10.9939 5.81117 10.6504C6.72517 10.4285 7.15891 9.38134 6.66952 8.57815C5.91193 7.33479 7.33479 5.91192 8.57815 6.66952C9.38135 7.15891 10.4285 6.72517 10.6504 5.81117Z"/><circle cx="12" cy="12" r="2.5"/></svg> icon lets you customize Agentation to fit your workflow.</p>
-        <SettingsDemo />
-      </section>
+// or inspect the diff first
+const { diff } = await cortex.dream();
+await cortex.apply(diff);`}
+          />
+          <p style={muted}>
+            The diff carries a <code>parentHead</code> as an optimistic-concurrency
+            guard, so a stale consolidation cannot overwrite newer state.
+          </p>
+        </section>
 
-      <section className="limitations-section">
-        <h3 style={{ fontSize: '0.75rem', fontWeight: 500, color: 'rgba(0,0,0,0.45)', marginBottom: '0.5rem' }}>Limitations</h3>
-        <ul style={{ fontSize: '0.75rem', color: 'rgba(0,0,0,0.5)', lineHeight: 1.5 }}>
-          <li><strong>Desktop only</strong> &mdash; requires a desktop browser</li>
-          <li><strong>Per-page storage</strong> &mdash; localStorage persists 7 days. Use <a href="/install#agent-integration">MCP server</a> for cross-page persistence.</li>
-          <li><strong>Static positions</strong> &mdash; markers don&rsquo;t update if layout changes</li>
-          <li><strong>No screenshots</strong> &mdash; output is text-only</li>
-          <li><strong>Animation pause</strong> &mdash; freezes most animations and videos on the page. Some third-party animation libraries may not fully pause.</li>
-          <li><strong>React 18+ only</strong></li>
-        </ul>
-      </section>
-    </article>
+        <section>
+          <h2 id="verification">Verification</h2>
+          <p>
+            On the live path, durability is checkable. <code>verify()</code>{" "}
+            confirms that the artifacts referenced by the namespace are actually
+            fetchable from storage &mdash; that the blobs behind your memories
+            still resolve. Individual memories also carry a <code>verified</code>{" "}
+            flag set by the <code>verify</code> diff operation, so trust is part of
+            the data, not a separate ledger.
+          </p>
+          <CodeBlock
+            language="typescript"
+            code={`const report = await cortex.verify();`}
+          />
+        </section>
 
-    <Footer />
+        <section>
+          <h2 id="multi-agent">Multi-Agent State</h2>
+          <p>
+            Because the memory plane is shared and inspectable, it doubles as
+            coordination state for multiple agents. The repo includes the
+            foundations for durable agent workflows: a shared task board, a
+            message bus, memory-backed context, and MCP access so external hosts
+            reach the same state.
+          </p>
+          <p>
+            Agents read and write the same namespaced memory rather than passing
+            opaque context between themselves. State can be durable, inspectable,
+            and permissioned &mdash; a shared brain behind tools and agents
+            instead of a per-session scratchpad.
+          </p>
+          <p style={muted}>
+            External agents connect through the <a href="/mcp">MCP server</a>,
+            which exposes recall, remember, ingest, forget, verify, and dream
+            alongside the derived read views.
+          </p>
+        </section>
+      </article>
+
+      <Footer />
     </>
   );
 }
