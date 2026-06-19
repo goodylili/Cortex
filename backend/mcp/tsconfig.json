@@ -1,0 +1,6 @@
+{
+  "//": "Typecheck config for the Cortex MCP server. Inherits Node compiler options from the core runtime it imports (@cortex/core).",
+  "extends": "../core/tsconfig.json",
+  "include": ["server.ts"],
+  "exclude": ["node_modules"]
+}

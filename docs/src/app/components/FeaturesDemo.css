@@ -1,0 +1,65 @@
+.fd-pipeline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+
+.fd-pipeline__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+}
+
+.fd-pipeline__node {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.75rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+}
+
+.fd-pipeline__label {
+  font-family: var(--font-head);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.fd-pipeline__sub {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--faint);
+}
+
+.fd-pipeline__arrow {
+  color: var(--muted);
+  font-size: 1rem;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .fd-pipeline {
+    flex-direction: column;
+  }
+  .fd-pipeline__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .fd-pipeline__arrow {
+    text-align: center;
+    transform: rotate(90deg);
+  }
+}

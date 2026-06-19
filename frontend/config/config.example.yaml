@@ -1,0 +1,53 @@
+# Cortex configuration. Copy to config/config.yaml (gitignored) and fill in.
+# The deterministic core runs with NONE of these (mock infra). These wire live.
+
+namespace: personal
+
+sui:
+  rpc: https://fullnode.testnet.sui.io
+  network: testnet
+
+walrus:
+  publisher: https://publisher.walrus-testnet.walrus.space
+  aggregator: https://aggregator.walrus-testnet.walrus.space
+  epochs: 5
+
+seal:
+  policyPackage: "" # Move package id for the allowlist policy
+  policyObject: "" # the namespace's allowlist object id
+  # Key-server object ids that hold threshold shares of each blob key. Leave empty
+  # to use the SDK's allowlisted testnet servers. To pin specific servers, list the
+  # on-chain KeyServer object ids: query the Seal registry on testnet
+  # (Mysten publishes the testnet key-server ids in the @mysten/seal docs/README),
+  # or run `seal.getAllowlistedKeyServers("testnet")` and copy the objectIds.
+  # Overridable via the SEAL_SERVER_IDS env var (comma-separated).
+  serverIds: [] # e.g. ["0xabc...", "0xdef..."]
+  # How many of those servers must return a key share to decrypt. Must be >= 1 and
+  # <= serverIds.length. 1 = any single server (lowest latency, lowest redundancy);
+  # raise it for stronger guarantees. Overridable via SEAL_THRESHOLD.
+  threshold: 1
+
+memwal:
+  url: ""
+  apiKey: ""
+
+# server-side ONLY, never shipped to a client
+delegateKey: "" # suiprivkey... for the delegate that writes + decrypts (CORTEX_DELEGATE_KEY)
+
+# On-chain agent workspace (cortex::access + cortex::workspace). The MCP acts as the
+# gated executor over a user's shared Workspace using the ExecutorCap. Env overrides:
+# CORTEX_ACCESS_REGISTRY, CORTEX_EXECUTOR_CAP, CORTEX_WORKSPACE_ID, CORTEX_USER_ADDRESS.
+accessRegistryId: "" # shared cortex::access::AccessRegistry object id
+executorCapId: "" # ExecutorCap object id transferred to the MCP wallet
+# Point the MCP at a Workspace either by pinning its id, or by the owner address (the MCP
+# then reads the id the user created from the app, stored in their account settings).
+workspaceId: "" # explicit Workspace object id (wins when set)
+userAddress: "" # the owner's Sui address; resolves the app-created Workspace id
+
+models:
+  chat: claude-sonnet-4-6
+  extract: claude-sonnet-4-6
+  anthropicApiKey: ""
+
+watch:
+  paths: [] # folders to ingest, e.g. ["~/Documents/notes"]
