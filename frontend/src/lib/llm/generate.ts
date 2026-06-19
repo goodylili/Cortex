@@ -276,7 +276,7 @@ const generateGif = async (
   if (!bytes) return;
   emit({ phase: "progress", progress: GIF_CONVERT_START });
   const ff = await loadFfmpeg();
-  await ff.writeFile("gen_input.mp4", await fetchFile(new Blob([bytes])));
+  await ff.writeFile("gen_input.mp4", await fetchFile(new Blob([new Uint8Array(bytes)])));
   await ff.exec([
     "-i",
     "gen_input.mp4",
