@@ -110,14 +110,14 @@ img,pre{max-width:100%}
 .md-cb-copy:hover{background:rgba(255,255,255,.08);color:#fff}
 .md-cb-copy svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .md-cb .md-pre{margin:0;border:none;border-radius:0;background:#161618;color:#e4e4e7;padding:16px 18px}
-.composer-dock{position:fixed;bottom:0;left:0;right:0;z-index:36;padding:14px 24px 22px;background:linear-gradient(to top,var(--paper) 74%,transparent);transition:left .25s ease}
+/* The composer is fixed and centered in the same spot on every page; it sits
+   ABOVE the side rails (z over chat-history/agents rails) so a rail never covers
+   the chat box. The rails are kept narrow (see .chat-rail/.pr-rail) so they tuck
+   into the left margin instead of reaching the centered composer. */
+.composer-dock{position:fixed;bottom:0;left:0;right:0;z-index:36;padding:14px 24px 22px;background:linear-gradient(to top,var(--paper) 74%,transparent)}
 .composer-dock .capture{width:100%;max-width:var(--composer-max);margin:0 auto}
 @media(min-width:1024px){.composer-dock{padding-left:64px;padding-right:64px}}
-/* a left-side rail (chat history / agents roster) must never sit under the composer:
-   shift the dock clear of the rail's footprint where the rail is a side panel */
-@media(min-width:641px){.app.rail-left .composer-dock{left:392px}}
 @media(max-width:880px){.composer-dock{left:0;padding:12px 18px 16px}}
-@media(max-width:640px){.app.rail-left .composer-dock{left:0}}
 .capture-bar{flex-wrap:nowrap}
 .capture-bar.studio-bar{flex-wrap:wrap;row-gap:8px}
 .cap-tool{white-space:nowrap;flex-shrink:0}
@@ -737,15 +737,8 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .kb-drop.over{border-color:var(--accent);border-style:solid;background:var(--accent-soft);color:var(--ink)}
 .kb-drop svg{width:30px;height:30px;color:var(--faint);margin:0 auto}
 
-/* integrations  -  calm single column of list rows */
+/* integrations  -  MCP connector card grid */
 .int2{margin-top:28px}
-.int2-head{margin-bottom:28px}
-.int2-title{font-family:var(--serif);font-weight:700;font-size:34px;letter-spacing:-.02em;color:var(--ink)}
-.int2-sub{margin-top:10px;font-size:15px;line-height:1.55;color:var(--muted);max-width:60ch}
-.int2-filter{display:flex;flex-wrap:wrap;gap:2px;background:var(--surface2);border:1px solid var(--line2);border-radius:var(--r);padding:3px;margin-bottom:34px;width:max-content;max-width:100%}
-.int2-f{font-size:13px;color:var(--muted);padding:7px 15px;border-radius:var(--r);transition:background .12s,color .12s}
-.int2-f:hover{color:var(--ink)}
-.int2-f.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
 .int2-group{margin-bottom:40px}
 .int2-group:last-child{margin-bottom:0}
 .int2-glabel{font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
@@ -755,12 +748,12 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 
 /* integrations  -  card grid (3 per row, like the knowledge base) */
 .int2-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.int2-card{display:flex;flex-direction:column;min-height:174px;padding:18px;border:1px solid var(--line2);border-radius:14px;background:var(--surface);transition:border-color .12s,background .12s}
+.int2-card{display:flex;flex-direction:column;min-height:188px;padding:20px;border:1px solid var(--line2);border-radius:14px;background:var(--surface);transition:border-color .12s,background .12s}
 .int2-card:hover{border-color:var(--faint)}
-.int2-cav{width:44px;height:44px;flex:none;border-radius:12px;background:var(--surface2);border:1px solid var(--line2);display:grid;place-items:center;font-family:var(--head);font-weight:600;font-size:16px;color:var(--ink);margin-bottom:14px}
+.int2-cav{width:44px;height:44px;flex:none;border-radius:12px;background:var(--surface2);border:1px solid var(--line2);display:grid;place-items:center;font-family:var(--head);font-weight:600;font-size:16px;color:var(--ink);margin-bottom:16px}
 .int2-cav.logo svg{width:24px;height:24px;display:block}
 .int2-cname{font-size:15px;font-weight:600;color:var(--ink)}
-.int2-cdesc{margin-top:5px;font-size:13px;line-height:1.5;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.int2-cdesc{margin-top:6px;margin-bottom:20px;font-size:13px;line-height:1.55;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .int2-cbtn{margin-top:auto;align-self:flex-start;font-size:13px;color:var(--ink);background:var(--surface2);border:1px solid var(--line2);border-radius:var(--r);padding:8px 18px;transition:background .12s,border-color .12s}
 .int2-cbtn:hover{border-color:var(--faint);background:var(--surface)}
 @media(max-width:900px){.int2-grid{grid-template-columns:repeat(2,1fr)}}
@@ -1035,10 +1028,10 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 @media(max-width:980px){.tb-search{width:42px;padding:0}.tb-search:focus-within{width:220px;padding:0 12px}.tb-search input,.tb-search-x{display:none}.tb-search:focus-within input{display:block}.tb-search:focus-within .tb-search-x{display:grid}}
 
 /* ── Chat-history sidebar (mini icon-rail ↔ full) ── */
-.chat-rail{position:fixed;left:24px;bottom:84px;width:340px;max-height:min(520px,calc(100vh - 166px));display:flex;flex-direction:column;gap:8px;padding:12px;background:var(--paper);border:1px solid var(--line2);border-radius:var(--r);box-shadow:var(--shadow-lg);z-index:35;opacity:0;pointer-events:none;transform:translateY(12px);transition:opacity .2s ease,transform .2s ease,max-height .2s ease,padding .2s ease;overflow:hidden}
+.chat-rail{position:fixed;left:24px;bottom:84px;width:288px;max-height:min(520px,calc(100vh - 166px));display:flex;flex-direction:column;gap:8px;padding:12px;background:var(--paper);border:1px solid var(--line2);border-radius:var(--r);box-shadow:var(--shadow-lg);z-index:35;opacity:0;pointer-events:none;transform:translateY(12px);transition:opacity .2s ease,transform .2s ease,max-height .2s ease,padding .2s ease;overflow:hidden}
 .chat-rail.on-home{opacity:1;pointer-events:auto;transform:none}
-.chat-rail.on-home.open{width:340px;padding:12px}
-.chat-rail.on-home:not(.open){width:340px;max-height:none;padding:8px;gap:0}
+.chat-rail.on-home.open{width:288px;padding:12px}
+.chat-rail.on-home:not(.open){width:288px;max-height:none;padding:8px;gap:0}
 .cr-top{display:flex;align-items:center;gap:6px;padding:2px 2px 8px}
 .cr-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:var(--r);color:var(--muted);transition:background .12s,color .12s}
 .cr-icon:hover,.cr-icon.on{background:var(--surface2);color:var(--ink)}
@@ -1281,7 +1274,7 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 /* agents  -  Pipeline Room (Slack-style: agents are members) */
 .pr-shell{position:absolute;inset:0;z-index:8;display:flex;background:var(--paper);color:var(--ink);font-size:14px}
 
-.pr-rail{position:fixed;left:24px;bottom:104px;z-index:25;width:340px;max-height:min(520px,calc(100vh - 186px));display:flex;flex-direction:column;min-height:0;padding:12px;border:1px solid var(--line2);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-lg);overflow:hidden;transition:max-height .22s ease,padding .22s ease}
+.pr-rail{position:fixed;left:24px;bottom:104px;z-index:25;width:288px;max-height:min(520px,calc(100vh - 186px));display:flex;flex-direction:column;min-height:0;padding:12px;border:1px solid var(--line2);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-lg);overflow:hidden;transition:max-height .22s ease,padding .22s ease}
 .pr-rail:not(.open){max-height:54px;padding:6px}
 .pr-rail-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:4px;overflow:hidden}
 .pr-rail:not(.open) .pr-rail-body{display:none}

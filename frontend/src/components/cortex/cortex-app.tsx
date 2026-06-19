@@ -377,9 +377,6 @@ export function CortexApp({
     "modality" | "style" | "type" | "model" | null
   >(null);
   const [studioMenu, setStudioMenu] = useState(false);
-  const [intTab, setIntTab] = useState<
-    "all" | "mcp" | "frameworks" | "sources"
-  >("all");
   const [intOpen, setIntOpen] = useState<string | null>(null);
   const [mcpAuthBusy, setMcpAuthBusy] = useState(false);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
@@ -1639,80 +1636,6 @@ export function CortexApp({
       </svg>
     );
   };
-  const SOURCES = [
-    {
-      key: "files",
-      letter: "F",
-      name: "Local files",
-      desc: "Drop notes, PDFs and markdown. Cortex reads them and keeps what matters.",
-      action: "add",
-    },
-    {
-      key: "notes",
-      letter: "N",
-      name: "Quick notes",
-      desc: "Write a thought straight into memory from the composer.",
-      action: "remember",
-    },
-    {
-      key: "web",
-      letter: "We",
-      name: "Web search",
-      desc: "Pull live answers into context, cited, when you ask.",
-      action: "web",
-    },
-  ];
-  const FRAMEWORKS = [
-    {
-      key: "langchain",
-      letter: "L",
-      name: "LangChain",
-      desc: "Pull your taste-tuned prompt and memories into any LangChain agent or chain, and write new memories back.",
-      overview:
-        "Pull your taste-tuned prompt and kept memories into any LangChain agent or chain, then write new memories back as the agent learns  -  all grounded in the same durable store as the rest of Cortex.",
-      steps: [
-        "Install the Cortex memory package alongside LangChain.",
-        "Set CORTEX_API_KEY from your account to connect your managed Cortex.",
-        "Pull your taste-tuned prompt and recall memory inside any chain.",
-        "Write new memories back as the agent learns.",
-      ],
-      code: [
-        "# pip install cortex-memory langchain",
-        "from cortex_memory import CortexMemory",
-        "",
-        "# connects to your managed Cortex  -  set CORTEX_API_KEY",
-        "mem = CortexMemory()",
-        "",
-        "# taste-retained system prompt, grounded in what you've kept",
-        'system = mem.prompt(format="role")',
-        "",
-        "# read + refine memory from inside a chain",
-        'context = mem.recall("what do I know about this?")',
-        'mem.remember("user prefers concise answers", kept=True)',
-      ].join("\n"),
-    },
-    {
-      key: "skills",
-      letter: "sh",
-      name: "skills.sh",
-      desc: "Install Cortex skills and prompts into your agents, and let them recall, correct and refine memory on the fly.",
-      overview:
-        "Install Cortex skills and prompts into your agents, then let them recall, correct and refine memory on the fly  -  the same memory you keep on Walrus, sealed and owned by you.",
-      steps: [
-        "Add the Cortex skill to your agent with one command.",
-        "Authenticate with your Cortex account.",
-        "Call recall, remember, correct and prompt from any run.",
-      ],
-      code: [
-        "# add the Cortex skill to your agent",
-        "npx skills.sh add cortex-memory",
-        "",
-        "# exposes: recall · remember · correct · prompt(format)",
-        'skills run cortex-memory recall "upcoming travel"',
-        "skills run cortex-memory prompt --format json",
-      ].join("\n"),
-    },
-  ];
   function intConnect(key: string) {
     setIntOpen(key);
   }
@@ -1721,7 +1644,6 @@ export function CortexApp({
     flash(label);
   }
   const detailClient = MCP_CLIENTS.find((cl) => cl.key === intOpen);
-  const detailFw = FRAMEWORKS.find((cl) => cl.key === intOpen);
   const openDetail = detailClient
     ? {
         name: detailClient.name,
@@ -1732,17 +1654,7 @@ export function CortexApp({
         snippetLabel: SNIPPET_LABEL[detailClient.kind],
         snippet: mcpSnippet(detailClient.kind),
       }
-    : detailFw
-      ? {
-          name: detailFw.name,
-          blurb: detailFw.desc,
-          steps: detailFw.steps,
-          av: null as React.ReactNode,
-          avLetter: detailFw.letter,
-          snippetLabel: "Add to your project",
-          snippet: detailFw.code,
-        }
-      : null;
+    : null;
 
   // local zkLogin-style session: an ephemeral keypair generated in-browser.
   // Live testnet zkLogin needs a Google OAuth client id, a salt service and a prover.
@@ -2189,14 +2101,10 @@ export function CortexApp({
 
   const onHome = view === "home";
   const railOn = onHome && chatRailOpen;
-  const leftRailOpen = railOn || (view === "agents" && roomRailOpen);
   return (
     <div
       className={
-        "app" +
-        (onHome ? " home-rail" : "") +
-        (railOn ? " rail-expanded" : "") +
-        (leftRailOpen ? " rail-left" : "")
+        "app" + (onHome ? " home-rail" : "") + (railOn ? " rail-expanded" : "")
       }
     >
       <header className="topbar">
@@ -5114,161 +5022,72 @@ export function CortexApp({
           {/* INTEGRATIONS  -  MCP clients, storage backends, sources */}
           <section className={"view" + (view === "integrations" ? " on" : "")}>
             <div className="int2">
-              <div className="int2-head">
-                <h1 className="int2-title">Integrations</h1>
-                <p className="int2-sub">
-                  Cortex is one shared memory behind every tool you use. Connect
-                  your assistants, agent frameworks and sources so they read and
-                  write the same durable context — no copy-paste between chats.
-                </p>
-              </div>
-              <div className="int2-filter">
-                {(["all", "mcp", "frameworks", "sources"] as const).map((t) => (
-                  <button
-                    key={t}
-                    className={"int2-f" + (intTab === t ? " on" : "")}
-                    onClick={() => setIntTab(t)}
+              <div className="int2-group">
+                <div className="int2-grid">
+                  {MCP_CLIENTS.map((c) => (
+                    <div className="int2-card" key={c.key}>
+                      <span className="int2-cav logo">{clientLogo(c.key)}</span>
+                      <div className="int2-cname">{c.name}</div>
+                      <div className="int2-cdesc">{c.blurb}</div>
+                      <button
+                        className="int2-cbtn"
+                        onClick={() => intConnect(c.key)}
+                      >
+                        Connect
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="scard" style={{ marginTop: 18 }}>
+                  <div className="int2-name">Authorize MCP</div>
+                  <div className="ssub" style={{ marginTop: 4 }}>
+                    One click grants your MCP everything it needs: your profile,
+                    your memory, and your shared agent workspace (board + bus).
+                    You can revoke anytime.
+                  </div>
+                  <div
+                    className="ssub"
+                    style={{ marginTop: 10, fontFamily: "var(--mono)" }}
                   >
-                    {t === "all"
-                      ? "All"
-                      : t === "mcp"
-                        ? "AI tools"
-                        : t === "frameworks"
-                          ? "Frameworks"
-                          : "Sources"}
-                  </button>
-                ))}
+                    {CORTEX_ENV.mcpAddress
+                      ? CORTEX_ENV.mcpAddress.slice(0, 10) +
+                        "…" +
+                        CORTEX_ENV.mcpAddress.slice(-6)
+                      : "No MCP wallet configured"}
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      marginTop: 12,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <button
+                      className="pill-btn keep"
+                      disabled={!mcpAuthReady || mcpAuthBusy}
+                      onClick={authorizeMcp}
+                    >
+                      {mcpAuthBusy ? "Authorizing…" : "Authorize MCP"}
+                    </button>
+                    <button
+                      className="pill-btn"
+                      disabled={!mcpAuthReady || mcpAuthBusy}
+                      onClick={revokeMcp}
+                    >
+                      Revoke
+                    </button>
+                  </div>
+                  {!mcpAuthReady && (
+                    <div className="ssub" style={{ marginTop: 10 }}>
+                      {!walletState?.wallet
+                        ? "Sign in to authorize your MCP."
+                        : "Set NEXT_PUBLIC_CORTEX_MCP_ADDRESS and deploy the contracts to enable."}
+                    </div>
+                  )}
+                </div>
               </div>
-
-              {(intTab === "all" || intTab === "mcp") && (
-                <div className="int2-group">
-                  <div className="int2-glabel">AI tools</div>
-                  <div className="int2-grid">
-                    {MCP_CLIENTS.map((c) => (
-                      <div className="int2-card" key={c.key}>
-                        <span className="int2-cav logo">
-                          {clientLogo(c.key)}
-                        </span>
-                        <div className="int2-cname">{c.name}</div>
-                        <div className="int2-cdesc">{c.blurb}</div>
-                        <button
-                          className="int2-cbtn"
-                          onClick={() => intConnect(c.key)}
-                        >
-                          Connect
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="scard" style={{ marginTop: 18 }}>
-                    <div className="int2-name">Authorize MCP</div>
-                    <div className="ssub" style={{ marginTop: 4 }}>
-                      One click grants your MCP everything it needs: your
-                      profile, your memory, and your shared agent workspace
-                      (board + bus). You can revoke anytime.
-                    </div>
-                    <div
-                      className="ssub"
-                      style={{ marginTop: 10, fontFamily: "var(--mono)" }}
-                    >
-                      {CORTEX_ENV.mcpAddress
-                        ? CORTEX_ENV.mcpAddress.slice(0, 10) +
-                          "…" +
-                          CORTEX_ENV.mcpAddress.slice(-6)
-                        : "No MCP wallet configured"}
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 8,
-                        marginTop: 12,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <button
-                        className="pill-btn keep"
-                        disabled={!mcpAuthReady || mcpAuthBusy}
-                        onClick={authorizeMcp}
-                      >
-                        {mcpAuthBusy ? "Authorizing…" : "Authorize MCP"}
-                      </button>
-                      <button
-                        className="pill-btn"
-                        disabled={!mcpAuthReady || mcpAuthBusy}
-                        onClick={revokeMcp}
-                      >
-                        Revoke
-                      </button>
-                    </div>
-                    {!mcpAuthReady && (
-                      <div className="ssub" style={{ marginTop: 10 }}>
-                        {!walletState?.wallet
-                          ? "Sign in to authorize your MCP."
-                          : "Set NEXT_PUBLIC_CORTEX_MCP_ADDRESS and deploy the contracts to enable."}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {(intTab === "all" || intTab === "frameworks") && (
-                <div className="int2-group">
-                  <div className="int2-glabel">
-                    Frameworks <span>· prompts &amp; skills</span>
-                  </div>
-                  <div className="int2-grid">
-                    {FRAMEWORKS.map((c) => (
-                      <div className="int2-card" key={c.key}>
-                        <span className="int2-cav">{c.letter}</span>
-                        <div className="int2-cname">{c.name}</div>
-                        <div className="int2-cdesc">{c.desc}</div>
-                        <button
-                          className="int2-cbtn"
-                          onClick={() => intConnect(c.key)}
-                        >
-                          Connect
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {(intTab === "all" || intTab === "sources") && (
-                <div className="int2-group">
-                  <div className="int2-glabel">Sources</div>
-                  <div className="int2-grid">
-                    {SOURCES.map((c) => (
-                      <div className="int2-card" key={c.key}>
-                        <span className="int2-cav">{c.letter}</span>
-                        <div className="int2-cname">{c.name}</div>
-                        <div className="int2-cdesc">{c.desc}</div>
-                        <button
-                          className="int2-cbtn"
-                          onClick={() => {
-                            if (c.action === "add") fileRef.current?.click();
-                            else if (c.action === "web") {
-                              if (!s.web) s.toggleWeb();
-                              flash("Web search is on for your next question.");
-                            } else {
-                              setView("home");
-                              s.setMode("remember");
-                              flash("Type your note below and keep it.");
-                            }
-                          }}
-                        >
-                          {c.action === "add"
-                            ? "Add files"
-                            : c.action === "web"
-                              ? "Turn on"
-                              : "Write a note"}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             {openDetail && (
