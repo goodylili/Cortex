@@ -149,45 +149,29 @@ pnpm --filter cortex-mcp start`}
         <section>
           <h2 id="connect-a-client">Connect a Client</h2>
           <p>
-            Hosted deployments expose a single <strong>connector URL</strong>. Point any
-            MCP host at it and the full Cortex toolset appears in that client.
+            Today Cortex connects over <strong>stdio</strong>: the client launches the
+            Cortex MCP server as a local subprocess and talks to it on stdin/stdout. Any
+            stdio-capable host (Claude Code, Cursor, VS Code, Windsurf, Cline, Claude
+            Desktop) runs the same start command. A hosted HTTP connector URL for web
+            clients (ChatGPT, Claude on the web) is coming later.
           </p>
-          <CodeBlock
-            language="text"
-            copyable
-            code={`https://mcp.cortex.id/mcp`}
-          />
-          <p style={HINT_STYLE}>
-            If you run the server yourself, connect over stdio with the start command
-            above instead of a URL.
-          </p>
-
-          <h3>Claude</h3>
           <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-            Open <strong>Settings &rarr; Connectors &rarr; Add custom connector</strong>,
-            paste the connector URL, click Connect, and approve the Cortex tools.
-          </p>
-
-          <h3>ChatGPT</h3>
-          <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-            Open <strong>Settings &rarr; Connectors</strong> (enable developer mode if
-            prompted), choose <strong>Add connector</strong> &rarr; custom MCP server,
-            paste the connector URL, and authorize the connection. Every chat can then
-            read your memory and quietly write back what is worth keeping.
+            All snippets run the server from the repo. Run them from the Cortex project
+            root, or set the client&apos;s working directory there.
           </p>
 
           <h3>Claude Code</h3>
           <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-            Register Cortex as an HTTP MCP server, then restart Claude Code &mdash; the
+            Register Cortex as a stdio MCP server, then restart Claude Code &mdash; the
             tools appear automatically.
           </p>
           <CodeBlock
             language="bash"
             copyable
-            code={`claude mcp add --transport http cortex https://mcp.cortex.id/mcp`}
+            code={`claude mcp add cortex -- pnpm --filter cortex-mcp start`}
           />
 
-          <h3>Cursor &amp; VS Code</h3>
+          <h3>Cursor, VS Code, Windsurf &amp; Cline</h3>
           <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
             Add the server to your MCP config (Cursor:{" "}
             <strong>Settings &rarr; MCP</strong>; VS Code: the MCP servers view or your
@@ -199,11 +183,24 @@ pnpm --filter cortex-mcp start`}
             code={`{
   "mcpServers": {
     "cortex": {
-      "url": "https://mcp.cortex.id/mcp"
+      "command": "pnpm",
+      "args": ["--filter", "cortex-mcp", "start"]
     }
   }
 }`}
           />
+
+          <h3>Claude Desktop</h3>
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+            Add the same stdio entry to <code>claude_desktop_config.json</code> (set{" "}
+            <code>cwd</code> to your Cortex checkout), then restart Claude Desktop.
+          </p>
+
+          <h3>ChatGPT &amp; Claude on the web</h3>
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+            Web clients need a hosted HTTP connector URL, which is coming later. For now,
+            use one of the stdio clients above.
+          </p>
         </section>
 
         <section>
