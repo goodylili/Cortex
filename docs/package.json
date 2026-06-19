@@ -1,0 +1,26 @@
+{
+  "name": "cortex-docs",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "beautiful-mermaid": "^0.1.2",
+    "framer-motion": "^12.28.1",
+    "next": "^16.2.9",
+    "prism-react-renderer": "^2.4.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "sass": "^1.69.0",
+    "typescript": "^5.9.3"
+  }
+}
