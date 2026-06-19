@@ -1,4 +1,9 @@
-import { LLM_MODELS, type ModelSpec, type Provider } from "./models";
+import {
+  LLM_MODELS,
+  type Modality,
+  type ModelSpec,
+  type Provider,
+} from "./models";
 
 export interface ProviderInfo {
   id: Provider;
@@ -47,6 +52,7 @@ export interface CustomModel {
   apiId: string;
   baseUrl: string;
   createdAt: number;
+  kind?: Modality;
 }
 
 export const customModelId = (provider: Provider, apiId: string): string =>
@@ -60,4 +66,5 @@ export const toModelSpec = (m: CustomModel): ModelSpec => ({
   apiId: m.apiId,
   price: "BYOK",
   desc: `${providerInfo(m.provider).label} · your key`,
+  kind: m.kind ?? "text",
 });

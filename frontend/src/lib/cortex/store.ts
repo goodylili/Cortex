@@ -28,6 +28,12 @@ import {
   enrollPasskey as enrollByokPasskeyVault,
 } from "@/lib/llm/byok-vault";
 import { completeByok } from "@/lib/llm/byok-client";
+import {
+  generateMedia,
+  type GenerateEvent,
+  type MediaOutput,
+} from "@/lib/llm/generate";
+import { modelKind } from "@/lib/llm/models";
 import { ASK_MAX_TOKENS, askSystem, askUser } from "@/lib/llm/ask-prompt";
 import {
   type MemoryConfig,
@@ -55,6 +61,8 @@ import {
   type AgentMessage,
   type AgentDef,
   type AgentRole,
+  type MediaState,
+  type AgentObservation,
   AGENTS,
   ROLE_LABELS,
   agentById,
@@ -117,6 +125,104 @@ async function reviewWork(
   }
 }
 
+async function runAgentMediaStep(
+  taskId: string,
+  agent: AgentDef,
+  goal: string,
+  custom: CustomModel,
+  get: () => State,
+  set: (fn: (s: State) => Partial<State>) => void,
+  memoryRefs: string[],
+): Promise<void> {
+  const output: MediaOutput =
+    modelKind(custom) === "image" ? "image" : "video";
+  const base = output === "image" ? ("image" as const) : ("video" as const);
+  const byokKey = get().byokKeys[custom.id];
+  const obsId = uid("obs");
+  const now = Date.now();
+  const initial: MediaState = byokKey
+    ? { kind: base, status: "generating", progress: 0, mime: "", prompt: goal }
+    : {
+        kind: base,
+        status: "error",
+        mime: "",
+        prompt: goal,
+        reason: `Add your ${providerInfo(custom.provider).label} key to generate ${output === "image" ? "images" : "video"}.`,
+      };
+  const obs: AgentObservation = {
+    id: obsId,
+    agentId: agent.id,
+    text: `${agent.name} is generating ${output === "image" ? "an image" : "a video"} for “${goal}”.`,
+    ts: now,
+    media: initial,
+    ...(memoryRefs.length ? { memoryRefs } : {}),
+  };
+  set((s) => {
+    const tasks = s.tasks.map((t) =>
+      t.id === taskId ? addObservation(t, obs, now) : t,
+    );
+    persist({ memories: s.memories, events: s.events, cost: s.cost, tasks });
+    return { tasks };
+  });
+  const update = (media: MediaState) => {
+    set((s) => {
+      const tasks = s.tasks.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              observations: t.observations.map((o) =>
+                o.id === obsId ? { ...o, media } : o,
+              ),
+              updatedAt: Date.now(),
+            }
+          : t,
+      );
+      if (media.status !== "generating") {
+        persist({ memories: s.memories, events: s.events, cost: s.cost, tasks });
+      }
+      return { tasks };
+    });
+  };
+  if (!byokKey) return;
+  await generateMedia(
+    {
+      provider: custom.provider,
+      apiId: custom.apiId,
+      baseUrl: custom.baseUrl,
+      apiKey: byokKey,
+      prompt: goal,
+      output,
+    },
+    (ev: GenerateEvent) => {
+      if (ev.phase === "start") {
+        update({ kind: base, status: "generating", progress: 1, mime: "", prompt: goal });
+      } else if (ev.phase === "progress") {
+        update({ kind: base, status: "generating", progress: ev.progress, mime: "", prompt: goal });
+      } else if (ev.phase === "partial") {
+        update({
+          kind: base,
+          status: "generating",
+          progress: ev.progress,
+          dataUrl: ev.dataUrl,
+          mime: ev.mime,
+          prompt: goal,
+        });
+      } else if (ev.phase === "done") {
+        update({
+          kind: base,
+          status: "done",
+          progress: 100,
+          dataUrl: ev.dataUrl,
+          mime: ev.mime,
+          prompt: goal,
+        });
+      } else {
+        update({ kind: base, status: "error", mime: "", prompt: goal, reason: ev.reason });
+      }
+    },
+  );
+}
+
 export interface ChatSource {
   type: "memory" | "web";
   label?: string;
@@ -136,6 +242,7 @@ export interface ChatMsg {
   docs: string[];
   streaming?: boolean;
   rating?: "up" | "down";
+  media?: MediaState;
 }
 
 type Mode = "remember" | "ask";
@@ -262,6 +369,8 @@ interface State {
   resetMemory: () => void;
   setChat: (chat: ChatMsg[]) => void;
   rateChat: (index: number, rating: "up" | "down") => void;
+  setChatMediaBlob: (index: number, blobId: string) => void;
+  setObsMediaBlob: (taskId: string, obsId: string, blobId: string) => void;
   setEvents: (events: CortexEvent[]) => void;
   setDocuments: (documents: CortexDocument[]) => void;
   newSession: () => void;
@@ -891,6 +1000,88 @@ export const useCortex = create<State>((set, get) => ({
     const selected = get().model;
     const custom = get().customModels.find((m) => m.label === selected.name);
     const byokKey = custom ? get().byokKeys[custom.id] : undefined;
+    const kind = custom ? modelKind(custom) : "text";
+    if (custom && kind !== "text") {
+      const output: MediaOutput = kind === "image" ? "image" : "video";
+      const setMedia = (media: MediaState) => {
+        set((s) => {
+          const chat = [...s.chat];
+          const last = chat[chat.length - 1];
+          if (last) {
+            last.media = media;
+            last.streaming = media.status === "generating";
+            if (media.status !== "generating") last.a = "";
+          }
+          return { chat };
+        });
+        if (media.status !== "generating") {
+          persist({
+            memories: get().memories,
+            events: get().events,
+            cost: get().cost,
+            chat: get().chat,
+            sessions: get().sessions,
+            activeId: get().activeId,
+          });
+        }
+      };
+      if (!byokKey) {
+        setMedia({
+          kind: output === "image" ? "image" : "video",
+          status: "error",
+          mime: "",
+          prompt: q,
+          reason: `Add your ${providerInfo(custom.provider).label} key to generate ${output === "image" ? "images" : "video"}.`,
+        });
+        return;
+      }
+      setMedia({
+        kind: output === "image" ? "image" : "video",
+        status: "generating",
+        progress: 0,
+        mime: "",
+        prompt: q,
+      });
+      void generateMedia(
+        {
+          provider: custom.provider,
+          apiId: custom.apiId,
+          baseUrl: custom.baseUrl,
+          apiKey: byokKey,
+          prompt: q,
+          output,
+        },
+        (ev: GenerateEvent) => {
+          const base = output === "image" ? ("image" as const) : ("video" as const);
+          if (ev.phase === "start") {
+            setMedia({ kind: base, status: "generating", progress: 1, mime: "", prompt: q });
+          } else if (ev.phase === "progress") {
+            setMedia({ kind: base, status: "generating", progress: ev.progress, mime: "", prompt: q });
+          } else if (ev.phase === "partial") {
+            setMedia({
+              kind: base,
+              status: "generating",
+              progress: ev.progress,
+              dataUrl: ev.dataUrl,
+              mime: ev.mime,
+              prompt: q,
+            });
+          } else if (ev.phase === "done") {
+            setMedia({
+              kind: base,
+              status: "done",
+              progress: 100,
+              dataUrl: ev.dataUrl,
+              mime: ev.mime,
+              prompt: q,
+            });
+          } else {
+            setMedia({ kind: base, status: "error", mime: "", prompt: q, reason: ev.reason });
+          }
+        },
+      );
+      return;
+    }
     if (custom && byokKey) {
       completeByok({
         provider: custom.provider,
@@ -1161,6 +1352,33 @@ export const useCortex = create<State>((set, get) => ({
       });
       return { chat };
     }),
+  setChatMediaBlob: (index, blobId) =>
+    set((s) => {
+      const chat = s.chat.map((m, i) =>
+        i === index && m.media
+          ? { ...m, media: { ...m.media, blobId } }
+          : m,
+      );
+      persist({ memories: s.memories, events: s.events, cost: s.cost, chat });
+      return { chat };
+    }),
+  setObsMediaBlob: (taskId, obsId, blobId) =>
+    set((s) => {
+      const tasks = s.tasks.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              observations: t.observations.map((o) =>
+                o.id === obsId && o.media
+                  ? { ...o, media: { ...o.media, blobId } }
+                  : o,
+              ),
+            }
+          : t,
+      );
+      persist({ memories: s.memories, events: s.events, cost: s.cost, tasks });
+      return { tasks };
+    }),
   // Restore the durable timeline / documents into the local view.
   setEvents: (events) =>
     set((s) => {
@@ -1282,6 +1500,13 @@ export const useCortex = create<State>((set, get) => ({
       persist({ memories: s.memories, events: s.events, cost: s.cost, tasks });
       return { tasks };
     });
+    const selected = state.model;
+    const custom = state.customModels.find((m) => m.label === selected.name);
+    const kind = custom ? modelKind(custom) : "text";
+    if (custom && kind !== "text") {
+      await runAgentMediaStep(taskId, agent, task.goal, custom, get, set, memoryRefs);
+      return;
+    }
     let observationText: string;
     try {
       const res = await fetch("/api/agent", {
