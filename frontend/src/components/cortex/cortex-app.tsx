@@ -114,7 +114,7 @@ type SettingsSection =
   | "memory"
   | "reset";
 
-// Popular destinations per modality — "Open in …" from the Studio output.
+// Popular destinations per modality  -  "Open in …" from the Studio output.
 // `prefill` URLs accept the prompt as a ?q= query; the rest just open the app
 // (we always copy the prompt to the clipboard so it's ready to paste).
 const STUDIO_PRODUCTS: Record<
@@ -694,7 +694,7 @@ export function CortexApp({
     try {
       await w.authorizeMcpAccess();
       flash(
-        "Authorized your MCP — it can now access your profile, memory and shared agent workspace.",
+        "Authorized your MCP  -  it can now access your profile, memory and shared agent workspace.",
       );
     } catch (err) {
       flash(err instanceof Error ? err.message : String(err));
@@ -727,7 +727,7 @@ export function CortexApp({
     try {
       const id = await w.setupWorkspace();
       setWorkspaceId(id);
-      flash("Agent workspace is live on chain — your team can now share a board.");
+      flash("Agent workspace is live on chain  -  your team can now share a board.");
     } catch (err) {
       flash(err instanceof Error ? err.message : String(err));
     } finally {
@@ -1243,7 +1243,7 @@ export function CortexApp({
   const recentMems = [...live]
     .sort((a, b) => (b.createdAt ?? b.ts) - (a.createdAt ?? a.ts))
     .slice(0, 8);
-  // Knowledge base cards — Walrus blobs + document sources, unified + filterable
+  // Knowledge base cards  -  Walrus blobs + document sources, unified + filterable
   // by the general search bar in the top navigation.
   const ext = (n: string) => (n.split(".").pop() || "").toLowerCase();
   const kbItems = [
@@ -1410,7 +1410,7 @@ export function CortexApp({
       flash(
         data.ai
           ? "Generated with AI"
-          : "Generated locally — set ANTHROPIC_API_KEY for AI",
+          : "Generated locally  -  set ANTHROPIC_API_KEY for AI",
       );
     } catch {
       flash("Generation failed");
@@ -1429,7 +1429,7 @@ export function CortexApp({
       : p.url;
     window.open(href, "_blank", "noopener,noreferrer");
     setStudioMenu(false);
-    flash(`Copied your prompt — opening ${p.name}`);
+    flash(`Copied your prompt  -  opening ${p.name}`);
   }
   const toggleStudio = (id: string) => {
     const next = new Set(studioSelected);
@@ -1446,7 +1446,7 @@ export function CortexApp({
     kind === "url"
       ? hostedMcp
         ? CORTEX_MCP_URL
-        : "A hosted Cortex connector is coming soon. For now use a stdio client below — it runs the Cortex MCP server locally over stdio."
+        : "A hosted Cortex connector is coming soon. For now use a stdio client below  -  it runs the Cortex MCP server locally over stdio."
       : kind === "cli"
         ? `claude mcp add cortex -- ${CORTEX_MCP_CMD}`
         : JSON.stringify(
@@ -1466,66 +1466,6 @@ export function CortexApp({
     cli: "Run this once (stdio)",
     config: "Add to your MCP config (stdio)",
   };
-  const MCP_TOOL_GROUPS: {
-    label: string;
-    blurb: string;
-    tools: { name: string; desc: string }[];
-  }[] = [
-    {
-      label: "Memory",
-      blurb: "Read, write and consolidate your durable memory.",
-      tools: [
-        { name: "recall", desc: "Recall memories from your namespace, verified first." },
-        { name: "remember", desc: "Write a durable memory." },
-        { name: "ingest", desc: "Ingest a note or document and extract memories from it." },
-        { name: "forget", desc: "De-index a memory — the record stays on Walrus, recall stops surfacing it." },
-        { name: "consolidate", desc: "Review and merge memory into a committed diff." },
-        { name: "verify", desc: "Check every blob is fetchable from the public aggregator." },
-        { name: "timeline", desc: "Walk the version history of your namespace." },
-        { name: "digest", desc: "Summarize a period of your memory." },
-      ],
-    },
-    {
-      label: "Agents",
-      blurb: "Drive the researcher, curator, planner and critic team over a shared board and bus.",
-      tools: [
-        { name: "agents", desc: "List the specialist agents that share this memory." },
-        { name: "task-create", desc: "Open a task and assign it to an agent." },
-        { name: "task-handoff", desc: "Reassign a task so another agent continues it." },
-        { name: "run-step", desc: "Run one collaborative step — recall, reason, record." },
-        { name: "message", desc: "Post to or read the durable agent message bus." },
-      ],
-    },
-    {
-      label: "Your data",
-      blurb: "Read by an MCP you authorize, revocable anytime.",
-      tools: [
-        { name: "profile", desc: "Read your public on-chain account, once you authorize it." },
-        { name: "memory", desc: "Recall your distilled memory facts." },
-        { name: "context", desc: "Read your durable context — sessions, events, docs." },
-      ],
-    },
-    {
-      label: "Execution",
-      blurb: "Act directly on Walrus and Sui under the server wallet.",
-      tools: [
-        { name: "store-blob", desc: "Store raw bytes on Walrus." },
-        { name: "read-blob", desc: "Fetch a raw Walrus blob by id." },
-        { name: "record-pointer", desc: "Record a namespace → manifest pointer on Sui." },
-        { name: "restore", desc: "Restore the full namespace head and memories from MemWal." },
-      ],
-    },
-    {
-      label: "Connectors",
-      blurb: "Bridge Cortex to the web and other services.",
-      tools: [
-        { name: "web-fetch", desc: "Fetch a URL into context, optionally as memory." },
-        { name: "notify", desc: "Push events to a Slack, Discord or Zapier webhook." },
-        { name: "export", desc: "Export a portable JSON bundle of your memory." },
-      ],
-    },
-  ];
-  const MCP_TOOL_COUNT = MCP_TOOL_GROUPS.reduce((n, g) => n + g.tools.length, 0);
   const MCP_CLIENTS: {
     key: string;
     name: string;
@@ -1539,14 +1479,14 @@ export function CortexApp({
       name: "ChatGPT",
       kind: "url",
       blurb:
-        "Reach your Cortex memory from ChatGPT — and let every chat build it.",
+        "Reach your Cortex memory from ChatGPT  -  and let every chat build it.",
       overview:
-        "Cortex becomes a connector inside ChatGPT. Every prompt can read your durable memory, and once the connector is authorized each chat quietly writes back what's worth keeping — no copy-paste between conversations, no context lost when a thread ends.",
+        "Cortex becomes a connector inside ChatGPT. Every prompt can read your durable memory, and once the connector is authorized each chat quietly writes back what's worth keeping  -  no copy-paste between conversations, no context lost when a thread ends.",
       steps: [
         "In ChatGPT, open Settings → Connectors (enable developer mode if prompted).",
         "Choose “Add connector” and pick a custom MCP server.",
         "Paste your Cortex connector URL below, then authorize the connection.",
-        "Just chat — Cortex reads your prompts over MCP and grows your memory on its own.",
+        "Just chat  -  Cortex reads your prompts over MCP and grows your memory on its own.",
       ],
     },
     {
@@ -1561,7 +1501,7 @@ export function CortexApp({
         "In Claude, open Settings → Connectors → Add custom connector.",
         "Paste your Cortex connector URL below.",
         "Click Connect and approve the Cortex tools.",
-        "Ask Claude to recall or keep anything — it flows straight through your memory.",
+        "Ask Claude to recall or keep anything  -  it flows straight through your memory.",
       ],
     },
     {
@@ -1575,7 +1515,7 @@ export function CortexApp({
       steps: [
         "Open a terminal in the project you work in.",
         "Run the command below to register Cortex as an MCP server.",
-        "Restart Claude Code — the Cortex tools appear automatically.",
+        "Restart Claude Code  -  the Cortex tools appear automatically.",
       ],
     },
     {
@@ -1588,7 +1528,7 @@ export function CortexApp({
       steps: [
         "Open Cursor → Settings → MCP.",
         "Add a new server and paste the config below.",
-        "Reload Cursor — Cortex tools are now available to the agent.",
+        "Reload Cursor  -  Cortex tools are now available to the agent.",
       ],
     },
     {
@@ -1729,7 +1669,7 @@ export function CortexApp({
       name: "LangChain",
       desc: "Pull your taste-tuned prompt and memories into any LangChain agent or chain, and write new memories back.",
       overview:
-        "Pull your taste-tuned prompt and kept memories into any LangChain agent or chain, then write new memories back as the agent learns — all grounded in the same durable store as the rest of Cortex.",
+        "Pull your taste-tuned prompt and kept memories into any LangChain agent or chain, then write new memories back as the agent learns  -  all grounded in the same durable store as the rest of Cortex.",
       steps: [
         "Install the Cortex memory package alongside LangChain.",
         "Set CORTEX_API_KEY from your account to connect your managed Cortex.",
@@ -1740,7 +1680,7 @@ export function CortexApp({
         "# pip install cortex-memory langchain",
         "from cortex_memory import CortexMemory",
         "",
-        "# connects to your managed Cortex — set CORTEX_API_KEY",
+        "# connects to your managed Cortex  -  set CORTEX_API_KEY",
         "mem = CortexMemory()",
         "",
         "# taste-retained system prompt, grounded in what you've kept",
@@ -1757,7 +1697,7 @@ export function CortexApp({
       name: "skills.sh",
       desc: "Install Cortex skills and prompts into your agents, and let them recall, correct and refine memory on the fly.",
       overview:
-        "Install Cortex skills and prompts into your agents, then let them recall, correct and refine memory on the fly — the same memory you keep on Walrus, sealed and owned by you.",
+        "Install Cortex skills and prompts into your agents, then let them recall, correct and refine memory on the fly  -  the same memory you keep on Walrus, sealed and owned by you.",
       steps: [
         "Add the Cortex skill to your agent with one command.",
         "Authenticate with your Cortex account.",
@@ -1786,30 +1726,21 @@ export function CortexApp({
     ? {
         name: detailClient.name,
         blurb: detailClient.blurb,
-        overview: detailClient.overview,
         steps: detailClient.steps,
-        av: clientLogo(detailClient.key),
+        av: clientLogo(detailClient.key) as React.ReactNode,
         avLetter: null as string | null,
         snippetLabel: SNIPPET_LABEL[detailClient.kind],
         snippet: mcpSnippet(detailClient.kind),
-        connectLabel:
-          detailClient.kind === "url"
-            ? "Copy connector URL"
-            : detailClient.kind === "cli"
-              ? "Copy command"
-              : "Copy config",
       }
     : detailFw
       ? {
           name: detailFw.name,
           blurb: detailFw.desc,
-          overview: detailFw.overview,
           steps: detailFw.steps,
           av: null as React.ReactNode,
           avLetter: detailFw.letter,
           snippetLabel: "Add to your project",
           snippet: detailFw.code,
-          connectLabel: "Copy code",
         }
       : null;
 
@@ -2010,7 +1941,7 @@ export function CortexApp({
       if (text) {
         setInput((v) => (v ? v + " " : "") + text);
         grow(ta.current);
-      } else flash("Couldn't transcribe — set OPENAI_API_KEY for voice.");
+      } else flash("Couldn't transcribe  -  set OPENAI_API_KEY for voice.");
     } else {
       try {
         await dictation.start();
@@ -2258,10 +2189,14 @@ export function CortexApp({
 
   const onHome = view === "home";
   const railOn = onHome && chatRailOpen;
+  const leftRailOpen = railOn || (view === "agents" && roomRailOpen);
   return (
     <div
       className={
-        "app" + (onHome ? " home-rail" : "") + (railOn ? " rail-expanded" : "")
+        "app" +
+        (onHome ? " home-rail" : "") +
+        (railOn ? " rail-expanded" : "") +
+        (leftRailOpen ? " rail-left" : "")
       }
     >
       <header className="topbar">
@@ -2615,7 +2550,7 @@ export function CortexApp({
                         </div>
                         <p className="hc-insight">
                           {dreams[0]
-                            ? `${dreams[0].title} — ${dreams[0].body}`
+                            ? `${dreams[0].title}  -  ${dreams[0].body}`
                             : dreamsLoading
                               ? "Cortex is looking across your memories for connections."
                               : `You've added ${added7} ${
@@ -3025,7 +2960,7 @@ export function CortexApp({
             )}
           </section>
 
-          {/* AGENTS — Pipeline Room: a Slack-style room where agents are members */}
+          {/* AGENTS  -  Pipeline Room: a Slack-style room where agents are members */}
           {view === "agents" &&
             (() => {
               const roster = s.agents;
@@ -3313,7 +3248,7 @@ export function CortexApp({
                             <div className="pr-setup-l">
                               <b>On-chain workspace</b>
                               <span className="pr-setup-sub">
-                                Live · {shortId(workspaceId)} — your team shares
+                                Live · {shortId(workspaceId)}  -  your team shares
                                 this board and message bus on chain.
                               </span>
                             </div>
@@ -3660,7 +3595,7 @@ export function CortexApp({
                                         </li>
                                         <li>
                                           <span>gather</span>
-                                          {step.feedback || "—"}
+                                          {step.feedback || " - "}
                                         </li>
                                         <li>
                                           <span>verify</span>
@@ -4157,7 +4092,7 @@ export function CortexApp({
               );
             })()}
 
-          {/* STUDIO — compile memory into a prompt */}
+          {/* STUDIO  -  compile memory into a prompt */}
           <section className={"view" + (view === "studio" ? " on" : "")}>
             <div className="st2">
               <div className="composer-dock">
@@ -4548,7 +4483,7 @@ export function CortexApp({
               )}
             </div>
           </section>
-          {/* KNOWLEDGE — document library (card grid) */}
+          {/* KNOWLEDGE  -  document library (card grid) */}
           <section className={"view" + (view === "knowledge" ? " on" : "")}>
             <div className="kb2-bar">
               <div className="kb2-filters">
@@ -4808,7 +4743,7 @@ export function CortexApp({
             )}
           </section>
 
-          {/* SHARING — SuiNS identity, share memories, inbox + outbox */}
+          {/* SHARING  -  SuiNS identity, share memories, inbox + outbox */}
           {shareHubOpen && (
             <div
               className="share-backdrop"
@@ -4828,7 +4763,7 @@ export function CortexApp({
                 <p className="lede show">
                   Claim a name under cortex.sui, share memories with people by
                   name, and see what others have shared with you. Everything is
-                  owned by your wallet on Sui — you can revoke a share at any
+                  owned by your wallet on Sui  -  you can revoke a share at any
                   time.
                 </p>
 
@@ -4878,7 +4813,7 @@ export function CortexApp({
                             >
                               {claimedName}
                             </span>{" "}
-                            — it points to your wallet.
+                             -  it points to your wallet.
                           </div>
                         ) : (
                           <>
@@ -4907,7 +4842,7 @@ export function CortexApp({
                               </button>
                             </div>
                             <div className="ssub" style={{ marginTop: 8 }}>
-                              Not claimed yet — pick a handle to get a
+                              Not claimed yet  -  pick a handle to get a
                               name.cortex.sui address.
                             </div>
                           </>
@@ -5176,140 +5111,9 @@ export function CortexApp({
             </div>
           )}
 
-          {/* INTEGRATIONS — MCP clients, storage backends, sources */}
+          {/* INTEGRATIONS  -  MCP clients, storage backends, sources */}
           <section className={"view" + (view === "integrations" ? " on" : "")}>
             <div className="int2">
-              {openDetail ? (
-                <div className="int2-detail">
-                  <button
-                    className="int2-back"
-                    onClick={() => setIntOpen(null)}
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={1.7}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M15 18l-6-6 6-6" />
-                    </svg>
-                    Back to integrations
-                  </button>
-                  <div className="int2-dhead">
-                    <span
-                      className={"int2-dav" + (openDetail.av ? " logo" : "")}
-                    >
-                      {openDetail.av ?? openDetail.avLetter}
-                    </span>
-                    <div className="int2-dmeta">
-                      <h1 className="int2-dtitle">{openDetail.name}</h1>
-                      <p className="int2-dsub">{openDetail.blurb}</p>
-                    </div>
-                    <button
-                      className="pill-btn keep int2-dconnect"
-                      onClick={() =>
-                        copyText(openDetail.snippet, "Setup copied to clipboard")
-                      }
-                    >
-                      {openDetail.connectLabel}
-                    </button>
-                  </div>
-                  <p className="int2-over">{openDetail.overview}</p>
-                  <div className="int2-by">
-                    Built by <strong>Cortex</strong> · Connects to your managed
-                    memory over an encrypted channel. Your memory stays sealed on
-                    Walrus, owned by you.
-                  </div>
-                  <div className="int2-dsec">
-                    <div className="int2-dsl">
-                      Set up <span>{openDetail.steps.length} steps</span>
-                    </div>
-                    <ol className="int2-flow">
-                      {openDetail.steps.map((step, i) => (
-                        <li className="int2-fstep" key={i}>
-                          <span className="int2-fn">{i + 1}</span>
-                          <span className="int2-ft">{step}</span>
-                        </li>
-                      ))}
-                    </ol>
-                    <div className="int2-snip-h">
-                      <span>{openDetail.snippetLabel}</span>
-                      <button
-                        className="int2-copy"
-                        onClick={() =>
-                          copyText(
-                            openDetail.snippet,
-                            "Setup copied to clipboard",
-                          )
-                        }
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    <pre>{openDetail.snippet}</pre>
-                  </div>
-                  <div className="int2-dsec">
-                    <div className="int2-dsl">
-                      Tools <span>{MCP_TOOL_COUNT}</span>
-                    </div>
-                    {MCP_TOOL_GROUPS.map((g) => (
-                      <div className="int2-tg" key={g.label}>
-                        <div className="int2-tgl">{g.label}</div>
-                        {g.tools.map((t) => (
-                          <div className="int2-trow" key={t.name}>
-                            <span className="int2-tn">{t.name}</span>
-                            <span className="int2-td">{t.desc}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="int2-dsec">
-                    <div className="int2-dsl">Details</div>
-                    <div className="int2-det">
-                      <div className="int2-detk">
-                        {hostedMcp ? "Connector URL" : "Local command"}
-                      </div>
-                      <div className="int2-detv">
-                        <code>{hostedMcp ? CORTEX_MCP_URL : CORTEX_MCP_CMD}</code>
-                        <button
-                          className="int2-copy"
-                          onClick={() =>
-                            hostedMcp
-                              ? copyText(CORTEX_MCP_URL, "Connector URL copied")
-                              : copyText(CORTEX_MCP_CMD, "Command copied")
-                          }
-                        >
-                          Copy
-                        </button>
-                      </div>
-                      <div className="int2-detk">Built by</div>
-                      <div className="int2-detv">Cortex</div>
-                      <div className="int2-detk">More info</div>
-                      <div className="int2-detv int2-dlinks">
-                        <a
-                          href="https://github.com"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Documentation ↗
-                        </a>
-                        <a
-                          href="https://discord.com"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Support ↗
-                        </a>
-                        <a href="#">Privacy ↗</a>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <>
               <div className="int2-head">
                 <h1 className="int2-title">Integrations</h1>
                 <p className="int2-sub">
@@ -5339,63 +5143,25 @@ export function CortexApp({
               {(intTab === "all" || intTab === "mcp") && (
                 <div className="int2-group">
                   <div className="int2-glabel">AI tools</div>
-                  <div className="scard" style={{ marginBottom: 16 }}>
-                    <div className="int2-name">What your MCP can do</div>
-                    <div
-                      className="ssub"
-                      style={{ marginTop: 4, marginBottom: 6 }}
-                    >
-                      One server exposes your whole memory plane to any MCP host
-                      — read and write memory, drive the agent team, and (once
-                      you authorize it) read your details, memory and context.
-                    </div>
-                    <div className="int2-tools">
-                      {MCP_TOOL_GROUPS.flatMap((g) => g.tools).map((t) => (
-                        <span className="int2-tool" key={t.name}>
-                          {t.name}
-                        </span>
-                      ))}
-                    </div>
-                    {MCP_TOOL_GROUPS.map((g) => (
-                      <div
-                        key={g.label}
-                        style={{
-                          display: "flex",
-                          gap: 10,
-                          padding: "6px 0",
-                          borderTop: "1px solid var(--line, rgba(0,0,0,0.08))",
-                        }}
-                      >
-                        <span style={{ minWidth: 92, fontWeight: 600 }}>
-                          {g.label}
-                        </span>
-                        <span className="ssub">{g.blurb}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="int2-list">
+                  <div className="int2-grid">
                     {MCP_CLIENTS.map((c) => (
-                      <div className="int2-item" key={c.key}>
-                        <div className="int2-row">
-                          <span className="int2-av logo">
-                            {clientLogo(c.key)}
-                          </span>
-                          <div className="int2-meta">
-                            <div className="int2-name">{c.name}</div>
-                            <div className="int2-desc">{c.blurb}</div>
-                          </div>
-                          <button
-                            className="int2-btn"
-                            onClick={() => intConnect(c.key)}
-                          >
-                            Connect
-                          </button>
-                        </div>
+                      <div className="int2-card" key={c.key}>
+                        <span className="int2-cav logo">
+                          {clientLogo(c.key)}
+                        </span>
+                        <div className="int2-cname">{c.name}</div>
+                        <div className="int2-cdesc">{c.blurb}</div>
+                        <button
+                          className="int2-cbtn"
+                          onClick={() => intConnect(c.key)}
+                        >
+                          Connect
+                        </button>
                       </div>
                     ))}
                   </div>
 
-                  <div className="scard" style={{ marginTop: 16 }}>
+                  <div className="scard" style={{ marginTop: 18 }}>
                     <div className="int2-name">Authorize MCP</div>
                     <div className="ssub" style={{ marginTop: 4 }}>
                       One click grants your MCP everything it needs: your
@@ -5404,10 +5170,7 @@ export function CortexApp({
                     </div>
                     <div
                       className="ssub"
-                      style={{
-                        marginTop: 10,
-                        fontFamily: "var(--mono)",
-                      }}
+                      style={{ marginTop: 10, fontFamily: "var(--mono)" }}
                     >
                       {CORTEX_ENV.mcpAddress
                         ? CORTEX_ENV.mcpAddress.slice(0, 10) +
@@ -5446,21 +5209,6 @@ export function CortexApp({
                       </div>
                     )}
                   </div>
-
-                  <div className="scard" style={{ marginTop: 16 }}>
-                    <div className="int2-name">Agent workspace setup</div>
-                    <div className="ssub" style={{ marginTop: 4 }}>
-                      The agents collaborate through a shared on-chain Workspace
-                      object (the durable task board + message bus). Create it
-                      once from the Agents view — &ldquo;Create workspace&rdquo;
-                      shares the object and saves its id to your account. To let
-                      your MCP act on that board, set its server env to either
-                      CORTEX_WORKSPACE_ID (the new object id) or
-                      CORTEX_USER_ADDRESS (your Sui address, so it reads the saved
-                      id), alongside CORTEX_DELEGATE_KEY, CORTEX_ACCESS_REGISTRY,
-                      and CORTEX_EXECUTOR_CAP.
-                    </div>
-                  </div>
                 </div>
               )}
 
@@ -5469,22 +5217,18 @@ export function CortexApp({
                   <div className="int2-glabel">
                     Frameworks <span>· prompts &amp; skills</span>
                   </div>
-                  <div className="int2-list">
+                  <div className="int2-grid">
                     {FRAMEWORKS.map((c) => (
-                      <div className="int2-item" key={c.key}>
-                        <div className="int2-row">
-                          <span className="int2-av">{c.letter}</span>
-                          <div className="int2-meta">
-                            <div className="int2-name">{c.name}</div>
-                            <div className="int2-desc">{c.desc}</div>
-                          </div>
-                          <button
-                            className="int2-btn"
-                            onClick={() => intConnect(c.key)}
-                          >
-                            Connect
-                          </button>
-                        </div>
+                      <div className="int2-card" key={c.key}>
+                        <span className="int2-cav">{c.letter}</span>
+                        <div className="int2-cname">{c.name}</div>
+                        <div className="int2-cdesc">{c.desc}</div>
+                        <button
+                          className="int2-cbtn"
+                          onClick={() => intConnect(c.key)}
+                        >
+                          Connect
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -5494,49 +5238,137 @@ export function CortexApp({
               {(intTab === "all" || intTab === "sources") && (
                 <div className="int2-group">
                   <div className="int2-glabel">Sources</div>
-                  <div className="int2-list">
+                  <div className="int2-grid">
                     {SOURCES.map((c) => (
-                      <div className="int2-item" key={c.key}>
-                        <div className="int2-row">
-                          <span className="int2-av">{c.letter}</span>
-                          <div className="int2-meta">
-                            <div className="int2-name">{c.name}</div>
-                            <div className="int2-desc">{c.desc}</div>
-                          </div>
-                          <button
-                            className="int2-btn"
-                            onClick={() => {
-                              if (c.action === "add") fileRef.current?.click();
-                              else if (c.action === "web") {
-                                if (!s.web) s.toggleWeb();
-                                flash(
-                                  "Web search is on for your next question.",
-                                );
-                              } else {
-                                setView("home");
-                                s.setMode("remember");
-                                flash("Type your note below and keep it.");
-                              }
-                            }}
-                          >
-                            {c.action === "add"
-                              ? "Add files"
-                              : c.action === "web"
-                                ? "Turn on"
-                                : "Write a note"}
-                          </button>
-                        </div>
+                      <div className="int2-card" key={c.key}>
+                        <span className="int2-cav">{c.letter}</span>
+                        <div className="int2-cname">{c.name}</div>
+                        <div className="int2-cdesc">{c.desc}</div>
+                        <button
+                          className="int2-cbtn"
+                          onClick={() => {
+                            if (c.action === "add") fileRef.current?.click();
+                            else if (c.action === "web") {
+                              if (!s.web) s.toggleWeb();
+                              flash("Web search is on for your next question.");
+                            } else {
+                              setView("home");
+                              s.setMode("remember");
+                              flash("Type your note below and keep it.");
+                            }
+                          }}
+                        >
+                          {c.action === "add"
+                            ? "Add files"
+                            : c.action === "web"
+                              ? "Turn on"
+                              : "Write a note"}
+                        </button>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-                </>
-              )}
             </div>
+
+            {openDetail && (
+              <div
+                className="int2-modal-scrim"
+                onClick={() => setIntOpen(null)}
+              >
+                <div
+                  className="int2-modal"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="int2-mhead">
+                    <span
+                      className={"int2-mav" + (openDetail.av ? " logo" : "")}
+                    >
+                      {openDetail.av ?? openDetail.avLetter}
+                    </span>
+                    <div className="int2-mmeta">
+                      <div className="int2-mtitle">
+                        Set up {openDetail.name}
+                      </div>
+                      <div className="int2-msub">{openDetail.blurb}</div>
+                    </div>
+                    <a
+                      className="int2-mdocs"
+                      href={DOCS_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.7}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                      </svg>
+                      Docs
+                    </a>
+                    <button
+                      className="int2-mx"
+                      onClick={() => setIntOpen(null)}
+                      aria-label="Close"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M18 6L6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="int2-mbody">
+                    <div className="int2-msteps-h">
+                      Set up <span>{openDetail.steps.length} steps</span>
+                    </div>
+                    <ol className="int2-steps2">
+                      {openDetail.steps.map((step, i) => (
+                        <li className="int2-step2" key={i}>
+                          <span className="int2-step2-n">{i + 1}</span>
+                          <span className="int2-step2-t">{step}</span>
+                        </li>
+                      ))}
+                    </ol>
+                    <div className="int2-mcode">
+                      <div className="int2-mcode-h">
+                        <span>{openDetail.snippetLabel}</span>
+                        <button
+                          className="int2-copy"
+                          onClick={() =>
+                            copyText(openDetail.snippet, "Copied to clipboard")
+                          }
+                        >
+                          Copy
+                        </button>
+                      </div>
+                      <pre>{openDetail.snippet}</pre>
+                    </div>
+                  </div>
+                  <div className="int2-mfoot">
+                    <button
+                      className="pill-btn keep"
+                      onClick={() => setIntOpen(null)}
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
 
-          {/* SETTINGS — floating console over the current page */}
+          {/* SETTINGS  -  floating console over the current page */}
           {settingsOpen && (
             <div
               className="cset-backdrop"
@@ -5597,7 +5429,7 @@ export function CortexApp({
                         <div className="set-gt">Account</div>
                         <div className="set-gs">
                           {privyOn
-                            ? "How you sign in. Cortex uses Privy for login and a managed Sui wallet — your identity stays yours, with no seed phrase to lose."
+                            ? "How you sign in. Cortex uses Privy for login and a managed Sui wallet  -  your identity stays yours, with no seed phrase to lose."
                             : "How you sign in. Cortex uses zkLogin so your identity stays yours, with no password to leak."}
                         </div>
                       </div>
@@ -5705,7 +5537,7 @@ export function CortexApp({
                               </svg>
                               <span>
                                 Only send <b>SUI</b> and <b>WAL</b> to this
-                                address — they cover gas and Walrus storage.
+                                address  -  they cover gas and Walrus storage.
                                 Other tokens or NFTs sent here may be lost.
                               </span>
                             </div>
@@ -5831,7 +5663,7 @@ export function CortexApp({
                         <div className="set-gt">Models &amp; API keys</div>
                         <div className="set-gs">
                           Bring your own keys to enable any model. Keys are
-                          encrypted and stored only on this device — calls run
+                          encrypted and stored only on this device  -  calls run
                           straight from your browser to the provider, never our
                           servers.
                         </div>
@@ -5906,7 +5738,7 @@ export function CortexApp({
                         <div className="set-gs">
                           How your data is protected and who can reach it.
                           Sensitive data is encrypted client-side before it ever
-                          touches Walrus — only your wallet can decrypt it.
+                          touches Walrus  -  only your wallet can decrypt it.
                         </div>
                       </div>
 
@@ -6028,7 +5860,7 @@ export function CortexApp({
                             >
                               {claimedName}
                             </span>{" "}
-                            — it points to your wallet.
+                             -  it points to your wallet.
                           </div>
                         )}
                         {claimErr && (
@@ -6061,7 +5893,7 @@ export function CortexApp({
                         <div className="set-gt">Devices &amp; Access</div>
                         <div className="set-gs">
                           Each device and agent that can read your memory has
-                          its own key, derived on that device and never stored —
+                          its own key, derived on that device and never stored  - 
                           revoke any of them anytime.
                         </div>
                       </div>
@@ -6312,7 +6144,7 @@ export function CortexApp({
                         <div className="set-gs">
                           Clear this browser&apos;s working memory and start
                           from a blank slate. Your durable record on Walrus is
-                          not touched — this only wipes the local index.
+                          not touched  -  this only wipes the local index.
                         </div>
                       </div>
                       <button
@@ -6340,7 +6172,7 @@ export function CortexApp({
           )}
         </div>
 
-        {/* BRAIN — full-bleed memory map */}
+        {/* BRAIN  -  full-bleed memory map */}
         {view === "brain" && (
           <div className="brain-stage">
             <MemoryMap onOpen={(m) => setDrawer(m)} theme={eff} />
@@ -6616,7 +6448,7 @@ export function CortexApp({
             </div>
           </div>
         )}
-        {/* shared file input — available on every view (Studio attach, etc.) */}
+        {/* shared file input  -  available on every view (Studio attach, etc.) */}
         <input
           ref={fileRef}
           type="file"
@@ -7062,7 +6894,7 @@ export function CortexApp({
               <div className="am-note">
                 Your key is encrypted and stored only on this device
                 {passkeySupported() ? ", unlocked with a passkey" : ""}. It
-                never touches our servers — calls go straight from your browser
+                never touches our servers  -  calls go straight from your browser
                 to the provider.
               </div>
             </div>
@@ -7103,7 +6935,7 @@ export function CortexApp({
               const m =
                 s.sharedMemories.find((x) => x.id === drawer.id) || drawer;
               // Shared memories are display-only: no retention model, no mutating
-              // controls — they belong to whoever shared them.
+              // controls  -  they belong to whoever shared them.
               return (
                 <>
                   <div className="kv">
@@ -7133,7 +6965,7 @@ export function CortexApp({
                   <div className="mm-note" style={{ marginTop: 16 }}>
                     Shared with you, read-only. It lives in{" "}
                     {m.sharedBy || "the"}
-                    {m.sharedBy ? "’s" : " owner’s"} memory — you can read it,
+                    {m.sharedBy ? "’s" : " owner’s"} memory  -  you can read it,
                     but only they can change it.
                   </div>
                 </>
