@@ -18,7 +18,7 @@ import {
   type CustomModel,
 } from "@/lib/llm/byok";
 import { passkeySupported, passkeyEnrolled } from "@/lib/llm/byok-vault";
-import type { Provider } from "@/lib/llm/models";
+import type { Modality, Provider } from "@/lib/llm/models";
 import {
   compilePrompt,
   DEFAULT_MODALITY,
@@ -58,6 +58,7 @@ import {
 import { Onboarding } from "./onboarding";
 import { CaptureModal } from "./capture";
 import { Markdown } from "./markdown";
+import { MediaBlock } from "./media-block";
 import { SourceChips, type SourceItem } from "./sources";
 
 // cortex::sharing MemoryShare.status: 0 DRAFT, 1 ACTIVE, 2 REVOKED.
@@ -186,6 +187,18 @@ const clock = (ts: number): string =>
     minute: "2-digit",
     hour12: false,
   });
+const MEDIA_EXT: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/gif": "gif",
+  "video/mp4": "mp4",
+};
+const mediaName = (kind: string, mime: string): string =>
+  `cortex-${kind}-${Date.now()}.${MEDIA_EXT[mime] ?? "bin"}`;
+const dataUrlToFile = async (url: string, name: string): Promise<File> => {
+  const blob = await (await fetch(url)).blob();
+  return new File([blob], name, { type: blob.type });
+};
 const renderMessageText = (
   text: string,
   names: string[] = AGENT_NAMES,
@@ -280,6 +293,7 @@ export function CortexApp({
   const [addModelOpen, setAddModelOpen] = useState(false);
   const [amProvider, setAmProvider] = useState<Provider | "">("");
   const [amApiId, setAmApiId] = useState("");
+  const [amKind, setAmKind] = useState<Modality>("text");
   const [amKey, setAmKey] = useState("");
   const [amUrl, setAmUrl] = useState("");
   const [amBusy, setAmBusy] = useState(false);
@@ -344,6 +358,7 @@ export function CortexApp({
   const dreamsTried = useRef(false);
   const ta = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
+  const mediaUploads = useRef<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -501,6 +516,46 @@ export function CortexApp({
     s.agentMessages,
     s.loops,
   ]);
+  useEffect(() => {
+    const w = walletState?.wallet;
+    if (!w) return;
+    s.chat.forEach((m, i) => {
+      const md = m.media;
+      if (
+        !md ||
+        md.status !== "done" ||
+        md.blobId ||
+        !md.dataUrl ||
+        mediaUploads.current.has(`c:${i}:${md.dataUrl.length}`)
+      )
+        return;
+      const key = `c:${i}:${md.dataUrl.length}`;
+      mediaUploads.current.add(key);
+      void dataUrlToFile(md.dataUrl, mediaName(md.kind, md.mime))
+        .then((file) => w.storeFile(file))
+        .then((stored) => s.setChatMediaBlob(i, stored.blobId))
+        .catch(() => mediaUploads.current.delete(key));
+    });
+    s.tasks.forEach((t) => {
+      t.observations.forEach((o) => {
+        const md = o.media;
+        if (
+          !md ||
+          md.status !== "done" ||
+          md.blobId ||
+          !md.dataUrl ||
+          mediaUploads.current.has(`o:${o.id}`)
+        )
+          return;
+        mediaUploads.current.add(`o:${o.id}`);
+        void dataUrlToFile(md.dataUrl, mediaName(md.kind, md.mime))
+          .then((file) => w.storeFile(file))
+          .then((stored) => s.setObsMediaBlob(t.id, o.id, stored.blobId))
+          .catch(() => mediaUploads.current.delete(`o:${o.id}`));
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletState?.wallet, s.chat, s.tasks]);
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (
@@ -1916,6 +1971,7 @@ export function CortexApp({
   );
   const openAddModel = () => {
     setAmProvider("");
+    setAmKind("text");
     setAmApiId("");
     setAmKey("");
     setAmUrl("");
@@ -1938,6 +1994,7 @@ export function CortexApp({
       apiId: amApiId,
       baseUrl: amUrl.trim() ? baseFromUrl(amUrl.trim()) : info.baseUrl,
       createdAt: Date.now(),
+      kind: amKind,
     };
     setAmBusy(true);
     setAmError("");
@@ -2442,11 +2499,17 @@ export function CortexApp({
                           </svg>
                         </span>
                         <div className="cmsg-card">
-                          <div className="atext">
-                            {m.streaming ? m.a : <Markdown text={m.a} />}
-                          </div>
-                          {!m.streaming && <SourceChips sources={items} />}
-                          {!m.streaming && (
+                          {m.media ? (
+                            <MediaBlock media={m.media} />
+                          ) : (
+                            <div className="atext">
+                              {m.streaming ? m.a : <Markdown text={m.a} />}
+                            </div>
+                          )}
+                          {!m.streaming && !m.media && (
+                            <SourceChips sources={items} />
+                          )}
+                          {!m.streaming && !m.media && (
                             <div className="cmsg-acts">
                               <button
                                 className="cmsg-ic"
@@ -3051,6 +3114,7 @@ export function CortexApp({
                                   <div className="pr-msg-text">
                                     <Markdown text={o.text} />
                                   </div>
+                                  {o.media && <MediaBlock media={o.media} />}
                                   {o.memoryRefs && o.memoryRefs.length > 0 && (
                                     <SourceChips
                                       sources={o.memoryRefs.map((id, n) => ({
@@ -3545,6 +3609,7 @@ export function CortexApp({
                                 <div className="pr-msg-text">
                                   <Markdown text={o.text} />
                                 </div>
+                                {o.media && <MediaBlock media={o.media} />}
                                 {o.memoryRefs && o.memoryRefs.length > 0 && (
                                   <SourceChips
                                     sources={o.memoryRefs.map((id, n) => ({
@@ -6170,27 +6235,58 @@ export function CortexApp({
                 </div>
               </label>
               <label className="am-field">
+                <span className="am-label">Modality</span>
+                <div className="am-modality">
+                  {(["text", "image", "video"] as Modality[]).map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      className={"am-mod" + (amKind === k ? " on" : "")}
+                      onClick={() => {
+                        setAmKind(k);
+                        setAmApiId("");
+                      }}
+                    >
+                      {k === "text" ? "Text" : k === "image" ? "Image" : "Video"}
+                    </button>
+                  ))}
+                </div>
+              </label>
+              <label className="am-field">
                 <span className="am-label">
                   <i className="am-req">*</i> Model
                 </span>
-                <div className="am-select">
-                  <select
+                {amKind === "text" ? (
+                  <div className="am-select">
+                    <select
+                      value={amApiId}
+                      disabled={!amProvider}
+                      onChange={(e) => setAmApiId(e.target.value)}
+                    >
+                      <option value="">Model</option>
+                      {amProvider &&
+                        providerModels(amProvider).map((m) => (
+                          <option key={m.apiId} value={m.apiId}>
+                            {m.name}
+                          </option>
+                        ))}
+                    </select>
+                    <svg viewBox="0 0 24 24">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </div>
+                ) : (
+                  <input
+                    className="am-input"
+                    placeholder={
+                      amKind === "image"
+                        ? "e.g., gpt-image-1"
+                        : "e.g., sora-2"
+                    }
                     value={amApiId}
-                    disabled={!amProvider}
                     onChange={(e) => setAmApiId(e.target.value)}
-                  >
-                    <option value="">Model</option>
-                    {amProvider &&
-                      providerModels(amProvider).map((m) => (
-                        <option key={m.apiId} value={m.apiId}>
-                          {m.name}
-                        </option>
-                      ))}
-                  </select>
-                  <svg viewBox="0 0 24 24">
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </div>
+                  />
+                )}
               </label>
               <label className="am-field">
                 <span className="am-label">

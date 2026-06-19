@@ -18,7 +18,7 @@ const BASE64_CHUNK = 0x8000;
 
 let ffmpeg: FFmpeg | undefined;
 
-async function load(): Promise<FFmpeg> {
+export async function loadFfmpeg(): Promise<FFmpeg> {
   if (ffmpeg) return ffmpeg;
   const ff = new FFmpeg();
   await ff.load({
@@ -55,7 +55,7 @@ async function describeFrames(
 }
 
 export async function extractVideo(file: File): Promise<string> {
-  const ff = await load();
+  const ff = await loadFfmpeg();
   const input = "input_" + (file.name.replace(/[^\w.]/g, "_") || "video");
   await ff.writeFile(input, await fetchFile(file));
 
