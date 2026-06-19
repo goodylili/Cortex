@@ -49,6 +49,7 @@ import {
   isBuiltInAgent,
 } from "@/lib/cortex/agents";
 import { useDictation, useReadAloud } from "@/lib/cortex/use-voice";
+import { DOCS_URL } from "@/lib/site";
 import {
   ONBOARDING_STEPS,
   TOTAL_QUESTIONS,
@@ -2234,6 +2235,19 @@ export function CortexApp({
                     </svg>
                     <span>Settings</span>
                   </button>
+                  <a
+                    className="tb-menu-item"
+                    href={DOCS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setProfileOpen(false)}
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                    </svg>
+                    <span>Docs</span>
+                  </a>
                   {sess ? (
                     <button
                       className="tb-menu-item danger"
