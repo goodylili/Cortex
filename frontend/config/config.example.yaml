@@ -15,6 +15,17 @@ walrus:
 seal:
   policyPackage: "" # Move package id for the allowlist policy
   policyObject: "" # the namespace's allowlist object id
+  # Key-server object ids that hold threshold shares of each blob key. Leave empty
+  # to use the SDK's allowlisted testnet servers. To pin specific servers, list the
+  # on-chain KeyServer object ids: query the Seal registry on testnet
+  # (Mysten publishes the testnet key-server ids in the @mysten/seal docs/README),
+  # or run `seal.getAllowlistedKeyServers("testnet")` and copy the objectIds.
+  # Overridable via the SEAL_SERVER_IDS env var (comma-separated).
+  serverIds: [] # e.g. ["0xabc...", "0xdef..."]
+  # How many of those servers must return a key share to decrypt. Must be >= 1 and
+  # <= serverIds.length. 1 = any single server (lowest latency, lowest redundancy);
+  # raise it for stronger guarantees. Overridable via SEAL_THRESHOLD.
+  threshold: 1
 
 memwal:
   url: ""

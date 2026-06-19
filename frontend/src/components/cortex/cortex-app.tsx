@@ -39,7 +39,11 @@ import {
   type MemState,
 } from "@/lib/cortex/memory-model";
 import type { CortexWalletState } from "@/lib/cortex/use-wallet";
-import { CORTEX_ENV, contractsEnabled } from "@/lib/cortex/walrus/env";
+import {
+  CORTEX_ENV,
+  contractsEnabled,
+  sealEnabled,
+} from "@/lib/cortex/walrus/env";
 import { getSuiClient } from "@/lib/cortex/walrus/clients";
 import {
   AGENTS,
@@ -5560,6 +5564,18 @@ export function CortexApp({
                               : "Set NEXT_PUBLIC_CORTEX_MCP_ADDRESS and deploy the contracts to enable."}
                           </div>
                         )}
+                      </div>
+
+                      <div className="scard" style={{ marginTop: 16 }}>
+                        <div className="int2-name">Encryption</div>
+                        <div
+                          className="ssub"
+                          style={{ marginTop: 4, fontFamily: "var(--mono)" }}
+                        >
+                          {sealEnabled()
+                            ? `Seal threshold (${CORTEX_ENV.seal.serverObjectIds.length} servers, threshold ${CORTEX_ENV.seal.threshold})`
+                            : "AES (wallet-derived)"}
+                        </div>
                       </div>
                     </div>
 

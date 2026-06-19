@@ -52,6 +52,15 @@ When the live path is configured, Cortex uses:
 - `Seal` for encryption and access gating
 - `MemWal` for persistent memory namespaces and recall
 
+### Encryption (Seal vs AES)
+
+Durable session and memory blobs are always encrypted client-side before they reach Walrus; which scheme is used is a runtime switch driven by configuration:
+
+- **Seal threshold encryption** is used when `NEXT_PUBLIC_SEAL_SERVER_IDS` (comma-separated key-server object ids) is set. Blobs are encrypted under the user's owner identity, with decryption gated on-chain by the `seal_approve` Move entry points; `NEXT_PUBLIC_SEAL_THRESHOLD` controls how many key servers must return a share to decrypt. New Seal blobs carry a one-byte `0x02` format tag.
+- **Wallet-derived AES-GCM** is the fallback when no Seal key servers are configured. The key is derived deterministically from a wallet signature, and new blobs carry a `0x01` tag. Blobs written before tagging existed carry no tag and are always read as AES, so the fallback stays backward-compatible.
+
+Get testnet key-server object ids from Mysten's published Seal testnet servers (see the `@mysten/seal` README) or from `getAllowlistedKeyServers("testnet")`. The same switch exists server-side for the core/MCP runtime via `seal.serverIds`/`seal.threshold` in `config.yaml` (or `SEAL_SERVER_IDS`/`SEAL_THRESHOLD`).
+
 ### Multi-Agent State
 
 The repo also contains the foundations for durable agent workflows and loop-based execution, with a shared task board, message bus, memory-backed context, and MCP access.
