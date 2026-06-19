@@ -1539,3 +1539,27 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .set-pfield{display:flex;flex-direction:column;gap:7px;margin-top:14px}
 .set-pfl{font-size:13.5px;font-weight:500;color:var(--ink)}
 .set-profile-save{position:sticky;bottom:0;margin-top:22px;padding-top:14px;background:linear-gradient(to top,var(--surface) 70%,transparent)}
+
+/* Add Model modality selector */
+.am-modality{display:inline-flex;gap:3px;background:var(--surface2);border:1px solid var(--line2);border-radius:var(--r);padding:2px;width:100%}
+.am-mod{flex:1;padding:9px 0;font-size:13.5px;color:var(--muted);border-radius:calc(var(--r) - 2px);transition:background .12s,color .12s}
+.am-mod.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+
+/* Generated media (image / video / gif) */
+.media-block{margin:2px 0;border-radius:12px;overflow:hidden}
+.media-gen{position:relative;border:1px solid var(--line);background:var(--surface2)}
+.media-shimmer{width:100%;aspect-ratio:1;background:linear-gradient(100deg,var(--surface2) 30%,var(--line) 50%,var(--surface2) 70%);background-size:200% 100%;animation:media-shine 1.3s ease-in-out infinite}
+@keyframes media-shine{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.media-partial{display:block;width:100%;height:auto;filter:saturate(.85) blur(.4px)}
+.media-gen-foot{display:flex;align-items:center;gap:10px;padding:10px 12px}
+.media-bar{flex:1;height:6px;border-radius:99px;background:var(--line);overflow:hidden}
+.media-bar-fill{height:100%;background:var(--ink);transition:width .25s ease}
+.media-pct{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.media-out{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:12px}
+.media-acts{display:flex;align-items:center;gap:8px;margin-top:8px}
+.media-ic{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;color:var(--muted);border:1px solid var(--line)}
+.media-ic:hover{color:var(--ink);background:var(--surface2)}
+.media-ic svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.media-tag{font-size:12px;color:var(--muted)}
+.media-error{border:1px solid var(--line2);background:var(--surface2);padding:14px 16px}
+.media-error-t{font-size:13.5px;color:var(--ink)}

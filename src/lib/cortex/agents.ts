@@ -135,12 +135,24 @@ export const agentByRole = (role: AgentRole): AgentDef => {
   return found;
 };
 
+export interface MediaState {
+  kind: "image" | "video" | "gif";
+  status: "generating" | "done" | "error";
+  progress?: number;
+  dataUrl?: string;
+  blobId?: string;
+  mime: string;
+  prompt?: string;
+  reason?: string;
+}
+
 export interface AgentObservation {
   id: string;
   agentId: string;
   text: string;
   ts: number;
   memoryRefs?: string[];
+  media?: MediaState;
 }
 
 export type AgentMessageKind = "handoff" | "note" | "result";

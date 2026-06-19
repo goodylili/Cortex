@@ -4,6 +4,8 @@
 
 export type Provider = "anthropic" | "openai" | "xai" | "google";
 
+export type Modality = "text" | "image" | "video";
+
 export interface ModelSpec {
   id: string;
   name: string;
@@ -12,7 +14,10 @@ export interface ModelSpec {
   apiId: string;
   price: string;
   desc: string;
+  kind?: Modality;
 }
+
+export const modelKind = (m: { kind?: Modality }): Modality => m.kind ?? "text";
 
 export const LLM_MODELS: ModelSpec[] = [
   {
