@@ -11,6 +11,7 @@ import type { Clients } from "../../sui/app/clients";
 import {
   readWorkspaceBus,
   readWorkspaceTasks,
+  resolveWorkspaceId,
   writeWorkspaceBus,
   writeWorkspaceTasks,
 } from "./workspace";
@@ -111,19 +112,20 @@ function rid(prefix: string): string {
   return prefix + "_" + randomUUID().slice(0, 8);
 }
 
-function requireWorkspace(cfg: Config): string {
-  if (!cfg.workspaceId)
+async function requireWorkspace(cfg: Config): Promise<string> {
+  const workspaceId = await resolveWorkspaceId(cfg);
+  if (!workspaceId)
     throw new Error(
-      "agent task board needs CORTEX_WORKSPACE_ID (the user's Workspace object id)",
+      "agent task board needs a Workspace: set CORTEX_WORKSPACE_ID, or set CORTEX_USER_ADDRESS so the id created from the app (account setting) can be read back",
     );
-  return cfg.workspaceId;
+  return workspaceId;
 }
 
 export async function listTasks(
   c: Clients,
   cfg: Config,
 ): Promise<AgentTaskRecord[]> {
-  const workspaceId = requireWorkspace(cfg);
+  const workspaceId = await requireWorkspace(cfg);
   return (await readWorkspaceTasks(c, cfg, workspaceId)) ?? [];
 }
 
@@ -141,7 +143,7 @@ export async function createTask(
   cfg: Config,
   args: { goal: string; assignTo: string; createdBy?: string },
 ): Promise<AgentTaskRecord> {
-  const workspaceId = requireWorkspace(cfg);
+  const workspaceId = await requireWorkspace(cfg);
   const goal = args.goal.trim();
   if (!goal) throw new Error("createTask: goal must not be empty");
   const agent = agentById(args.assignTo);
@@ -179,7 +181,7 @@ async function mutateTask(
   taskId: string,
   fn: (task: AgentTaskRecord) => AgentTaskRecord,
 ): Promise<AgentTaskRecord> {
-  const workspaceId = requireWorkspace(cfg);
+  const workspaceId = await requireWorkspace(cfg);
   const tasks = (await readWorkspaceTasks(c, cfg, workspaceId)) ?? [];
   const target = tasks.find((t) => t.id === taskId);
   if (!target) throw new Error(`task "${taskId}" not found`);
@@ -270,7 +272,7 @@ export async function postMessage(
     content: string;
   },
 ): Promise<AgentMessageRecord> {
-  const workspaceId = requireWorkspace(cfg);
+  const workspaceId = await requireWorkspace(cfg);
   const msg: AgentMessageRecord = {
     id: rid("amsg"),
     from: args.from,
@@ -290,7 +292,7 @@ export async function listMessages(
   cfg: Config,
   args?: { taskId?: string; limit?: number },
 ): Promise<AgentMessageRecord[]> {
-  const workspaceId = requireWorkspace(cfg);
+  const workspaceId = await requireWorkspace(cfg);
   const bus = (await readWorkspaceBus(c, cfg, workspaceId)) ?? [];
   const msgs: AgentMessageRecord[] = [];
   for (const m of bus) {

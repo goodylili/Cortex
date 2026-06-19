@@ -11,7 +11,9 @@ import type { Clients } from "../../sui/app/clients";
 import type { AgentMessageRecord, AgentTaskRecord } from "./agents";
 import type { LoopRun } from "../lib/cortex/loops";
 import { importExternal } from "./external";
+import { readUserAccount } from "./user-access";
 
+const WORKSPACE_SETTING_KEY = "agents:workspace";
 const SUI_ADDRESS_BYTES = 32;
 const TASKS_SCOPE = "tasks";
 const BUS_SCOPE = "bus";
@@ -239,6 +241,18 @@ async function writeScope(
   const sealed = await sealEncryptJson(cfg, workspaceId, scope, payload);
   const blobId = await c.walrus.putBlob(sealed);
   await setBlobOnChain(cfg, workspaceId, fnTarget, blobId);
+}
+
+// Resolve the user's Workspace object id. An explicit CORTEX_WORKSPACE_ID (env or
+// config) always wins; otherwise, when the authorized user's address is known, read
+// the id the browser persisted to that user's on-chain Account settings. Returns null
+// when neither is available so callers can surface a clear "not set up yet" error.
+export async function resolveWorkspaceId(cfg: Config): Promise<string | null> {
+  if (cfg.workspaceId) return cfg.workspaceId;
+  if (!cfg.userAddress) return null;
+  const account = await readUserAccount(cfg, cfg.userAddress);
+  const fromSetting = account?.settings[WORKSPACE_SETTING_KEY];
+  return fromSetting && fromSetting.length > 0 ? fromSetting : null;
 }
 
 export async function readWorkspaceTasks(
