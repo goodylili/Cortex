@@ -1,0 +1,19 @@
+{
+  "//": "Typecheck config for the Cortex backend runtime: memory core, the Sui/Walrus TS clients, and the shared loop spec. Run via tsx; no emit.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "noEmit": true
+  },
+  "include": ["src/core", "src/lib/cortex", "sui/app", "sui/walrus"],
+  "exclude": ["node_modules", "dist"]
+}
