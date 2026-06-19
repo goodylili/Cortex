@@ -1,7 +1,7 @@
 // The collaboration layer for the MCP hub. A small team of specialist agents work
 // over the same Walrus-backed memory plane the rest of Cortex uses. Their shared
-// task board and message bus live in one on-chain Workspace object — a single
-// Seal-encrypted blob per scope — so the MCP hub and the browser app read and
+// task board and message bus live in one on-chain Workspace object  -  a single
+// Seal-encrypted blob per scope  -  so the MCP hub and the browser app read and
 // extend the exact same state. Mirrors the browser roster in
 // src/lib/cortex/agents.ts (separate runtime, same ids and prompts).
 
@@ -16,7 +16,7 @@ import {
   writeWorkspaceTasks,
 } from "./workspace";
 
-export type AgentRole = "researcher" | "curator" | "planner" | "critic";
+export type AgentRole = string;
 export type TaskStatus = "open" | "in_progress" | "blocked" | "done";
 export type AgentMessageKind = "handoff" | "note" | "result";
 
@@ -413,7 +413,7 @@ export async function runCriticStep(
 }
 
 // Recall shared memory, reason as the agent, then record the result as an
-// observation on the task and a message on the bus — one full collaborative step.
+// observation on the task and a message on the bus  -  one full collaborative step.
 export async function runAndRecordStep(
   c: Clients,
   cfg: Config,

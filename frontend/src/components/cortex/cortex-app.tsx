@@ -46,10 +46,9 @@ import {
 } from "@/lib/cortex/walrus/env";
 import { getSuiClient } from "@/lib/cortex/walrus/clients";
 import {
-  AGENTS,
   type AgentRole,
   ACCENTS,
-  ROLE_LABELS,
+  roleLabel,
   isBuiltInAgent,
 } from "@/lib/cortex/agents";
 import type { LoopRun, LoopSpec } from "@cortex/core/loops";
@@ -157,7 +156,6 @@ const CODE_TYPES = ["json", "xml", "yaml", "function", "multimodal", "schema"];
 
 const ROOM_SLUG_WORDS = 3;
 const ROOM_PREVIEW_CAP = 5;
-const AGENT_NAMES = AGENTS.map((a) => a.name);
 const roomSlug = (goal: string): string => {
   const words = goal
     .toLowerCase()
@@ -254,7 +252,7 @@ const dataUrlToFile = async (url: string, name: string): Promise<File> => {
 };
 const renderMessageText = (
   text: string,
-  names: string[] = AGENT_NAMES,
+  names: string[] = [],
 ): React.ReactNode[] => {
   const nodes: React.ReactNode[] = [];
   text.split(/(`[^`]+`)/g).forEach((part, pi) => {
@@ -318,7 +316,7 @@ export function CortexApp({
   const [memFilter, setMemFilter] = useState("all");
   const [memTab, setMemTab] = useState<"cards" | "timeline">("cards");
   const [captureOpen, setCaptureOpen] = useState(false);
-  const [agentAssignee, setAgentAssignee] = useState<string>(AGENTS[0]!.id);
+  const [agentAssignee, setAgentAssignee] = useState<string>("");
   const [roomTaskId, setRoomTaskId] = useState<string | null>(null);
   const [threadTaskId, setThreadTaskId] = useState<string | null>(null);
   const [threadReply, setThreadReply] = useState("");
@@ -328,7 +326,7 @@ export function CortexApp({
   const [secAgents, setSecAgents] = useState(true);
   const [agModalOpen, setAgModalOpen] = useState(false);
   const [agName, setAgName] = useState("");
-  const [agRole, setAgRole] = useState<AgentRole>("researcher");
+  const [agRole, setAgRole] = useState<AgentRole>("");
   const [agBlurb, setAgBlurb] = useState("");
   const [agAccent, setAgAccent] = useState<string>(ACCENTS[0]!);
   const [agRenameId, setAgRenameId] = useState<string | null>(null);
@@ -1740,6 +1738,11 @@ export function CortexApp({
       );
       return;
     }
+    if (!roster.length) {
+      setAgModalOpen(true);
+      flash("Create an agent first to open a task room.");
+      return;
+    }
     const roomTask = roomTaskId
       ? st.tasks.find((t) => t.id === roomTaskId)
       : undefined;
@@ -1773,7 +1776,7 @@ export function CortexApp({
     }
     setAgName("");
     setAgBlurb("");
-    setAgRole("researcher");
+    setAgRole("");
     setAgAccent(ACCENTS[0]!);
     setAgModalOpen(false);
   }
@@ -1799,10 +1802,17 @@ export function CortexApp({
   async function makeLoopFromStudio() {
     const goal = studioTask.trim();
     if (!goal || loopBusy) return;
+    const lead = useCortex.getState().agents[0];
+    if (!lead) {
+      setView("agents");
+      setAgModalOpen(true);
+      flash("Create an agent first to run a loop.");
+      return;
+    }
     setLoopBusy(true);
     flash("Reading memory to write the loop…");
     try {
-      const id = await s.generateLoop(goal, AGENTS[0]!.id);
+      const id = await s.generateLoop(goal, lead.id);
       if (id) {
         s.startLoop(id);
         setView("agents");
@@ -2921,9 +2931,14 @@ export function CortexApp({
                       <button
                         className="pr-new"
                         onClick={() => {
+                          if (!roster.length) {
+                            setAgModalOpen(true);
+                            return;
+                          }
                           setRoomTaskId(null);
                           setThreadTaskId(null);
                           setAgMode("task");
+                          setAgentAssignee(roster[0]!.id);
                           ta.current?.focus();
                         }}
                       >
@@ -3054,7 +3069,7 @@ export function CortexApp({
                                     <div className="pr-member-n">{a.name}</div>
                                   )}
                                   <div className="pr-member-r">
-                                    {ROLE_LABELS[a.role]}
+                                    {roleLabel(a.role)}
                                   </div>
                                 </div>
                                 <div className="pr-member-acts">
@@ -3109,6 +3124,26 @@ export function CortexApp({
                               </div>
                             );
                           })}
+                        {secAgents && roster.length === 0 && (
+                          <div className="pr-roster-empty">
+                            <p className="pr-roster-empty-t">
+                              No agents yet
+                            </p>
+                            <p className="pr-roster-empty-s">
+                              Build your own team. Each agent works over your
+                              shared memory and hands tasks to the others.
+                            </p>
+                            <button
+                              className="pr-roster-empty-btn"
+                              onClick={() => setAgModalOpen(true)}
+                            >
+                              <svg viewBox="0 0 24 24">
+                                <path d="M12 5v14M5 12h14" />
+                              </svg>
+                              Create your first agent
+                            </button>
+                          </div>
+                        )}
 
                         <div className="pr-grp">
                           <span className="pr-grp-l">Direct</span>
@@ -3148,8 +3183,6 @@ export function CortexApp({
                         id.length > 14
                           ? `${id.slice(0, 8)}…${id.slice(-4)}`
                           : id;
-                      const signedIn = !!walletState?.wallet;
-                      const configured = contractsEnabled() && sealEnabled();
                       if (workspaceId) {
                         return (
                           <div className="pr-setup ok">
@@ -3163,22 +3196,21 @@ export function CortexApp({
                           </div>
                         );
                       }
+                      if (!workspaceReady) return null;
                       return (
                         <div className="pr-setup">
                           <div className="pr-setup-l">
                             <b>Set up agent workspace</b>
                             <span className="pr-setup-sub">
-                              {!signedIn
-                                ? "Sign in to create the shared on-chain board your agents (and the MCP) collaborate through."
-                                : !configured
-                                  ? "Add the cortex contracts and Seal key servers (NEXT_PUBLIC_CORTEX_PACKAGE_ID, NEXT_PUBLIC_SEAL_SERVER_IDS) to enable the on-chain board."
-                                  : "Create the shared Workspace once. Its id is saved to your account so the app and your MCP read the same board."}
+                              Create the shared Workspace once. Its id is saved to
+                              your account so the app and your MCP read the same
+                              board.
                             </span>
                           </div>
                           <button
                             className="pr-setup-btn"
                             onClick={createAgentWorkspace}
-                            disabled={!workspaceReady || workspaceBusy}
+                            disabled={workspaceBusy}
                           >
                             {workspaceBusy
                               ? "Creating…"
@@ -3959,7 +3991,7 @@ export function CortexApp({
                                   .filter((x) => x.id !== thread.assignedTo)
                                   .map((x) => (
                                     <option key={x.id} value={x.id}>
-                                      @{x.name} · {ROLE_LABELS[x.role]}
+                                      @{x.name} · {roleLabel(x.role)}
                                     </option>
                                   ))}
                               </select>
@@ -6503,7 +6535,7 @@ export function CortexApp({
                 </span>
                 <div className="ag-preview-m">
                   <div className="ag-preview-n">{agName || "New agent"}</div>
-                  <div className="ag-preview-r">{ROLE_LABELS[agRole]}</div>
+                  <div className="ag-preview-r">{roleLabel(agRole)}</div>
                 </div>
               </div>
               <label className="am-field">
@@ -6523,23 +6555,15 @@ export function CortexApp({
               </label>
               <label className="am-field">
                 <span className="am-label">Role</span>
-                <div className="am-select">
-                  <select
-                    value={agRole}
-                    onChange={(e) => setAgRole(e.target.value as AgentRole)}
-                  >
-                    {(
-                      Object.keys(ROLE_LABELS) as (keyof typeof ROLE_LABELS)[]
-                    ).map((r) => (
-                      <option key={r} value={r}>
-                        {ROLE_LABELS[r]}
-                      </option>
-                    ))}
-                  </select>
-                  <svg viewBox="0 0 24 24">
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </div>
+                <input
+                  className="ag-input"
+                  placeholder="e.g. Researcher, Strategist, QA reviewer…"
+                  value={agRole}
+                  onChange={(e) => setAgRole(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") createAgentFromForm();
+                  }}
+                />
               </label>
               <label className="am-field">
                 <span className="am-label">Specialty</span>

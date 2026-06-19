@@ -1,13 +1,13 @@
 // A small team of specialist agents that collaborate over one shared, durable
 // Walrus memory. Pure and deterministic, like the memory model: every constructor
 // and transition returns a new immutable value, nothing here touches React or the
-// network. The roles split the work — research, curation, planning, critique — and
+// network. The roles split the work  -  research, curation, planning, critique  -  and
 // hand tasks off to one another. Each agent's system prompt grounds it in the
 // shared memories it is given and asks for one concrete next action.
 
 import { uid } from "./logic";
 
-export type AgentRole = "researcher" | "curator" | "planner" | "critic";
+export type AgentRole = string;
 export type TaskStatus = "open" | "in_progress" | "blocked" | "done";
 
 export interface AgentDef {
@@ -72,19 +72,31 @@ export const AGENTS: AgentDef[] = [
   },
 ];
 
-export const ROLE_LABELS: Record<AgentRole, string> = {
+export const ROLE_LABELS: Record<string, string> = {
   researcher: "Researcher",
   curator: "Curator",
   planner: "Planner",
   critic: "Critic",
 };
 
-const ROLE_SPECIALTY: Record<AgentRole, string> = {
+const ROLE_SPECIALTY: Record<string, string> = {
   researcher: "gathering facts, sources, and links, and proposing new memories worth keeping",
   curator: "organizing, deduping, and tagging the shared memory, and deciding what is worth keeping",
   planner: "breaking a goal into ordered steps, sequencing the work, and assigning handoffs",
   critic: "reviewing the team's outputs, flagging gaps, contradictions, and unsupported claims",
 };
+
+const GENERIC_SPECIALTY = "the work you are assigned and proposing useful next steps";
+
+export const roleLabel = (role: AgentRole): string => {
+  const known = ROLE_LABELS[role];
+  if (known) return known;
+  const trimmed = role.trim();
+  return trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : "Agent";
+};
+
+export const roleSpecialty = (role: AgentRole): string =>
+  ROLE_SPECIALTY[role] ?? GENERIC_SPECIALTY;
 
 export const ACCENTS = [
   "#3b82f6",
@@ -107,14 +119,15 @@ export const makeAgent = (input: {
   blurb?: string;
 }): AgentDef => {
   const name = input.name.trim();
+  const role = input.role.trim();
   const blurb = (input.blurb ?? "").trim();
-  const specialty = blurb || ROLE_SPECIALTY[input.role];
+  const specialty = blurb || roleSpecialty(role);
   return {
     id: uid("agent"),
     name,
-    role: input.role,
-    blurb: blurb || `Specializes in ${ROLE_SPECIALTY[input.role]}.`,
-    system: `You are ${name}, a ${input.role} on the team. Your specialty is ${specialty}. ${SHARED_MEMORY_CLAUSE}`,
+    role,
+    blurb: blurb || `Specializes in ${roleSpecialty(role)}.`,
+    system: `You are ${name}, a ${roleLabel(role)} on the team. Your specialty is ${specialty}. ${SHARED_MEMORY_CLAUSE}`,
     accent: input.accent,
   };
 };

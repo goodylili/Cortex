@@ -63,8 +63,7 @@ import {
   type AgentRole,
   type MediaState,
   type AgentObservation,
-  AGENTS,
-  ROLE_LABELS,
+  roleLabel,
   agentById,
   findAgent,
   makeAgent,
@@ -262,7 +261,7 @@ export interface ChatMsg {
 type Mode = "remember" | "ask";
 type Importance = "low" | "normal" | "high";
 
-// A source document memories were distilled from — note, file or webpage. Tracks
+// A source document memories were distilled from  -  note, file or webpage. Tracks
 // provenance (where it's from) and the memories it produced.
 export interface CortexDocument {
   id: string;
@@ -518,7 +517,7 @@ export const useCortex = create<State>((set, get) => ({
   activeId: "",
   tasks: [],
   agentMessages: [],
-  agents: AGENTS,
+  agents: [],
   loops: [],
   sharedMemories: [],
   shares: [],
@@ -574,8 +573,7 @@ export const useCortex = create<State>((set, get) => ({
     const chat = chatsById[activeId] ?? [];
     const tasks = data.tasks ?? [];
     const agentMessages = data.agentMessages ?? [];
-    const custom = (data.agents ?? []).filter((a) => !isBuiltInAgent(a.id));
-    const agents = [...AGENTS, ...custom];
+    const agents = data.agents ?? [];
     const loops = (data.loops ?? []).map((r) =>
       r.status === "running" ? setRunStatus(r, "paused", now) : r,
     );
@@ -1479,7 +1477,8 @@ export const useCortex = create<State>((set, get) => ({
     const g = goal.trim();
     if (!g) return "";
     const now = Date.now();
-    const agent = findAgent(get().agents, assignTo) ?? get().agents[0]!;
+    const agent = findAgent(get().agents, assignTo) ?? get().agents[0];
+    if (!agent) return "";
     const task = newTask(g, agent.id, "user", now);
     const msg = newMessage(
       "user",
@@ -1513,7 +1512,8 @@ export const useCortex = create<State>((set, get) => ({
     const state = get();
     const task = state.tasks.find((t) => t.id === taskId);
     if (!task) return;
-    const agent = findAgent(state.agents, task.assignedTo) ?? state.agents[0]!;
+    const agent = findAgent(state.agents, task.assignedTo) ?? state.agents[0];
+    if (!agent) return;
     const now = Date.now();
     const cfg = state.config;
     const live = state.live().filter((m) => isRetrievable(m, now, cfg));
@@ -1714,7 +1714,7 @@ export const useCortex = create<State>((set, get) => ({
         s.events,
         "agent",
         `Added agent ${agent.name}`,
-        `${ROLE_LABELS[agent.role]} · ${agent.blurb}`,
+        `${roleLabel(agent.role)} · ${agent.blurb}`,
       );
       persist({ memories: s.memories, events, cost: s.cost, agents });
       return { agents, events };
@@ -1751,7 +1751,9 @@ export const useCortex = create<State>((set, get) => ({
   generateLoop: async (task, assignTo) => {
     const goal = task.trim();
     if (!goal) return "";
-    const agent = agentById(assignTo) ?? AGENTS[0]!;
+    const agent =
+      findAgent(get().agents, assignTo) ?? agentById(assignTo) ?? get().agents[0];
+    if (!agent) return "";
     const now = Date.now();
     const cfg = get().config;
     const live = get()
@@ -1861,7 +1863,14 @@ export const useCortex = create<State>((set, get) => ({
           finish("gave_up");
           return;
         }
-        const agent = agentById(run.spec.agentId) ?? AGENTS[0]!;
+        const agent =
+          findAgent(get().agents, run.spec.agentId) ??
+          agentById(run.spec.agentId) ??
+          get().agents[0];
+        if (!agent) {
+          finish("gave_up");
+          return;
+        }
         const now = Date.now();
         const cfg = get().config;
         const live = get()
