@@ -23,6 +23,7 @@ export interface Config {
   accessRegistryId: string;
   executorCapId: string;
   workspaceId: string;
+  userAddress: string;
 }
 
 const DEFAULTS: Config = {
@@ -46,6 +47,7 @@ const DEFAULTS: Config = {
   accessRegistryId: "",
   executorCapId: "",
   workspaceId: "",
+  userAddress: "",
 };
 
 function deepMerge<T>(base: T, over: Partial<T> | undefined): T {
@@ -89,6 +91,8 @@ export function loadConfig(
     cfg.accessRegistryId = process.env.CORTEX_ACCESS_REGISTRY;
   if (process.env.CORTEX_EXECUTOR_CAP)
     cfg.executorCapId = process.env.CORTEX_EXECUTOR_CAP;
+  if (process.env.CORTEX_USER_ADDRESS)
+    cfg.userAddress = process.env.CORTEX_USER_ADDRESS;
   if (process.env.SEAL_SERVER_IDS)
     cfg.seal.serverIds = process.env.SEAL_SERVER_IDS.split(",")
       .map((s) => s.trim())
