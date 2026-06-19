@@ -13,22 +13,22 @@ interface BlogPost {
 
 const posts: BlogPost[] = [
   {
-    slug: "layout-mode",
-    title: "Introducing Layout Mode",
-    description: "Show your agent where things go — drag components, rearrange sections, and wireframe pages instead of describing layouts in words.",
-    date: "March 24, 2026",
-    image: "/blog/layout-mode.png",
+    slug: "introducing-cortex",
+    title: "Introducing Cortex",
+    description: "A local-first persistent memory layer for AI. Stop losing context every time the session, tool, or model changes.",
+    date: "June 19, 2026",
+    image: "",
   },
   {
-    slug: "introducing-agentation-2",
-    title: "Introducing Agentation 2.0",
-    description: "Annotations become a two-way conversation. Your AI agent can now see, respond to, and resolve your feedback in real time.",
-    date: "February 5, 2026",
-    image: "/blog/agentation-2.png",
+    slug: "durable-memory",
+    title: "Why Memory Should Be Durable",
+    description: "Hidden context is a liability. Cortex makes memory inspectable, content-addressed, and consolidated over time — not a black box.",
+    date: "June 19, 2026",
+    image: "",
   },
 ];
 
-export default function BlogPage() {
+export default function BlogPage(): React.JSX.Element {
   return (
     <>
       <article className="article">
@@ -48,7 +48,7 @@ export default function BlogPage() {
                 <div
                   style={{
                     aspectRatio: "3600 / 1890",
-                    background: "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
+                    background: "var(--surface2)",
                     overflow: "hidden",
                   }}
                 >
@@ -64,7 +64,7 @@ export default function BlogPage() {
                     />
                   )}
                 </div>
-                <div style={{ padding: "1rem 1.25rem", background: "rgba(0, 0, 0, 0.02)" }}>
+                <div style={{ padding: "1rem 1.25rem", background: "var(--surface)" }}>
                   <div
                     style={{
                       display: "flex",
@@ -78,18 +78,18 @@ export default function BlogPage() {
                       style={{
                         fontSize: "0.9375rem",
                         fontWeight: 500,
-                        color: "rgba(0, 0, 0, 0.85)",
+                        color: "var(--ink)",
                         margin: 0,
                       }}
                     >
                       {post.title}
                     </h3>
-                    <span style={{ color: "rgba(0, 0, 0, 0.25)" }}>•</span>
+                    <span style={{ color: "var(--faint)" }}>•</span>
                     <time
                       style={{
                         fontSize: "0.75rem",
                         fontWeight: 300,
-                        color: "rgba(0, 0, 0, 0.4)",
+                        color: "var(--muted)",
                       }}
                     >
                       {post.date}
@@ -98,7 +98,7 @@ export default function BlogPage() {
                   <p
                     style={{
                       fontSize: "0.8125rem",
-                      color: "rgba(0, 0, 0, 0.55)",
+                      color: "var(--muted)",
                       lineHeight: 1.45,
                       margin: 0,
                     }}

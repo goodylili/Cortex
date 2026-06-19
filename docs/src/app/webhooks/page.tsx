@@ -4,271 +4,179 @@ import { Footer } from "../Footer";
 import { CodeBlock } from "../components/CodeBlock";
 import { WebhooksDiagram } from "../components/WebhooksDiagram";
 
-export default function WebhooksPage() {
+const HINT_STYLE = {
+  fontSize: "0.8125rem",
+  color: "var(--muted)",
+  marginTop: "0.5rem",
+} as const;
+
+export default function OutboundPage(): React.JSX.Element {
   return (
     <>
       <article className="article">
         <header>
-          <h1>Webhooks</h1>
+          <h1>Outbound</h1>
           <p className="tagline">
-            Send annotation events to external services automatically
+            Pull the web into memory, push events to your services, and let agents talk
           </p>
         </header>
 
         <section>
           <h2 id="overview">Overview</h2>
           <p>
-            Webhooks allow you to receive annotation data at external URLs when users interact with annotations.
-            This enables integrations with Slack, Discord, custom backends, CI/CD pipelines, and more.
+            The MCP server&apos;s outbound layer bridges Cortex to the world beyond your
+            namespace. It pulls external content <strong>into</strong> memory, pushes
+            events <strong>out</strong> to your services, and exports a portable copy of
+            everything you have kept. A durable agent bus lets connected agents message
+            each other across that same shared memory.
           </p>
-          <p>
-            Configure a webhook URL via the <code>webhookUrl</code> prop, and events will be sent automatically
-            when annotations are created, updated, deleted, or submitted.
-          </p>
+          <ul style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+            <li>
+              <code>web_fetch</code> &mdash; fetch a URL, optionally as durable memory
+            </li>
+            <li>
+              <code>service_notify</code> &mdash; POST events to a Slack / Discord /
+              Zapier webhook
+            </li>
+            <li>
+              <code>service_export</code> &mdash; a portable JSON bundle of your memory
+            </li>
+            <li>
+              <code>agent_message_post</code> / <code>agent_message_list</code> &mdash;
+              the durable agent message bus
+            </li>
+          </ul>
 
           <WebhooksDiagram />
         </section>
 
         <section>
-          <h2 id="configuration">Configuration</h2>
+          <h2 id="web-fetch">Web Fetch</h2>
           <p>
-            Add the <code>webhookUrl</code> prop to enable webhooks:
+            <code>web_fetch</code> fetches a URL and returns its text. By default it is a
+            read-only fetch. Pass <code>ingest: true</code> and the fetched content is
+            run through extraction and written as <strong>durable memory</strong> &mdash;
+            so the page becomes recallable from every connected client.
           </p>
           <CodeBlock
-            language="tsx"
+            language="json"
             copyable
-            code={`import { Agentation } from "agentation";
+            code={`// fetch only — returns the page text
+{ "url": "https://example.com/post" }
 
-function App() {
-  return (
-    <>
-      <YourApp />
-      <Agentation webhookUrl="https://your-server.com/webhook" />
-    </>
-  );
-}`}
+// fetch and remember — extracts memories from the page
+{ "url": "https://example.com/post", "ingest": true }`}
           />
-          <p style={{ marginTop: "0.75rem", fontSize: "0.8125rem", color: "rgba(0,0,0,0.55)" }}>
-            With a webhook URL configured, you have two options: enable Auto-Send to fire events automatically,
-            or click &quot;Send Annotations&quot; in the toolbar manually. When Auto-Send is on, the toolbar button
-            is hidden.
+          <p style={HINT_STYLE}>
+            With <code>ingest=true</code> the response confirms the byte count, the source
+            id, and how many memories were extracted. Requests time out after 30 seconds.
           </p>
         </section>
 
         <section>
-          <h2 id="events">Events</h2>
+          <h2 id="notify">Notify</h2>
           <p>
-            Webhooks fire for the following events:
-          </p>
-          <ul style={{ fontSize: "0.8125rem", color: "rgba(0,0,0,0.65)" }}>
-            <li><code>annotation.add</code> &mdash; New annotation created</li>
-            <li><code>annotation.delete</code> &mdash; Annotation deleted</li>
-            <li><code>annotation.update</code> &mdash; Annotation comment edited</li>
-            <li><code>annotations.clear</code> &mdash; All annotations cleared</li>
-            <li><code>submit</code> &mdash; &quot;Send Annotations&quot; clicked</li>
-          </ul>
-        </section>
-
-        <section>
-          <h2 id="webhook-payload">Webhook Payload</h2>
-          <p>
-            All events send a POST request with the following JSON structure:
+            <code>service_notify</code> POSTs a JSON payload to the webhook configured in{" "}
+            <code>CORTEX_WEBHOOK_URL</code> &mdash; any Slack, Discord, or Zapier incoming
+            webhook. Use it to push memory events out to the rest of your stack. The tool
+            errors if <code>CORTEX_WEBHOOK_URL</code> is unset.
           </p>
           <CodeBlock
-            language="json"
-            code={`{
-  "event": "annotation.add",
-  "timestamp": 1706234567890,
-  "url": "https://example.com/dashboard",
-  "annotation": {
-    "id": "1706234567890",
-    "comment": "Button is cut off on mobile",
-    "element": "button",
-    "elementPath": "body > main > form > button.submit-btn",
-    "timestamp": 1706234567890
-  }
-}`}
-          />
-
-          <h3 style={{ marginTop: "1.5rem" }}>Event-specific payloads</h3>
-          <p style={{ fontSize: "0.8125rem", color: "rgba(0,0,0,0.65)" }}>
-            <code>annotation.add</code> / <code>annotation.delete</code> / <code>annotation.update</code>
-          </p>
-          <CodeBlock
-            language="json"
-            code={`{
-  "event": "annotation.add",
-  "timestamp": 1706234567890,
-  "url": "https://example.com/page",
-  "annotation": { ... }
-}`}
-          />
-
-          <p style={{ marginTop: "1rem", fontSize: "0.8125rem", color: "rgba(0,0,0,0.65)" }}>
-            <code>annotations.clear</code>
-          </p>
-          <CodeBlock
-            language="json"
-            code={`{
-  "event": "annotations.clear",
-  "timestamp": 1706234567890,
-  "url": "https://example.com/page",
-  "annotations": [ ... ]
-}`}
-          />
-
-          <p style={{ marginTop: "1rem", fontSize: "0.8125rem", color: "rgba(0,0,0,0.65)" }}>
-            <code>submit</code>
-          </p>
-          <CodeBlock
-            language="json"
-            code={`{
-  "event": "submit",
-  "timestamp": 1706234567890,
-  "url": "https://example.com/page",
-  "output": "# Page Feedback\\n\\n...",
-  "annotations": [ ... ]
-}`}
-          />
-        </section>
-
-        <section>
-          <h2 id="client-callback">Combining with Callbacks</h2>
-          <p>
-            You can use webhooks alongside the <code>onSubmit</code> and other callback props.
-            Both will fire when events occur:
-          </p>
-          <CodeBlock
-            language="tsx"
+            language="bash"
             copyable
-            code={`<Agentation
-  webhookUrl="https://your-server.com/webhook"
-  onSubmit={(output, annotations) => {
-    // This fires in addition to the webhook
-    console.log("Submitted:", annotations.length, "annotations");
-  }}
-  onAnnotationAdd={(annotation) => {
-    // Track in analytics
-    analytics.track("annotation_created");
-  }}
-/>`}
+            code={`# .env — an incoming webhook for Slack, Discord, or Zapier
+CORTEX_WEBHOOK_URL=https://hooks.slack.com/services/T000/B000/XXXX`}
           />
-        </section>
-
-        <section>
-          <h2 id="use-cases">Use Cases</h2>
-
-          <h3>Slack Notifications</h3>
-          <CodeBlock
-            language="typescript"
-            code={`// Server webhook handler
-app.post("/webhook/agentation", async (req, res) => {
-  const { event, annotation, url } = req.body;
-
-  if (event === "annotation.add") {
-    await fetch(process.env.SLACK_WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: \`New annotation on \${url}: "\${annotation.comment}"\`,
-      }),
-    });
-  }
-
-  res.json({ ok: true });
-});`}
-          />
-
-          <h3>GitHub Issue Creation</h3>
-          <CodeBlock
-            language="typescript"
-            code={`app.post("/webhook/agentation", async (req, res) => {
-  const { event, output, annotations } = req.body;
-
-  if (event === "submit" && annotations.length > 0) {
-    await fetch("https://api.github.com/repos/owner/repo/issues", {
-      method: "POST",
-      headers: {
-        Authorization: \`Bearer \${process.env.GITHUB_TOKEN}\`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        title: \`[Feedback] \${annotations.length} annotation(s)\`,
-        body: output,
-        labels: ["feedback"],
-      }),
-    });
-  }
-
-  res.json({ ok: true });
-});`}
-          />
-
-          <h3>Real-time Dashboard</h3>
-          <CodeBlock
-            language="typescript"
-            code={`// Server with WebSocket broadcast
-app.post("/webhook/agentation", (req, res) => {
-  const { event, annotation, url } = req.body;
-
-  // Broadcast to connected dashboard clients
-  wss.clients.forEach((client) => {
-    client.send(JSON.stringify({
-      type: "annotation_event",
-      event,
-      annotation,
-      url,
-    }));
-  });
-
-  res.json({ ok: true });
-});`}
-          />
-        </section>
-
-        <section>
-          <h2 id="security">Security Considerations</h2>
-          <ul>
-            <li>
-              <strong>Use HTTPS</strong> &mdash; Always use encrypted connections for webhook URLs
-            </li>
-            <li>
-              <strong>Validate origin</strong> &mdash; Check the request origin if your webhook is public
-            </li>
-            <li>
-              <strong>Rate limiting</strong> &mdash; Implement rate limits to prevent abuse
-            </li>
-            <li>
-              <strong>Sanitize content</strong> &mdash; Annotation comments may contain user-generated content; sanitize before rendering
-            </li>
-          </ul>
-        </section>
-
-        <section>
-          <h2 id="testing">Testing Webhooks</h2>
-          <p>
-            Tools for testing webhooks during development:
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+            Call it with an <code>event</code> name and an optional{" "}
+            <code>payload</code> object:
           </p>
-          <ul style={{ fontSize: "0.8125rem", color: "rgba(0,0,0,0.65)" }}>
-            <li>
-              <strong>webhook.site</strong> &mdash; Free public endpoint for testing payloads
-            </li>
-            <li>
-              <strong>ngrok</strong> &mdash; Expose local server for testing with real URLs
-            </li>
-            <li>
-              <strong>RequestBin</strong> &mdash; Inspect and debug webhook payloads
-            </li>
-          </ul>
-
-          <h3>Quick Test Setup</h3>
           <CodeBlock
-            language="tsx"
-            code={`// Use webhook.site for testing
-<Agentation webhookUrl="https://webhook.site/your-unique-id" />
-
-// Then create annotations and check webhook.site for payloads`}
+            language="json"
+            copyable
+            code={`{
+  "event": "memory.kept",
+  "payload": { "summary": "Decided to ship the connector page" }
+}`}
           />
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+            The server wraps your call and POSTs the envelope below to the webhook:
+          </p>
+          <CodeBlock
+            language="json"
+            code={`{
+  "source": "cortex-mcp",
+  "namespace": "default",
+  "event": "memory.kept",
+  "payload": { "summary": "Decided to ship the connector page" },
+  "at": "2026-06-19T12:00:00.000Z"
+}`}
+          />
+        </section>
+
+        <section>
+          <h2 id="export">Export</h2>
+          <p>
+            <code>service_export</code> returns a portable JSON bundle of your namespace
+            &mdash; the current head and every live memory &mdash; ready to sync into
+            another tool, back up, or hand to another agent. It takes no arguments.
+          </p>
+          <CodeBlock
+            language="json"
+            code={`{
+  "kind": "cortex.export.v1",
+  "namespace": "default",
+  "head": "a1b2c3...",
+  "live": true,
+  "exportedAt": "2026-06-19T12:00:00.000Z",
+  "memories": [ /* every live memory in the namespace */ ]
+}`}
+          />
+        </section>
+
+        <section>
+          <h2 id="agent-bus">Agent Bus</h2>
+          <p>
+            The agent bus is a <strong>durable, event-sourced message stream</strong>
+            stored as MemWal records alongside your memory. Connected agents &mdash; and
+            you &mdash; post and read messages over it, so collaboration survives across
+            sessions, hosts, and restarts instead of living in one client&apos;s
+            transient context.
+          </p>
+
+          <h3>agent_message_post</h3>
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+            Post a message to the bus. <code>from</code> and <code>to</code> may be an
+            agent id, <code>&quot;user&quot;</code>, or <code>&quot;team&quot;</code>;{" "}
+            <code>kind</code> is one of <code>handoff</code>, <code>note</code>, or{" "}
+            <code>result</code>; <code>taskId</code> ties the message to a task.
+          </p>
+          <CodeBlock
+            language="json"
+            copyable
+            code={`{
+  "from": "researcher",
+  "to": "curator",
+  "taskId": "task_42",
+  "kind": "handoff",
+  "content": "Gathered the sources — ready for you to distill."
+}`}
+          />
+
+          <h3>agent_message_list</h3>
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+            Read the bus newest-first. Both arguments are optional: filter by{" "}
+            <code>taskId</code>, and cap results with <code>limit</code>.
+          </p>
+          <CodeBlock
+            language="json"
+            copyable
+            code={`{ "taskId": "task_42", "limit": 20 }`}
+          />
+          <p style={HINT_STYLE}>
+            Handoffs raised by <code>task_handoff</code> are posted to this same bus, so
+            the message stream is the single record of how a task moved across the team.
+          </p>
         </section>
       </article>
 

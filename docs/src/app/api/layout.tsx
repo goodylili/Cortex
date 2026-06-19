@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "API | Agentation",
+  title: "API | Cortex",
   description: "Programmatic access for developers.",
 };
 
