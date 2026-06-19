@@ -16,7 +16,11 @@ import {
   runAndRecordStep,
   runCriticStep,
 } from "./agents";
-import { readWorkspaceLoops, writeWorkspaceLoops } from "./workspace";
+import {
+  readWorkspaceLoops,
+  resolveWorkspaceId,
+  writeWorkspaceLoops,
+} from "./workspace";
 import {
   budgetExceeded,
   commandGateVerdict,
@@ -44,12 +48,13 @@ const RETRY_BACKOFF_MS = 1500;
 const GIVE_UP_STREAK = 3;
 const TOKENS_PER_CHAR = 0.25;
 
-function requireWorkspace(cfg: Config): string {
-  if (!cfg.workspaceId)
+async function requireWorkspace(cfg: Config): Promise<string> {
+  const workspaceId = await resolveWorkspaceId(cfg);
+  if (!workspaceId)
     throw new Error(
-      "loop runtime needs CORTEX_WORKSPACE_ID (the user's Workspace object id)",
+      "loop runtime needs a Workspace: set CORTEX_WORKSPACE_ID, or set CORTEX_USER_ADDRESS so the id created from the app (account setting) can be read back",
     );
-  return cfg.workspaceId;
+  return workspaceId;
 }
 
 function estimateTokens(text: string): number {
@@ -125,7 +130,7 @@ export async function registerLoop(
   cfg: Config,
   spec: LoopSpec,
 ): Promise<LoopRun> {
-  const workspaceId = requireWorkspace(cfg);
+  const workspaceId = await requireWorkspace(cfg);
   const run = newRun(spec, Date.now());
   await saveRun(c, cfg, workspaceId, run);
   return run;
@@ -145,7 +150,7 @@ export async function flagRubricMiss(
     throw new Error(
       "flagRubricMiss needs a non-empty flag describing the miss the reviewer let through",
     );
-  const workspaceId = requireWorkspace(cfg);
+  const workspaceId = await requireWorkspace(cfg);
   const loaded = await loadRun(c, cfg, workspaceId, loopId);
   if (!loaded) throw new Error(`loop "${loopId}" not found in workspace`);
 
@@ -231,7 +236,7 @@ export async function stepLoop(
   cfg: Config,
   loopId: string,
 ): Promise<StepResult> {
-  const workspaceId = requireWorkspace(cfg);
+  const workspaceId = await requireWorkspace(cfg);
   const loaded = await loadRun(c, cfg, workspaceId, loopId);
   if (!loaded) throw new Error(`loop "${loopId}" not found in workspace`);
 
@@ -357,7 +362,7 @@ export async function tickLoops(
   cfg: Config,
   now: number = Date.now(),
 ): Promise<string[]> {
-  const workspaceId = requireWorkspace(cfg);
+  const workspaceId = await requireWorkspace(cfg);
   const loops = (await readWorkspaceLoops(c, cfg, workspaceId)) ?? [];
   const fired: string[] = [];
   for (const run of loops) {
@@ -385,7 +390,7 @@ export async function spawnWorkerLoop(
     parallel?: boolean;
   },
 ): Promise<LoopRun> {
-  const workspaceId = requireWorkspace(cfg);
+  const workspaceId = await requireWorkspace(cfg);
   const loops = (await readWorkspaceLoops(c, cfg, workspaceId)) ?? [];
   const parent = loops.find((r) => r.spec.id === args.parentId);
   if (!parent)

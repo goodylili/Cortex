@@ -39,7 +39,11 @@ import {
   type MemState,
 } from "@/lib/cortex/memory-model";
 import type { CortexWalletState } from "@/lib/cortex/use-wallet";
-import { CORTEX_ENV, contractsEnabled } from "@/lib/cortex/walrus/env";
+import {
+  CORTEX_ENV,
+  contractsEnabled,
+  sealEnabled,
+} from "@/lib/cortex/walrus/env";
 import { getSuiClient } from "@/lib/cortex/walrus/clients";
 import {
   AGENTS,
@@ -312,6 +316,8 @@ export function CortexApp({
   >("all");
   const [intOpen, setIntOpen] = useState<string | null>(null);
   const [mcpAuthBusy, setMcpAuthBusy] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [workspaceBusy, setWorkspaceBusy] = useState(false);
   const [delegates, setDelegates] = useState<
     { publicKey: string; isThisDevice: boolean }[]
   >([]);
@@ -549,6 +555,25 @@ export function CortexApp({
     setToast(m);
     setTimeout(() => setToast(""), 2600);
   }
+  useEffect(() => {
+    if (view !== "agents") return;
+    const w = walletState?.wallet;
+    if (!w || !contractsEnabled() || !sealEnabled()) {
+      setWorkspaceId(null);
+      return;
+    }
+    let live = true;
+    w.workspaceStatus()
+      .then((id) => {
+        if (live) setWorkspaceId(id);
+      })
+      .catch(() => {
+        if (live) setWorkspaceId(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [view, walletState?.wallet]);
 
   const mcpAuthReady =
     !!walletState?.wallet &&
@@ -582,6 +607,24 @@ export function CortexApp({
       flash(err instanceof Error ? err.message : String(err));
     } finally {
       setMcpAuthBusy(false);
+    }
+  }
+
+  const workspaceReady =
+    !!walletState?.wallet && contractsEnabled() && sealEnabled();
+
+  async function createAgentWorkspace() {
+    const w = walletState?.wallet;
+    if (!w || !workspaceReady) return;
+    setWorkspaceBusy(true);
+    try {
+      const id = await w.setupWorkspace();
+      setWorkspaceId(id);
+      flash("Agent workspace is live on chain — your team can now share a board.");
+    } catch (err) {
+      flash(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorkspaceBusy(false);
     }
   }
 
@@ -2977,6 +3020,50 @@ export function CortexApp({
                   </aside>
 
                   <div className="pr-main">
+                    {(() => {
+                      const shortId = (id: string) =>
+                        id.length > 14
+                          ? `${id.slice(0, 8)}…${id.slice(-4)}`
+                          : id;
+                      const signedIn = !!walletState?.wallet;
+                      const configured = contractsEnabled() && sealEnabled();
+                      if (workspaceId) {
+                        return (
+                          <div className="pr-setup ok">
+                            <div className="pr-setup-l">
+                              <b>On-chain workspace</b>
+                              <span className="pr-setup-sub">
+                                Live · {shortId(workspaceId)} — your team shares
+                                this board and message bus on chain.
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="pr-setup">
+                          <div className="pr-setup-l">
+                            <b>Set up agent workspace</b>
+                            <span className="pr-setup-sub">
+                              {!signedIn
+                                ? "Sign in to create the shared on-chain board your agents (and the MCP) collaborate through."
+                                : !configured
+                                  ? "Add the cortex contracts and Seal key servers (NEXT_PUBLIC_CORTEX_PACKAGE_ID, NEXT_PUBLIC_SEAL_SERVER_IDS) to enable the on-chain board."
+                                  : "Create the shared Workspace once. Its id is saved to your account so the app and your MCP read the same board."}
+                            </span>
+                          </div>
+                          <button
+                            className="pr-setup-btn"
+                            onClick={createAgentWorkspace}
+                            disabled={!workspaceReady || workspaceBusy}
+                          >
+                            {workspaceBusy
+                              ? "Creating…"
+                              : "Create workspace"}
+                          </button>
+                        </div>
+                      );
+                    })()}
                     <div className="pr-chan-head">
                       <div className="pr-chan-id">
                         <span className="pr-hash">#</span>
@@ -4845,6 +4932,21 @@ export function CortexApp({
                           : "Set NEXT_PUBLIC_CORTEX_MCP_ADDRESS and deploy the contracts to enable."}
                       </div>
                     )}
+                  </div>
+
+                  <div className="scard" style={{ marginTop: 16 }}>
+                    <div className="int2-name">Agent workspace setup</div>
+                    <div className="ssub" style={{ marginTop: 4 }}>
+                      The agents collaborate through a shared on-chain Workspace
+                      object (the durable task board + message bus). Create it
+                      once from the Agents view — &ldquo;Create workspace&rdquo;
+                      shares the object and saves its id to your account. To let
+                      your MCP act on that board, set its server env to either
+                      CORTEX_WORKSPACE_ID (the new object id) or
+                      CORTEX_USER_ADDRESS (your Sui address, so it reads the saved
+                      id), alongside CORTEX_DELEGATE_KEY, CORTEX_ACCESS_REGISTRY,
+                      and CORTEX_EXECUTOR_CAP.
+                    </div>
                   </div>
                 </div>
               )}
