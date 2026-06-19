@@ -2,36 +2,42 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
-import { motion } from "framer-motion";
 
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
+import { DOCS_URL } from "@/lib/site";
 
 const NAV_LINKS = [
   { label: "Memory", href: "/app#memories" },
   { label: "Features", href: "#features" },
   { label: "Compare", href: "#compare" },
   { label: "Agents", href: "/app#agents" },
+  { label: "Docs", href: DOCS_URL },
   { label: "FAQ", href: "#faq" },
 ];
 
-const HEADLINE_LINES = [
-  ["Sovereign", "Memory"],
-  ["for", "AI", "on", "Sui"],
-];
-
-const HERO_POINTS = [
-  "Shared memory",
-  "Prompt generation",
-  "Loop generation",
-  "Multi-agent workflows",
-  "Dreams from memory",
+const HERO_AUDIENCES = [
+  "Everyone",
+  "Businesses",
+  "Engineers",
+  "Developers",
+  "Creators",
 ];
 
 export function Hero() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [audienceIndex, setAudienceIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setAudienceIndex((current) => (current + 1) % HERO_AUDIENCES.length);
+    }, 2200);
+
+    return () => window.clearInterval(interval);
+  }, []);
 
   return (
     <section className="relative min-h-screen w-full bg-canvas">
@@ -109,34 +115,40 @@ export function Hero() {
 
         <div className="flex flex-1 flex-col items-center px-6 pb-16 pt-16 text-center md:pt-24">
           <div className="mb-6 inline-block rounded-[var(--r)] border border-ink/20 bg-ink/10 px-3 py-1 text-xs font-medium text-ink/70">
-            Decentralized sovereign memory on the Sui stack
+            Decentralized sovereign elastic memory
           </div>
 
           <h1 className="max-w-6xl text-6xl font-normal leading-[1.05] tracking-[-0.03em] text-ink md:text-7xl lg:text-8xl">
-            {HEADLINE_LINES.map((line, lineIndex) => {
-              const precedingWords = HEADLINE_LINES.slice(0, lineIndex).reduce(
-                (sum, l) => sum + l.length,
-                0,
-              );
-              return (
-                <span key={lineIndex} className="block">
-                  {line.map((word, wordIndex) => (
-                    <motion.span
-                      key={wordIndex}
-                      initial={{ filter: "blur(10px)", opacity: 0 }}
-                      animate={{ filter: "blur(0px)", opacity: 1 }}
-                      transition={{
-                        duration: 0.4,
-                        delay: (precedingWords + wordIndex) * 0.05,
-                      }}
-                      className="mr-[0.25em] inline-block"
-                    >
-                      {word}
-                    </motion.span>
-                  ))}
-                </span>
-              );
-            })}
+            <motion.span
+              initial={{ filter: "blur(10px)", opacity: 0 }}
+              animate={{ filter: "blur(0px)", opacity: 1 }}
+              transition={{ duration: 0.4, delay: 0.05 }}
+              className="block"
+            >
+              Sovereign Uploaded
+            </motion.span>
+            <motion.span
+              initial={{ filter: "blur(10px)", opacity: 0 }}
+              animate={{ filter: "blur(0px)", opacity: 1 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+              className="block"
+            >
+              Intelligence for
+            </motion.span>
+            <span className="relative mt-2 block min-h-[1.1em] md:min-h-[1.05em]">
+              <AnimatePresence mode="wait">
+                <motion.span
+                  key={HERO_AUDIENCES[audienceIndex]}
+                  initial={{ filter: "blur(10px)", opacity: 0, y: 16 }}
+                  animate={{ filter: "blur(0px)", opacity: 1, y: 0 }}
+                  exit={{ filter: "blur(10px)", opacity: 0, y: -16 }}
+                  transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                  className="absolute inset-x-0 block"
+                >
+                  {HERO_AUDIENCES[audienceIndex]}
+                </motion.span>
+              </AnimatePresence>
+            </span>
           </h1>
 
           <p className="mt-6 max-w-2xl text-balance text-center text-lg leading-relaxed text-ink/60 md:text-xl">
@@ -161,17 +173,6 @@ export function Hero() {
             >
               <Link href="#compare">See Comparison</Link>
             </Button>
-          </div>
-
-          <div className="mt-6 flex max-w-4xl flex-wrap items-center justify-center gap-2 text-sm text-ink/60">
-            {HERO_POINTS.map((point) => (
-              <span
-                key={point}
-                className="rounded-full border border-ink/15 bg-ink/[0.05] px-3 py-1"
-              >
-                {point}
-              </span>
-            ))}
           </div>
 
           <div className="mx-auto mt-14 w-full max-w-7xl px-6 md:mt-20 md:px-12 lg:px-16">
