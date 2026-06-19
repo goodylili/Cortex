@@ -3124,26 +3124,6 @@ export function CortexApp({
                               </div>
                             );
                           })}
-                        {secAgents && roster.length === 0 && (
-                          <div className="pr-roster-empty">
-                            <p className="pr-roster-empty-t">
-                              No agents yet
-                            </p>
-                            <p className="pr-roster-empty-s">
-                              Build your own team. Each agent works over your
-                              shared memory and hands tasks to the others.
-                            </p>
-                            <button
-                              className="pr-roster-empty-btn"
-                              onClick={() => setAgModalOpen(true)}
-                            >
-                              <svg viewBox="0 0 24 24">
-                                <path d="M12 5v14M5 12h14" />
-                              </svg>
-                              Create your first agent
-                            </button>
-                          </div>
-                        )}
 
                         <div className="pr-grp">
                           <span className="pr-grp-l">Direct</span>
