@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import { Logo } from "@/components/logo";
-import { DOCS_URL } from "@/lib/site";
 
 const PRODUCT_LINKS = [
   { label: "Features", href: "#features" },
@@ -11,7 +10,6 @@ const PRODUCT_LINKS = [
 ];
 
 const DEVELOPER_LINKS = [
-  { label: "Documentation", href: DOCS_URL },
   { label: "Knowledge Base", href: "/app#knowledge" },
   { label: "Studio", href: "/app#studio" },
   { label: "Integrations", href: "/app#integrations" },

@@ -53,7 +53,6 @@ import {
 } from "@/lib/cortex/agents";
 import type { LoopRun, LoopSpec } from "@cortex/core/loops";
 import { useDictation, useReadAloud } from "@/lib/cortex/use-voice";
-import { DOCS_URL } from "@/lib/site";
 import {
   ONBOARDING_STEPS,
   TOTAL_QUESTIONS,
@@ -445,10 +444,9 @@ export function CortexApp({
       )
         setView(h);
     };
-    // Always open on the overview; a deep-link hash no longer picks the initial
-    // view. In-app nav still drives the hash, so back/forward keep working.
-    if (location.hash && location.hash !== "#home")
-      history.replaceState(null, "", "#home");
+    // Honor a deep-link hash on load (e.g. /app#agents from the landing nav),
+    // then keep in-app nav and back/forward working via hashchange.
+    apply();
     window.addEventListener("hashchange", apply);
     return () => window.removeEventListener("hashchange", apply);
   }, []);
@@ -2282,19 +2280,6 @@ export function CortexApp({
                     </svg>
                     <span>Settings</span>
                   </button>
-                  <a
-                    className="tb-menu-item"
-                    href={DOCS_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setProfileOpen(false)}
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                    </svg>
-                    <span>Docs</span>
-                  </a>
                   {sess ? (
                     <button
                       className="tb-menu-item danger"
@@ -5123,25 +5108,6 @@ export function CortexApp({
                       </div>
                       <div className="int2-msub">{openDetail.blurb}</div>
                     </div>
-                    <a
-                      className="int2-mdocs"
-                      href={DOCS_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={1.7}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                      </svg>
-                      Docs
-                    </a>
                     <button
                       className="int2-mx"
                       onClick={() => setIntOpen(null)}

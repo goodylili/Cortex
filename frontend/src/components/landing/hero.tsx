@@ -8,14 +8,12 @@ import { Menu, X } from "lucide-react";
 
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
-import { DOCS_URL } from "@/lib/site";
 
 const NAV_LINKS = [
   { label: "Memory", href: "/app#memories" },
   { label: "Features", href: "#features" },
   { label: "Compare", href: "#compare" },
   { label: "Agents", href: "/app#agents" },
-  { label: "Docs", href: DOCS_URL },
   { label: "FAQ", href: "#faq" },
 ];
 
