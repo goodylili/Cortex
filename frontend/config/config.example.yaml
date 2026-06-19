@@ -44,10 +44,19 @@ executorCapId: "" # ExecutorCap object id transferred to the MCP wallet
 workspaceId: "" # explicit Workspace object id (wins when set)
 userAddress: "" # the owner's Sui address; resolves the app-created Workspace id
 
+# LLM provider for server-side reasoning: extraction (memory_ingest), consolidation
+# (dream_run), and agent/loop steps (agent_run_step, loop_run_step). With no key the
+# core falls back to deterministic heuristics. "provider" picks the backend; leave it
+# unset and Cortex infers it from whichever key is present (a Gemini-only deploy uses
+# Gemini). Env: CORTEX_MODEL_PROVIDER, ANTHROPIC_API_KEY, GEMINI_API_KEY.
 models:
-  chat: claude-sonnet-4-6
-  extract: claude-sonnet-4-6
+  provider: anthropic # "anthropic" | "google" (Gemini)
+  # chat/extract default to the provider's models when blank
+  # (anthropic: claude-sonnet-4-6; google: gemini-3-pro / gemini-2.5-flash)
+  chat: ""
+  extract: ""
   anthropicApiKey: ""
+  googleApiKey: "" # Gemini key (GEMINI_API_KEY)
 
 watch:
   paths: [] # folders to ingest, e.g. ["~/Documents/notes"]

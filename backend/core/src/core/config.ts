@@ -5,6 +5,8 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
 
+export type ModelProvider = "anthropic" | "google";
+
 export interface Config {
   namespace: string;
   sui: { rpc: string; network: string };
@@ -17,7 +19,13 @@ export interface Config {
   };
   memwal: { url: string; apiKey: string };
   delegateKey: string;
-  models: { chat: string; extract: string; anthropicApiKey: string };
+  models: {
+    provider: ModelProvider;
+    chat: string;
+    extract: string;
+    anthropicApiKey: string;
+    googleApiKey: string;
+  };
   watch: { paths: string[] };
   webhookUrl: string;
   accessRegistryId: string;
@@ -38,9 +46,11 @@ const DEFAULTS: Config = {
   memwal: { url: "", apiKey: "" },
   delegateKey: "",
   models: {
-    chat: "claude-sonnet-4-6",
-    extract: "claude-sonnet-4-6",
+    provider: "anthropic",
+    chat: "",
+    extract: "",
     anthropicApiKey: "",
+    googleApiKey: "",
   },
   watch: { paths: [] },
   webhookUrl: "",
@@ -49,6 +59,12 @@ const DEFAULTS: Config = {
   workspaceId: "",
   userAddress: "",
 };
+
+const PROVIDER_MODELS: Record<ModelProvider, { chat: string; extract: string }> =
+  {
+    anthropic: { chat: "claude-sonnet-4-6", extract: "claude-sonnet-4-6" },
+    google: { chat: "gemini-3-pro", extract: "gemini-2.5-flash" },
+  };
 
 function deepMerge<T>(base: T, over: Partial<T> | undefined): T {
   if (!over) return base;
@@ -76,6 +92,7 @@ export function loadConfig(
     }
   }
   const cfg = deepMerge(DEFAULTS, fromFile);
+  const fileModels = (fromFile.models ?? {}) as Partial<Config["models"]>;
   // env overrides for secrets
   if (process.env.CORTEX_DELEGATE_KEY)
     cfg.delegateKey = process.env.CORTEX_DELEGATE_KEY;
@@ -83,6 +100,19 @@ export function loadConfig(
     cfg.memwal.apiKey = process.env.MEMWAL_API_KEY;
   if (process.env.ANTHROPIC_API_KEY)
     cfg.models.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  const googleKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (googleKey) cfg.models.googleApiKey = googleKey;
+  // pick the model provider: an explicit choice (env or config) wins, otherwise infer
+  // from whichever key is present so a Gemini-only deploy uses Gemini automatically.
+  const envProvider = process.env.CORTEX_MODEL_PROVIDER;
+  if (envProvider === "anthropic" || envProvider === "google")
+    cfg.models.provider = envProvider;
+  else if (!fileModels.provider)
+    cfg.models.provider = cfg.models.googleApiKey ? "google" : "anthropic";
+  // fill model ids from the provider's defaults unless pinned in config
+  const fam = PROVIDER_MODELS[cfg.models.provider];
+  if (!fileModels.chat) cfg.models.chat = fam.chat;
+  if (!fileModels.extract) cfg.models.extract = fam.extract;
   if (process.env.CORTEX_WEBHOOK_URL)
     cfg.webhookUrl = process.env.CORTEX_WEBHOOK_URL;
   if (process.env.CORTEX_WORKSPACE_ID)

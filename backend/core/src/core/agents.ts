@@ -7,6 +7,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { Config } from "./config";
+import { chatComplete, criticModel } from "./model";
 import type { Clients } from "../../sui/app/clients";
 import {
   readWorkspaceBus,
@@ -117,8 +118,6 @@ export interface AgentMessageRecord {
 
 const DEFAULT_RECALL_LIMIT = 6;
 const STEP_MAX_TOKENS = 700;
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const ANTHROPIC_VERSION = "2023-06-01";
 
 function rid(prefix: string): string {
   return prefix + "_" + randomUUID().slice(0, 8);
@@ -336,47 +335,18 @@ function buildStepInput(
   ].join("\n");
 }
 
-// Anthropic fallbacks used to give the critic a model distinct from the builder's
-// cfg.models.chat, so adversarial verification is never the same model grading itself.
-const CRITIC_MODEL_PRIMARY = "claude-opus-4-8";
-const CRITIC_MODEL_ALTERNATE = "claude-sonnet-4-6";
-
-function criticModelId(cfg: Config): string {
-  return cfg.models.chat === CRITIC_MODEL_PRIMARY
-    ? CRITIC_MODEL_ALTERNATE
-    : CRITIC_MODEL_PRIMARY;
-}
-
 async function callModel(
   cfg: Config,
   system: string,
   user: string,
   modelId: string = cfg.models.chat,
 ): Promise<{ ok: boolean; text: string; reason?: string }> {
-  if (!cfg.models.anthropicApiKey)
-    return { ok: false, text: "", reason: "no anthropic api key configured" };
-  const res = await fetch(ANTHROPIC_URL, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": cfg.models.anthropicApiKey,
-      "anthropic-version": ANTHROPIC_VERSION,
-    },
-    body: JSON.stringify({
-      model: modelId,
-      max_tokens: STEP_MAX_TOKENS,
-      system,
-      messages: [{ role: "user", content: user }],
-    }),
+  return chatComplete(cfg, {
+    system,
+    user,
+    model: modelId,
+    maxTokens: STEP_MAX_TOKENS,
   });
-  if (!res.ok)
-    return {
-      ok: false,
-      text: "",
-      reason: `anthropic ${res.status} ${res.statusText}`,
-    };
-  const data = (await res.json()) as { content?: { text?: string }[] };
-  return { ok: true, text: (data.content ?? []).map((p) => p.text ?? "").join("") };
 }
 
 const CRITIC_PASS_PREFIX = /^\s*pass\b/i;
@@ -405,7 +375,7 @@ export async function runCriticStep(
     "Iteration output under review:",
     args.output || "(no output produced)",
   ].join("\n");
-  const res = await callModel(cfg, CRITIC_SYSTEM, user, criticModelId(cfg));
+  const res = await callModel(cfg, CRITIC_SYSTEM, user, criticModel(cfg));
   if (!res.ok)
     return { ok: false, verdict: "fail", review: "", reason: res.reason };
   const verdict = CRITIC_PASS_PREFIX.test(res.text) ? "pass" : "fail";

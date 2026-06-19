@@ -4,6 +4,7 @@
 import type { Config } from "./config";
 import type { Extraction, Memory, Source } from "./models";
 import { newId } from "./crypto";
+import { chatComplete, hasModelKey } from "./model";
 import {
   EXTRACT_SYSTEM_PROMPT,
   parseExtraction,
@@ -18,25 +19,15 @@ async function modelRefine(
   cfg: Config,
   content: string,
 ): Promise<ExtractResult | null> {
-  if (!cfg.models.anthropicApiKey || !content.trim()) return null;
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": cfg.models.anthropicApiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: cfg.models.extract,
-      max_tokens: 1024,
-      system: EXTRACT_SYSTEM_PROMPT,
-      messages: [{ role: "user", content }],
-    }),
+  if (!hasModelKey(cfg) || !content.trim()) return null;
+  const res = await chatComplete(cfg, {
+    system: EXTRACT_SYSTEM_PROMPT,
+    user: content,
+    model: cfg.models.extract,
+    maxTokens: 1024,
   });
-  if (!res.ok)
-    throw new Error(`anthropic extract: ${res.status} ${await res.text()}`);
-  const data = (await res.json()) as { content: { text?: string }[] };
-  return parseExtraction(data.content.map((c) => c.text ?? "").join(""));
+  if (!res.ok) throw new Error(`extract: ${res.reason}`);
+  return parseExtraction(res.text);
 }
 
 export interface RawInput {
@@ -91,7 +82,7 @@ export async function extractSource(
     id: newId("ext"),
     namespace: source.namespace,
     sourceId: source.id,
-    model: cfg.models.anthropicApiKey ? cfg.models.extract : "heuristic",
+    model: hasModelKey(cfg) ? cfg.models.extract : "heuristic",
     summary: refined.summary,
     memories,
     createdAt: now,

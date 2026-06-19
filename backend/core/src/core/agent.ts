@@ -4,6 +4,7 @@
 
 import type { Config } from "./config";
 import type { DiffOperation, Memory } from "./models";
+import { chatComplete, hasModelKey } from "./model";
 import { z } from "zod";
 
 export const CONSOLIDATION_SYSTEM_PROMPT = `You consolidate a person's memory. Given recent extracted memories and the current memory state, produce a minimal set of operations that improve quality. Respond with ONLY a JSON array, no fences:
@@ -88,9 +89,9 @@ export class RuleConsolidator implements Consolidator {
   }
 }
 
-/** Anthropic-backed consolidation. */
-export class AnthropicConsolidator implements Consolidator {
-  readonly name = "anthropic";
+/** Model-backed consolidation (Anthropic or Gemini, per config). */
+export class ModelConsolidator implements Consolidator {
+  readonly name = "model";
 
   constructor(private cfg: Config) {}
 
@@ -103,31 +104,16 @@ export class AnthropicConsolidator implements Consolidator {
       .filter((m) => !m.tombstone)
       .map((m) => `[${m.id}] ${m.text}`)
       .join("\n")}\n\n# Evidence ids\n${evidenceIds.join(", ")}`;
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": this.cfg.models.anthropicApiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: this.cfg.models.chat,
-        max_tokens: 2048,
-        system: CONSOLIDATION_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: body }],
-      }),
+    const res = await chatComplete(this.cfg, {
+      system: CONSOLIDATION_SYSTEM_PROMPT,
+      user: body,
+      maxTokens: 2048,
     });
-    if (!res.ok)
-      throw new Error(
-        `anthropic consolidate: ${res.status} ${await res.text()}`,
-      );
-    const data = (await res.json()) as { content: { text?: string }[] };
-    return parseDiffResponse(data.content.map((c) => c.text ?? "").join(""));
+    if (!res.ok) throw new Error(`consolidate: ${res.reason}`);
+    return parseDiffResponse(res.text);
   }
 }
 
 export function createConsolidator(cfg: Config): Consolidator {
-  return cfg.models.anthropicApiKey
-    ? new AnthropicConsolidator(cfg)
-    : new RuleConsolidator();
+  return hasModelKey(cfg) ? new ModelConsolidator(cfg) : new RuleConsolidator();
 }
