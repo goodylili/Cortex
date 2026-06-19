@@ -29,6 +29,11 @@ import {
   postMessage,
   listMessages,
   runAndRecordStep,
+  createLoop,
+  listLoops,
+  getLoop,
+  runLoopStep,
+  stopLoop,
   readUserAccount,
   executorGrantKbAccess,
   executorRenewKbFile,
@@ -316,6 +321,46 @@ async function main() {
     { taskId: z.string().optional(), limit: z.number().optional() },
     async ({ taskId, limit }: any) =>
       json(await listMessages(c, cfg, { taskId, limit })),
+  );
+
+  // ---- agentic loops: long-running, self-correcting agents over the Workspace ----
+  // A loop is a durable LoopRun persisted in the same Workspace as the task board
+  // (loops_blob). Each step runs the five-step sense→decide→act→gather→verify cycle as
+  // the executor, so an external host can spawn a loop, watch its trace, and stop it.
+  server.tool(
+    "loop_create",
+    "Spawn an agentic loop over the shared Workspace and register it as a draft. Pass a templateId (keep-tests-green, research-monitor) to shape its gates/budget, or omit it for the deterministic skeleton.",
+    {
+      goal: z.string(),
+      agentId: z.string(),
+      templateId: z.enum(["keep-tests-green", "research-monitor"]).optional(),
+    },
+    async ({ goal, agentId, templateId }: any) =>
+      json(await createLoop(c, cfg, { goal, agentId, templateId })),
+  );
+  server.tool(
+    "loop_list",
+    "List the durable loop runs in the Workspace (spec, status, iterations), newest first.",
+    {},
+    async () => json(await listLoops(c, cfg)),
+  );
+  server.tool(
+    "loop_get",
+    "Fetch one loop run by id, including its full five-step iteration trace and rubric.",
+    { loopId: z.string() },
+    async ({ loopId }: any) => json(await getLoop(c, cfg, loopId)),
+  );
+  server.tool(
+    "loop_run_step",
+    "Advance a loop by one iteration as the executor: sense, run the agent step, gather, verify against the gate, and record the result. Returns the updated run, status, and verdict.",
+    { loopId: z.string() },
+    async ({ loopId }: any) => json(await runLoopStep(c, cfg, loopId)),
+  );
+  server.tool(
+    "loop_stop",
+    "Pause a running loop so the scheduler stops firing it; a human resumes it by stepping it again. Done/gave-up loops are returned unchanged.",
+    { loopId: z.string() },
+    async ({ loopId }: any) => json(await stopLoop(c, cfg, loopId)),
   );
 
   // ---- outbound connectors: bridge Cortex to other services ----
@@ -660,6 +705,7 @@ async function main() {
       `memory_connections, memory_extraction, memory_head, dream_run, verify_memory\n` +
       `  agents: agent_list, task_create, task_list, task_get, task_observe, task_handoff, ` +
       `task_complete, agent_run_step, agent_message_post, agent_message_list\n` +
+      `  loops: loop_create, loop_list, loop_get, loop_run_step, loop_stop\n` +
       `  execution: wallet_info, walrus_put_blob, walrus_get_blob, sui_record_pointer, ` +
       `sui_read_pointer, kb_grant_access, kb_renew, memwal_restore\n` +
       `  users: user_profile, user_memory, user_context\n` +

@@ -96,6 +96,11 @@ const STEP_MEMORY_LIMIT = 6;
 const ITERATION_DELAY_MS = 1200;
 const REVIEW_PASS_PREFIX = /^\s*pass\b/i;
 
+const mediaNoun = (output: MediaOutput): string =>
+  output === "image" ? "an image" : output === "gif" ? "a GIF" : "a video";
+const mediaPlural = (output: MediaOutput): string =>
+  output === "image" ? "images" : output === "gif" ? "GIFs" : "video";
+
 // Run a reviewer gate through the adversarial /api/loop-verify route, which picks a
 // model distinct from the builder so the loop never grades its own work. Degrades to a
 // failing verdict (escalate to a human) when the route is unreachable.
@@ -135,8 +140,17 @@ async function runAgentMediaStep(
   memoryRefs: string[],
 ): Promise<void> {
   const output: MediaOutput =
-    modelKind(custom) === "image" ? "image" : "video";
-  const base = output === "image" ? ("image" as const) : ("video" as const);
+    modelKind(custom) === "image"
+      ? "image"
+      : get().gifMode
+        ? "gif"
+        : "video";
+  const base =
+    output === "image"
+      ? ("image" as const)
+      : output === "gif"
+        ? ("gif" as const)
+        : ("video" as const);
   const byokKey = get().byokKeys[custom.id];
   const obsId = uid("obs");
   const now = Date.now();
@@ -147,12 +161,12 @@ async function runAgentMediaStep(
         status: "error",
         mime: "",
         prompt: goal,
-        reason: `Add your ${providerInfo(custom.provider).label} key to generate ${output === "image" ? "images" : "video"}.`,
+        reason: `Add your ${providerInfo(custom.provider).label} key to generate ${mediaPlural(output)}.`,
       };
   const obs: AgentObservation = {
     id: obsId,
     agentId: agent.id,
-    text: `${agent.name} is generating ${output === "image" ? "an image" : "a video"} for “${goal}”.`,
+    text: `${agent.name} is generating ${mediaNoun(output)} for “${goal}”.`,
     ts: now,
     media: initial,
     ...(memoryRefs.length ? { memoryRefs } : {}),
@@ -303,6 +317,7 @@ interface State {
   importance: Importance;
   model: Model;
   web: boolean;
+  gifMode: boolean;
   docs: string[];
   chat: ChatMsg[];
   ready: boolean;
@@ -344,6 +359,7 @@ interface State {
   unlockByok: () => Promise<boolean>;
   enrollByokPasskey: () => Promise<boolean>;
   toggleWeb: () => void;
+  toggleGifMode: () => void;
   attachDoc: (name: string) => void;
   removeDoc: (i: number) => void;
   ask: (q: string) => void;
@@ -396,8 +412,10 @@ interface State {
   setAgents: (agents: AgentDef[]) => void;
   // agentic loops
   generateLoop: (task: string, assignTo: string) => Promise<string>;
+  updateLoopSpec: (loopId: string, patch: Partial<LoopSpec>) => void;
   startLoop: (loopId: string) => void;
   stopLoop: (loopId: string) => void;
+  discardLoop: (loopId: string) => void;
   spawnWorkerLoop: (parentId: string, workerGoal: string) => string;
   setLoops: (loops: LoopRun[]) => void;
   // memory sharing (cortex::sharing)
@@ -508,6 +526,7 @@ export const useCortex = create<State>((set, get) => ({
   importance: "normal",
   model: MODELS[1]!,
   web: false,
+  gifMode: false,
   docs: [],
   chat: [],
   ready: false,
@@ -857,6 +876,7 @@ export const useCortex = create<State>((set, get) => ({
     }
   },
   toggleWeb: () => set((s) => ({ web: !s.web })),
+  toggleGifMode: () => set((s) => ({ gifMode: !s.gifMode })),
   attachDoc: (name) => set((s) => ({ docs: [...s.docs, name] })),
   removeDoc: (i) => set((s) => ({ docs: s.docs.filter((_, j) => j !== i) })),
 
@@ -1002,7 +1022,14 @@ export const useCortex = create<State>((set, get) => ({
     const byokKey = custom ? get().byokKeys[custom.id] : undefined;
     const kind = custom ? modelKind(custom) : "text";
     if (custom && kind !== "text") {
-      const output: MediaOutput = kind === "image" ? "image" : "video";
+      const output: MediaOutput =
+        kind === "image" ? "image" : get().gifMode ? "gif" : "video";
+      const base =
+        output === "image"
+          ? ("image" as const)
+          : output === "gif"
+            ? ("gif" as const)
+            : ("video" as const);
       const setMedia = (media: MediaState) => {
         set((s) => {
           const chat = [...s.chat];
@@ -1027,16 +1054,16 @@ export const useCortex = create<State>((set, get) => ({
       };
       if (!byokKey) {
         setMedia({
-          kind: output === "image" ? "image" : "video",
+          kind: base,
           status: "error",
           mime: "",
           prompt: q,
-          reason: `Add your ${providerInfo(custom.provider).label} key to generate ${output === "image" ? "images" : "video"}.`,
+          reason: `Add your ${providerInfo(custom.provider).label} key to generate ${mediaPlural(output)}.`,
         });
         return;
       }
       setMedia({
-        kind: output === "image" ? "image" : "video",
+        kind: base,
         status: "generating",
         progress: 0,
         mime: "",
@@ -1052,7 +1079,6 @@ export const useCortex = create<State>((set, get) => ({
           output,
         },
         (ev: GenerateEvent) => {
-          const base = output === "image" ? ("image" as const) : ("video" as const);
           if (ev.phase === "start") {
             setMedia({ kind: base, status: "generating", progress: 1, mime: "", prompt: q });
           } else if (ev.phase === "progress") {
@@ -1767,6 +1793,19 @@ export const useCortex = create<State>((set, get) => ({
     });
     return run.spec.id;
   },
+  // Edit a draft loop's spec from the "edit advanced" affordance before it starts.
+  // Only the spec is patched; the run's trace and status are untouched.
+  updateLoopSpec: (loopId, patch) =>
+    set((s) => {
+      const now = Date.now();
+      const loops = s.loops.map((r) =>
+        r.spec.id === loopId
+          ? { ...r, spec: { ...r.spec, ...patch, updatedAt: now }, updatedAt: now }
+          : r,
+      );
+      persist({ memories: s.memories, events: s.events, cost: s.cost, loops });
+      return { loops };
+    }),
   startLoop: (loopId) => {
     set((s) => {
       const at = Date.now();
@@ -1906,6 +1945,16 @@ export const useCortex = create<State>((set, get) => ({
         r.spec.id === loopId && r.status === "running"
           ? setRunStatus(r, "paused", Date.now())
           : r,
+      );
+      persist({ memories: s.memories, events: s.events, cost: s.cost, loops });
+      return { loops };
+    }),
+  // Drop a loop the user never confirmed (or no longer wants). Removes it and any
+  // worker loops it spawned so a discarded draft leaves no orphans behind.
+  discardLoop: (loopId) =>
+    set((s) => {
+      const loops = s.loops.filter(
+        (r) => r.spec.id !== loopId && r.spec.parentId !== loopId,
       );
       persist({ memories: s.memories, events: s.events, cost: s.cost, loops });
       return { loops };

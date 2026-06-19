@@ -11,6 +11,7 @@ import { spawn } from "node:child_process";
 import type { Config } from "./config";
 import type { Clients } from "../../sui/app/clients";
 import {
+  AGENTS,
   agentById,
   createTask,
   runAndRecordStep,
@@ -32,8 +33,10 @@ import {
   recordIteration,
   refineRubric,
   setRunStatus,
+  skeletonSpec,
   spawnChildSpec,
   triggerShouldFire,
+  LOOP_TEMPLATES,
   type LoopRubric,
   type LoopRun,
   type LoopSpec,
@@ -132,6 +135,69 @@ export async function registerLoop(
 ): Promise<LoopRun> {
   const workspaceId = await requireWorkspace(cfg);
   const run = newRun(spec, Date.now());
+  await saveRun(c, cfg, workspaceId, run);
+  return run;
+}
+
+// Build a LoopSpec from a goal + assigned agent and register it as a draft run. When a
+// templateId names a LOOP_TEMPLATES entry the spec is shaped from that template (the
+// deterministic skeleton otherwise), so an MCP host can spawn a loop without hand-writing
+// every gate/budget field. Validates the agent against the shared roster the same way
+// createTask does, so a loop never references an agent that can't run it.
+export async function createLoop(
+  c: Clients,
+  cfg: Config,
+  args: { goal: string; agentId: string; templateId?: string },
+): Promise<LoopRun> {
+  const goal = args.goal.trim();
+  if (!goal) throw new Error("createLoop: goal must not be empty");
+  const agent = agentById(args.agentId);
+  if (!agent)
+    throw new Error(
+      `createLoop: unknown agent "${args.agentId}". Known: ${AGENTS.map((a) => a.id).join(", ")}`,
+    );
+  const now = Date.now();
+  let spec: LoopSpec;
+  if (args.templateId) {
+    const template = LOOP_TEMPLATES.find((t) => t.id === args.templateId);
+    if (!template)
+      throw new Error(
+        `createLoop: unknown template "${args.templateId}". Known: ${LOOP_TEMPLATES.map((t) => t.id).join(", ")}`,
+      );
+    spec = template.build(goal, agent.id, now);
+  } else {
+    spec = skeletonSpec({ goal, agentId: agent.id }, now);
+  }
+  return registerLoop(c, cfg, spec);
+}
+
+export async function listLoops(c: Clients, cfg: Config): Promise<LoopRun[]> {
+  const workspaceId = await requireWorkspace(cfg);
+  return (await readWorkspaceLoops(c, cfg, workspaceId)) ?? [];
+}
+
+export async function getLoop(
+  c: Clients,
+  cfg: Config,
+  loopId: string,
+): Promise<LoopRun | null> {
+  const workspaceId = await requireWorkspace(cfg);
+  return loadRun(c, cfg, workspaceId, loopId);
+}
+
+// Pause a running loop without giving up on it: a paused loop is skipped by tickLoops
+// (which only fires loops that aren't done/gave_up — a human resumes it by stepping it
+// again). Terminal loops (done/gave_up) are returned unchanged so stop is idempotent.
+export async function stopLoop(
+  c: Clients,
+  cfg: Config,
+  loopId: string,
+): Promise<LoopRun> {
+  const workspaceId = await requireWorkspace(cfg);
+  const loaded = await loadRun(c, cfg, workspaceId, loopId);
+  if (!loaded) throw new Error(`loop "${loopId}" not found in workspace`);
+  if (loaded.status === "done" || loaded.status === "gave_up") return loaded;
+  const run = setRunStatus(loaded, "paused", Date.now());
   await saveRun(c, cfg, workspaceId, run);
   return run;
 }
@@ -295,6 +361,8 @@ export async function stepLoop(
   await saveRun(c, cfg, workspaceId, run);
   return { run, status, verdict: outcome.verdict };
 }
+
+export const runLoopStep = stepLoop;
 
 // errorPolicy: retry the model step once with backoff, then surface the failure as the
 // observation so the gate can record it rather than crashing the run.

@@ -52,6 +52,7 @@ import {
   ROLE_LABELS,
   isBuiltInAgent,
 } from "@/lib/cortex/agents";
+import type { LoopRun, LoopSpec } from "@cortex/core/loops";
 import { useDictation, useReadAloud } from "@/lib/cortex/use-voice";
 import { DOCS_URL } from "@/lib/site";
 import {
@@ -200,6 +201,53 @@ const MEDIA_EXT: Record<string, string> = {
 };
 const mediaName = (kind: string, mime: string): string =>
   `cortex-${kind}-${Date.now()}.${MEDIA_EXT[mime] ?? "bin"}`;
+
+const LOOP_STATUS_LABEL: Record<LoopRun["status"], string> = {
+  draft: "draft",
+  running: "running",
+  paused: "paused",
+  waiting_human: "waiting on you",
+  done: "done",
+  gave_up: "gave up",
+};
+const LOOP_MINUTE_MS = 60_000;
+// Turn the structured spec into the plain-language summary the spawn flow shows
+// before a loop runs: what it does, how it knows it's done, its budget, the gate.
+function loopSummary(spec: LoopSpec): {
+  does: string;
+  done: string;
+  budget: string;
+  gate: string;
+} {
+  const terminal =
+    spec.gates.find((g) => g.kind === "command" || g.kind === "invariant") ??
+    spec.gates[0];
+  const done =
+    spec.loopType === "deterministic" && terminal
+      ? `Done when ${terminal.check}.`
+      : terminal
+        ? `Done when a reviewer confirms: ${terminal.check}.`
+        : "Done when the goal is met.";
+  const minutes = Math.round(spec.budget.maxWallClockMs / LOOP_MINUTE_MS);
+  return {
+    does: spec.goal,
+    done,
+    budget: `Up to ${spec.budget.maxIterations} iterations or ${minutes} min, then it pauses for you.`,
+    gate: spec.humanGate,
+  };
+}
+function loopSpend(run: LoopRun): string {
+  const elapsed = run.startedAt ? Date.now() - run.startedAt : 0;
+  const mins = Math.round(elapsed / LOOP_MINUTE_MS);
+  return `${run.tokensUsed.toLocaleString()} tok · ${mins} min`;
+}
+function pendingGate(run: LoopRun): string | null {
+  if (run.status !== "waiting_human") return null;
+  const last = run.iterations[run.iterations.length - 1];
+  if (last && last.verdict === "pending")
+    return last.feedback || run.spec.humanGate;
+  return run.spec.humanGate;
+}
 const dataUrlToFile = async (url: string, name: string): Promise<File> => {
   const blob = await (await fetch(url)).blob();
   return new File([blob], name, { type: blob.type });
@@ -290,6 +338,9 @@ export function CortexApp({
   const [autoTaskId, setAutoTaskId] = useState<string | null>(null);
   const autoStop = useRef(false);
   const [loopBusy, setLoopBusy] = useState(false);
+  const [loopPreviewId, setLoopPreviewId] = useState<string | null>(null);
+  const [loopAdvanced, setLoopAdvanced] = useState(false);
+  const [loopOpenId, setLoopOpenId] = useState<string | null>(null);
   const dictation = useDictation();
   const readAloud = useReadAloud();
   const [modelOpen, setModelOpen] = useState(false);
@@ -1918,6 +1969,36 @@ export function CortexApp({
       setLoopBusy(false);
     }
   }
+  // Spawn flow (AGENTIC-LOOPS §10): generate a LoopSpec from the task + recalled
+  // memory, then surface a plain-language summary the user confirms or edits before
+  // it runs. A no-key / offline generator falls back to a skeleton spec, never crashes.
+  async function runTaskAsLoop(taskId: string) {
+    const st = useCortex.getState();
+    const task = st.tasks.find((t) => t.id === taskId);
+    if (!task || loopBusy) return;
+    setLoopBusy(true);
+    flash("Reading memory to write the loop…");
+    try {
+      const id = await s.generateLoop(task.goal, task.assignedTo);
+      if (id) {
+        setLoopAdvanced(false);
+        setLoopPreviewId(id);
+      }
+    } finally {
+      setLoopBusy(false);
+    }
+  }
+  function confirmLoop(id: string) {
+    s.startLoop(id);
+    setLoopPreviewId(null);
+    setView("agents");
+    setThreadTaskId(null);
+    flash("Loop running. Watch it in the loops panel.");
+  }
+  function discardLoop(id: string) {
+    s.discardLoop(id);
+    setLoopPreviewId(null);
+  }
   function saveFinding(taskId: string, obsId: string) {
     const text = s.saveObservationAsMemory(taskId, obsId);
     if (text && wallet) void wallet.remember(text).catch(() => {});
@@ -2132,6 +2213,9 @@ export function CortexApp({
   const modelList = [...MODELS, ...byokPickerModels].filter((m) =>
     (m.name + " " + m.prov).toLowerCase().includes(modelSearch.toLowerCase()),
   );
+  const selectedCustom = s.customModels.find((m) => m.label === s.model.name);
+  const videoCapable =
+    !!selectedCustom && (selectedCustom.kind ?? "text") === "video";
   const openAddModel = () => {
     setAmProvider("");
     setAmKind("text");
@@ -3454,6 +3538,145 @@ export function CortexApp({
                       )}
                     </div>
 
+                    {s.loops.length > 0 && (
+                      <div className="pr-loops">
+                        <div className="pr-loops-head">
+                          <span className="pr-loops-t">Loops</span>
+                          <span className="pr-loops-sub">
+                            self-correcting runs, guarded by budget + a human gate
+                          </span>
+                        </div>
+                        {s.loops.map((run) => {
+                          const la = byId(run.spec.agentId);
+                          const open = loopOpenId === run.spec.id;
+                          const gate = pendingGate(run);
+                          const it = run.iterations.length;
+                          const cap = run.spec.budget.maxIterations;
+                          return (
+                            <div className="pr-loop" key={run.spec.id}>
+                              <div className="pr-loop-row">
+                                <span
+                                  className={"pr-loop-dot " + run.status}
+                                />
+                                <button
+                                  className="pr-loop-main"
+                                  onClick={() =>
+                                    setLoopOpenId(open ? null : run.spec.id)
+                                  }
+                                >
+                                  <span className="pr-loop-goal">
+                                    {run.spec.goal}
+                                  </span>
+                                  <span className="pr-loop-meta">
+                                    <span
+                                      className={"pr-loop-stat " + run.status}
+                                    >
+                                      {LOOP_STATUS_LABEL[run.status]}
+                                    </span>
+                                    <span>
+                                      iter {it}/{cap}
+                                    </span>
+                                    <span>{loopSpend(run)}</span>
+                                    {la && <span>@{la.name}</span>}
+                                  </span>
+                                </button>
+                                <div className="pr-loop-acts">
+                                  {(run.status === "draft" ||
+                                    run.status === "paused" ||
+                                    run.status === "waiting_human") && (
+                                    <button
+                                      className="pr-loop-btn"
+                                      onClick={() => s.startLoop(run.spec.id)}
+                                    >
+                                      {run.status === "draft"
+                                        ? "Start"
+                                        : "Resume"}
+                                    </button>
+                                  )}
+                                  {run.status === "running" && (
+                                    <button
+                                      className="pr-loop-btn stop"
+                                      onClick={() => s.stopLoop(run.spec.id)}
+                                    >
+                                      Stop
+                                    </button>
+                                  )}
+                                  <button
+                                    className="pr-loop-btn ghost"
+                                    onClick={() => s.discardLoop(run.spec.id)}
+                                    aria-label="Discard loop"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              </div>
+                              {gate && (
+                                <div className="pr-loop-gate">
+                                  Waiting on you · {gate}
+                                </div>
+                              )}
+                              {open && (
+                                <div className="pr-loop-trace">
+                                  {run.iterations.length === 0 && (
+                                    <div className="pr-loop-empty">
+                                      No iterations yet.
+                                    </div>
+                                  )}
+                                  {run.iterations.map((step) => (
+                                    <div className="pr-loop-it" key={step.n}>
+                                      <div className="pr-loop-it-head">
+                                        <b>#{step.n}</b>
+                                        <span
+                                          className={
+                                            "pr-loop-verdict " + step.verdict
+                                          }
+                                        >
+                                          {step.verdict}
+                                        </span>
+                                        {step.gate && (
+                                          <span className="pr-loop-gatename">
+                                            {step.gate}
+                                          </span>
+                                        )}
+                                        {step.tokens !== undefined && (
+                                          <span className="pr-loop-tok">
+                                            {step.tokens} tok
+                                          </span>
+                                        )}
+                                      </div>
+                                      <ul className="pr-loop-steps">
+                                        <li>
+                                          <span>sense</span>
+                                          {step.sensed}
+                                        </li>
+                                        <li>
+                                          <span>decide</span>
+                                          {step.decided}
+                                        </li>
+                                        <li>
+                                          <span>act</span>
+                                          {step.acted ||
+                                            "(no output produced)"}
+                                        </li>
+                                        <li>
+                                          <span>gather</span>
+                                          {step.feedback || "—"}
+                                        </li>
+                                        <li>
+                                          <span>verify</span>
+                                          {step.verdict}
+                                        </li>
+                                      </ul>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     <div className="pr-composer">
                       <div className="capture pr-capture" ref={composerRef}>
                         <div className="ask-docs">
@@ -3866,6 +4089,16 @@ export function CortexApp({
                               onClick={() => s.completeTask(thread.id)}
                             >
                               Complete
+                            </button>
+                          )}
+                          {thread.status !== "done" && (
+                            <button
+                              className="pr-act loop"
+                              disabled={loopBusy}
+                              onClick={() => void runTaskAsLoop(thread.id)}
+                              title="Generate a self-correcting loop from this task and your memory"
+                            >
+                              {loopBusy ? "Writing loop…" : "Run as a loop"}
                             </button>
                           )}
                           <div className="pr-assign">
@@ -6291,6 +6524,22 @@ export function CortexApp({
                       <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
                     </svg>
                   </button>
+                  {videoCapable && (
+                    <button
+                      className={
+                        "cap-tool gif-chip ask-only" + (s.gifMode ? " on" : "")
+                      }
+                      onClick={() => s.toggleGifMode()}
+                      title={
+                        s.gifMode
+                          ? "Output a GIF instead of video"
+                          : "Output a video"
+                      }
+                      aria-pressed={s.gifMode}
+                    >
+                      GIF
+                    </button>
+                  )}
                   <div className="imp-anchor remember-only">
                     <button
                       className={"cap-tool imp-chip" + (impOpen ? " on" : "")}
@@ -6394,6 +6643,190 @@ export function CortexApp({
       )}
 
       {/* CREATE AGENT */}
+      {loopPreviewId &&
+        (() => {
+          const run = s.loops.find((r) => r.spec.id === loopPreviewId);
+          if (!run) return null;
+          const spec = run.spec;
+          const sum = loopSummary(spec);
+          const setField = (patch: Partial<LoopSpec>) =>
+            s.updateLoopSpec(spec.id, patch);
+          return (
+            <div className="am-scrim" onClick={() => discardLoop(spec.id)}>
+              <div
+                className="am-modal"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="am-head">
+                  <div className="am-title">Run as a loop</div>
+                  <button
+                    className="am-x"
+                    onClick={() => discardLoop(spec.id)}
+                    aria-label="Close"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="am-body">
+                  <div className="lp-sum">
+                    <div className="lp-sum-row">
+                      <span className="lp-sum-l">What it does</span>
+                      <span>{sum.does}</span>
+                    </div>
+                    <div className="lp-sum-row">
+                      <span className="lp-sum-l">How it knows it&apos;s done</span>
+                      <span>{sum.done}</span>
+                    </div>
+                    <div className="lp-sum-row">
+                      <span className="lp-sum-l">Budget</span>
+                      <span>{sum.budget}</span>
+                    </div>
+                    <div className="lp-sum-row">
+                      <span className="lp-sum-l">Human gate</span>
+                      <span>{sum.gate}</span>
+                    </div>
+                    {!run.iterations.length && spec.gates.some(
+                      (g) => g.kind !== "reviewer",
+                    ) && (
+                      <div className="lp-sum-note">
+                        Command gates need a server/MCP executor to run, so this
+                        loop pauses and escalates to you in the browser.
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    className="lp-adv-toggle"
+                    onClick={() => setLoopAdvanced((v) => !v)}
+                    aria-expanded={loopAdvanced}
+                  >
+                    {loopAdvanced ? "Hide advanced" : "Edit advanced"}
+                  </button>
+                  {loopAdvanced && (
+                    <div className="lp-adv">
+                      <label className="am-field">
+                        <span className="am-label">Goal</span>
+                        <textarea
+                          className="lp-area"
+                          rows={2}
+                          value={spec.goal}
+                          onChange={(e) =>
+                            setField({ goal: e.target.value })
+                          }
+                        />
+                      </label>
+                      <label className="am-field">
+                        <span className="am-label">State source (sense)</span>
+                        <input
+                          value={spec.stateSource}
+                          onChange={(e) =>
+                            setField({ stateSource: e.target.value })
+                          }
+                        />
+                      </label>
+                      <label className="am-field">
+                        <span className="am-label">Give up when</span>
+                        <input
+                          value={spec.giveUp}
+                          onChange={(e) =>
+                            setField({ giveUp: e.target.value })
+                          }
+                        />
+                      </label>
+                      <label className="am-field">
+                        <span className="am-label">Human gate</span>
+                        <input
+                          value={spec.humanGate}
+                          onChange={(e) =>
+                            setField({ humanGate: e.target.value })
+                          }
+                        />
+                      </label>
+                      <div className="lp-adv-grid">
+                        <label className="am-field">
+                          <span className="am-label">Max iterations</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={spec.budget.maxIterations}
+                            onChange={(e) =>
+                              setField({
+                                budget: {
+                                  ...spec.budget,
+                                  maxIterations: Math.max(
+                                    1,
+                                    Number(e.target.value) || 1,
+                                  ),
+                                },
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="am-field">
+                          <span className="am-label">Max minutes</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={Math.round(
+                              spec.budget.maxWallClockMs / LOOP_MINUTE_MS,
+                            )}
+                            onChange={(e) =>
+                              setField({
+                                budget: {
+                                  ...spec.budget,
+                                  maxWallClockMs:
+                                    Math.max(1, Number(e.target.value) || 1) *
+                                    LOOP_MINUTE_MS,
+                                },
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="lp-adv-gates">
+                        <span className="am-label">Gates</span>
+                        {spec.gates.map((g, gi) => (
+                          <div className="lp-gate" key={gi}>
+                            <span className={"lp-gate-kind " + g.kind}>
+                              {g.kind}
+                            </span>
+                            <input
+                              value={g.check}
+                              onChange={(e) =>
+                                setField({
+                                  gates: spec.gates.map((x, xi) =>
+                                    xi === gi
+                                      ? { ...x, check: e.target.value }
+                                      : x,
+                                  ),
+                                })
+                              }
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="am-foot">
+                  <button
+                    className="am-cancel"
+                    onClick={() => discardLoop(spec.id)}
+                  >
+                    Discard
+                  </button>
+                  <button
+                    className="am-save"
+                    onClick={() => confirmLoop(spec.id)}
+                  >
+                    Confirm &amp; run
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       {agModalOpen && (
         <div className="am-scrim" onClick={() => setAgModalOpen(false)}>
           <div className="am-modal" onClick={(e) => e.stopPropagation()}>
