@@ -5,6 +5,8 @@ import type { Config } from "../../src/core/config";
 import { isLive } from "../../src/core/config";
 import { importExternal } from "../../src/core/external";
 
+const KEY_SERVER_WEIGHT = 1;
+
 export interface SealHelper {
   encrypt(bytes: Uint8Array): Promise<Uint8Array>;
   decrypt(bytes: Uint8Array): Promise<Uint8Array>;
@@ -30,10 +32,13 @@ class LiveSeal implements SealHelper {
         const sui: any = await importExternal("@mysten/sui/client");
         const seal: any = await importExternal("@mysten/seal");
         const suiClient = new sui.SuiClient({ url: this.cfg.sui.rpc });
-        return new seal.SealClient({
-          suiClient,
-          serverConfigs: seal.getAllowlistedKeyServers?.(this.cfg.sui.network),
-        });
+        const serverConfigs = this.cfg.seal.serverIds.length
+          ? this.cfg.seal.serverIds.map((objectId) => ({
+              objectId,
+              weight: KEY_SERVER_WEIGHT,
+            }))
+          : seal.getAllowlistedKeyServers?.(this.cfg.sui.network);
+        return new seal.SealClient({ suiClient, serverConfigs });
       })();
     }
     return this.clientP;
@@ -41,7 +46,7 @@ class LiveSeal implements SealHelper {
   async encrypt(bytes: Uint8Array): Promise<Uint8Array> {
     const c = await this.client();
     const { encryptedObject } = await c.encrypt({
-      threshold: 1,
+      threshold: this.cfg.seal.threshold,
       packageId: this.cfg.seal.policyPackage,
       id: this.cfg.seal.policyObject,
       data: bytes,
