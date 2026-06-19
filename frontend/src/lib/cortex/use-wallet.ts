@@ -50,8 +50,6 @@ import {
   loadSession as walrusLoadSession,
   saveState,
   loadState,
-  saveSettingValue,
-  loadSettingValue,
   TIMELINE_KEY,
   DOCUMENTS_KEY,
   type SessionMeta,
@@ -63,9 +61,10 @@ import {
   loadBus,
 } from "@/lib/cortex/walrus/agents";
 import {
-  createWorkspace,
+  getWorkspaceId,
   grantWorkspaceDelegate,
   revokeWorkspaceDelegate,
+  setupWorkspace as setupWorkspaceObject,
   saveWorkspaceTasks,
   loadWorkspaceTasks,
   saveWorkspaceBus,
@@ -116,6 +115,8 @@ export interface CortexWallet {
   } | null>;
   grantAdmin: (delegate: string) => Promise<void>;
   revokeAdmin: (delegate: string) => Promise<void>;
+  workspaceStatus: () => Promise<string | null>;
+  setupWorkspace: () => Promise<string>;
   authorizeMcpAccess: () => Promise<void>;
   revokeMcpAccess: () => Promise<void>;
   listDelegates: () => Promise<{ publicKey: string; isThisDevice: boolean }[]>;
@@ -247,14 +248,15 @@ export function useCortexWallet(): CortexWalletState {
     if (!signer || !user) return null;
     const userKey = user.id;
     const address = signer.toSuiAddress();
-    const ensureWorkspaceId = async (accountId: string): Promise<string> => {
-      let workspaceId = await loadSettingValue(accountId, WORKSPACE_KEY);
-      if (!workspaceId) {
-        workspaceId = await createWorkspace(signer, accountId);
-        await saveSettingValue(signer, accountId, WORKSPACE_KEY, workspaceId);
-      }
-      return workspaceId;
-    };
+    const ensureWorkspaceId = (accountId: string): Promise<string> =>
+      setupWorkspaceObject(signer, accountId);
+    const ensureCortexAccount = (): Promise<string> =>
+      ensureAccount({
+        signer,
+        memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? ZERO_ID,
+        displayName: "Cortex",
+        handle: `cortex_${address.slice(2, 10)}`,
+      });
     return {
       address,
       storeFile: async (file: File) => {
@@ -366,7 +368,7 @@ export function useCortexWallet(): CortexWalletState {
         const accountId = await getAccountId(address);
         if (!accountId) return null;
         if (sealEnabled()) {
-          const workspaceId = await loadSettingValue(accountId, WORKSPACE_KEY);
+          const workspaceId = await getWorkspaceId(accountId);
           if (!workspaceId) return null;
           const [tasks, messages] = await Promise.all([
             loadWorkspaceTasks(signer, workspaceId),
@@ -397,7 +399,7 @@ export function useCortexWallet(): CortexWalletState {
         if (!contractsEnabled() || !sealEnabled()) return null;
         const accountId = await getAccountId(address);
         if (!accountId) return null;
-        const workspaceId = await loadSettingValue(accountId, WORKSPACE_KEY);
+        const workspaceId = await getWorkspaceId(accountId);
         if (!workspaceId) return null;
         return loadWorkspaceLoops(signer, workspaceId);
       },
@@ -420,6 +422,24 @@ export function useCortexWallet(): CortexWalletState {
           handle: `cortex_${address.slice(2, 10)}`,
         });
         await accountRevokeAdmin({ signer, accountId, delegate });
+      },
+      // The resolved Workspace object id (account setting first, env fallback), or
+      // null when no workspace has been created yet. Read-only — no transaction.
+      workspaceStatus: async () => {
+        if (!contractsEnabled()) return null;
+        const accountId = await getAccountId(address);
+        return accountId ? getWorkspaceId(accountId) : null;
+      },
+      // One-time: create the shared Workspace object and record its id in the
+      // account settings so the browser, backend, and MCP all resolve the same board.
+      setupWorkspace: async () => {
+        if (!contractsEnabled()) {
+          throw new Error(
+            "Creating the agent workspace needs the cortex contracts configured",
+          );
+        }
+        const accountId = await ensureCortexAccount();
+        return ensureWorkspaceId(accountId);
       },
       authorizeMcpAccess: async () => {
         if (!contractsEnabled()) return;

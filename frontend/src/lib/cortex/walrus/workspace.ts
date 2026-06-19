@@ -18,8 +18,10 @@ import type { AgentMessage, AgentTask } from "../agents";
 import { getSealClient, getSuiClient, getWalrusClient } from "./clients";
 import { CORTEX_ENV } from "./env";
 import { objectJson } from "./graphql";
+import { loadSettingValue, saveSettingValue } from "./sessions";
 import type { PrivySuiSigner } from "./signer";
 
+export const WORKSPACE_SETTING_KEY = "agents:workspace";
 const WORKSPACE_MODULE = "workspace";
 const TASKS_SCOPE = "tasks";
 const BUS_SCOPE = "bus";
@@ -151,6 +153,29 @@ export async function createWorkspace(
       ? (exec.Transaction.effects as ExecutionEffects | undefined)
       : (exec.FailedTransaction.effects as ExecutionEffects | undefined);
   return createdWorkspaceId(effects);
+}
+
+// Resolve the user's Workspace object id: the on-chain Account setting is the source
+// of truth (so the browser, the backend, and the MCP all read the same id), falling
+// back to the build-time NEXT_PUBLIC_CORTEX_WORKSPACE_ID env when no setting is set.
+export async function getWorkspaceId(accountId: string): Promise<string | null> {
+  const fromSetting = await loadSettingValue(accountId, WORKSPACE_SETTING_KEY);
+  if (fromSetting) return fromSetting;
+  return CORTEX_ENV.workspaceId.length > 0 ? CORTEX_ENV.workspaceId : null;
+}
+
+// One-time setup: create the shared Workspace object on chain and persist its id to
+// the user's Account settings so every reader (browser, backend, MCP) resolves it.
+// Idempotent — returns the existing id when one is already recorded.
+export async function setupWorkspace(
+  signer: PrivySuiSigner,
+  accountId: string,
+): Promise<string> {
+  const existing = await loadSettingValue(accountId, WORKSPACE_SETTING_KEY);
+  if (existing) return existing;
+  const workspaceId = await createWorkspace(signer, accountId);
+  await saveSettingValue(signer, accountId, WORKSPACE_SETTING_KEY, workspaceId);
+  return workspaceId;
 }
 
 async function setBlob(
