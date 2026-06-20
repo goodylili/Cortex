@@ -1,28 +1,56 @@
 // Deterministic generated avatar (no initials, no external assets). A stable seed
-// (wallet address, agent id, model name) maps to a fixed symmetric identicon over
-// a two-tone gradient, so the same identity always renders the same picture.
+// (wallet address, agent id, model name) maps to a fixed "marble" of soft, blended
+// color blobs, so the same identity always renders the same picture.
 
 "use client";
 
-const VIEW = 80;
-const GRID = 5;
-const CELL = VIEW / GRID;
+const SIZE = 80;
+const ELEMENTS = 3;
 
-const FG = ["#ffffff", "#f8fafc", "#0b1220", "#0a0a0a"];
+const COLORS = [
+  "#7c3aed",
+  "#2563eb",
+  "#0891b2",
+  "#059669",
+  "#ea580c",
+  "#db2777",
+  "#06b6d4",
+  "#f59e0b",
+  "#6366f1",
+  "#10b981",
+];
 
-function hash(seed: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < seed.length; i++) {
-    h ^= seed.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+function hashCode(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) {
+    h = (h << 5) - h + name.charCodeAt(i);
+    h |= 0;
   }
-  return h >>> 0;
+  return Math.abs(h);
 }
 
-function gradient(h: number): string {
-  const a = h % 360;
-  const b = (a + 80 + ((h >> 9) % 80)) % 360;
-  return `linear-gradient(135deg, hsl(${a} 68% 56%), hsl(${b} 70% 44%))`;
+function getDigit(n: number, ntn: number): number {
+  return Math.floor((n / Math.pow(10, ntn)) % 10);
+}
+
+function getUnit(n: number, range: number, index?: number): number {
+  const value = n % range;
+  if (index !== undefined && getDigit(n, index) % 2 === 0) return -value;
+  return value;
+}
+
+function elements(seed: string) {
+  const num = hashCode(seed || "cortex");
+  return Array.from({ length: ELEMENTS }, (_, i) => {
+    const f = num * (i + 1);
+    return {
+      color: COLORS[f % COLORS.length]!,
+      translateX: getUnit(f, SIZE / 10, 1),
+      translateY: getUnit(f, SIZE / 10, 2),
+      scale: 1.2 + getUnit(f, SIZE / 20) / 10,
+      rotate: getUnit(f, 360, 1),
+    };
+  });
 }
 
 export function GenAvatar({
@@ -34,45 +62,50 @@ export function GenAvatar({
   size?: number;
   radius?: number | string;
 }) {
-  const h = hash(seed || "cortex");
-  // Light foreground over a saturated gradient; flip to dark when the base hue
-  // is in the bright yellow/green band so the pattern stays legible.
-  const baseHue = h % 360;
-  const fg = baseHue > 60 && baseHue < 190 ? FG[2]! : FG[0]!;
-  const cells: Array<[number, number]> = [];
-  for (let row = 0; row < GRID; row++) {
-    for (let col = 0; col < Math.ceil(GRID / 2); col++) {
-      if (hash(`${seed}:${row}:${col}`) % 2 === 0) {
-        cells.push([col, row]);
-        if (col !== GRID - 1 - col) cells.push([GRID - 1 - col, row]);
-      }
-    }
-  }
+  const els = elements(seed);
+  const key = hashCode(seed || "cortex");
+  const maskId = `gm${key}`;
+  const filterId = `gf${key}`;
+  const rx = typeof radius === "number" ? radius * (SIZE / size) : SIZE / 2;
   return (
-    <span
-      style={{
-        width: size,
-        height: size,
-        borderRadius: radius,
-        background: gradient(h),
-        display: "inline-block",
-        flex: "none",
-        overflow: "hidden",
-      }}
+    <svg
+      viewBox={`0 0 ${SIZE} ${SIZE}`}
+      width={size}
+      height={size}
+      style={{ borderRadius: radius, display: "block", flex: "none" }}
+      role="img"
     >
-      <svg viewBox={`0 0 ${VIEW} ${VIEW}`} width={size} height={size}>
-        {cells.map(([c, r], i) => (
-          <rect
-            key={i}
-            x={c * CELL}
-            y={r * CELL}
-            width={CELL}
-            height={CELL}
-            fill={fg}
-            opacity={0.92}
-          />
-        ))}
-      </svg>
-    </span>
+      <mask
+        id={maskId}
+        maskUnits="userSpaceOnUse"
+        x="0"
+        y="0"
+        width={SIZE}
+        height={SIZE}
+      >
+        <rect width={SIZE} height={SIZE} rx={rx} fill="#fff" />
+      </mask>
+      <g mask={`url(#${maskId})`}>
+        <rect width={SIZE} height={SIZE} fill={els[0]!.color} />
+        <path
+          filter={`url(#${filterId})`}
+          d="M0 0h80v80H0z"
+          fill={els[1]!.color}
+          transform={`translate(${els[1]!.translateX} ${els[1]!.translateY}) rotate(${els[1]!.rotate} 40 40) scale(${els[1]!.scale})`}
+        />
+        <path
+          filter={`url(#${filterId})`}
+          style={{ mixBlendMode: "overlay" }}
+          d="M0 0h80v80H0z"
+          fill={els[2]!.color}
+          transform={`translate(${els[2]!.translateX} ${els[2]!.translateY}) rotate(${els[2]!.rotate} 40 40) scale(${els[2]!.scale})`}
+        />
+      </g>
+      <defs>
+        <filter id={filterId} x="0" y="0" width="100%" height="100%">
+          <feGaussianBlur stdDeviation="7" />
+        </filter>
+      </defs>
+    </svg>
   );
 }

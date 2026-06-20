@@ -412,7 +412,7 @@ export function CortexApp({
       id: number;
       body: string;
       kind: "info" | "success" | "error";
-      view: View;
+      source: View | "settings";
       tx?: string;
     }[]
   >([]);
@@ -674,7 +674,10 @@ export function CortexApp({
     tx?: string,
   ) {
     const id = ++toastSeq.current;
-    setToasts((t) => [...t, { id, body: m, kind, view, tx }].slice(-4));
+    // The settings modal floats over whatever page is behind it, so attribute
+    // its actions to Settings rather than the underlying view.
+    const source: View | "settings" = settingsOpen ? "settings" : view;
+    setToasts((t) => [...t, { id, body: m, kind, source, tx }].slice(-4));
     setTimeout(
       () => setToasts((t) => t.filter((x) => x.id !== id)),
       tx ? 8000 : 4200,
@@ -7170,16 +7173,26 @@ export function CortexApp({
 
       <div className="toasts">
         {toasts.map((t) => {
-          const meta = NAV.find(([v]) => v === t.view);
+          const isSettings = t.source === "settings";
+          const meta = isSettings
+            ? undefined
+            : NAV.find(([v]) => v === t.source);
+          const title = isSettings ? "Settings" : (meta?.[1] ?? "Cortex");
+          const icon = isSettings ? (
+            <>
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </>
+          ) : (
+            (meta?.[2] ?? <path d="M13 2 4 14h6l-1 8 9-12h-6z" />)
+          );
           return (
             <div className={"ntf ntf-" + t.kind} key={t.id} role="status">
               <span className="ntf-ic">
-                <svg viewBox="0 0 24 24">
-                  {meta?.[2] ?? <path d="M13 2 4 14h6l-1 8 9-12h-6z" />}
-                </svg>
+                <svg viewBox="0 0 24 24">{icon}</svg>
               </span>
               <div className="ntf-body">
-                <div className="ntf-title">{meta?.[1] ?? "Cortex"}</div>
+                <div className="ntf-title">{title}</div>
                 <div className="ntf-msg">{t.body}</div>
                 {t.tx && (
                   <a
