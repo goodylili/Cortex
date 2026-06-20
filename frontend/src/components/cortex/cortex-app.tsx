@@ -5357,7 +5357,7 @@ export function CortexApp({
                       {sess ? (
                         <div className="set-account">
                           <span className="set-av">
-                            {sess.via[0]?.toUpperCase()}
+                            <GenAvatar seed={sess.addr} size={38} radius={10} />
                           </span>
                           <div className="set-acc-m">
                             <div className="set-acc-n">
