@@ -116,9 +116,9 @@ export interface CortexWallet {
   grantAdmin: (delegate: string) => Promise<void>;
   revokeAdmin: (delegate: string) => Promise<void>;
   workspaceStatus: () => Promise<string | null>;
-  setupWorkspace: () => Promise<string>;
-  authorizeMcpAccess: () => Promise<void>;
-  revokeMcpAccess: () => Promise<void>;
+  setupWorkspace: () => Promise<{ id: string; digest?: string }>;
+  authorizeMcpAccess: () => Promise<string | undefined>;
+  revokeMcpAccess: () => Promise<string | undefined>;
   listDelegates: () => Promise<{ publicKey: string; isThisDevice: boolean }[]>;
   revokeDelegate: (publicKey: string) => Promise<boolean>;
   saveLoops: (loops: LoopRun[]) => Promise<void>;
@@ -249,7 +249,7 @@ export function useCortexWallet(): CortexWalletState {
     const userKey = user.id;
     const address = signer.toSuiAddress();
     const ensureWorkspaceId = (accountId: string): Promise<string> =>
-      setupWorkspaceObject(signer, accountId);
+      setupWorkspaceObject(signer, accountId).then((r) => r.id);
     const ensureCortexAccount = (): Promise<string> =>
       ensureAccount({
         signer,
@@ -439,16 +439,17 @@ export function useCortexWallet(): CortexWalletState {
           );
         }
         const accountId = await ensureCortexAccount();
-        return ensureWorkspaceId(accountId);
+        return setupWorkspaceObject(signer, accountId);
       },
       authorizeMcpAccess: async () => {
-        if (!contractsEnabled()) return;
+        if (!contractsEnabled()) return undefined;
         const accountId = await ensureAccount({
           signer,
           memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? ZERO_ID,
           displayName: "Cortex",
           handle: `cortex_${address.slice(2, 10)}`,
         });
+        let digest: string | undefined;
         const grants: Promise<unknown>[] = [];
         if (CORTEX_ENV.mcpAddress) {
           grants.push(
@@ -456,6 +457,8 @@ export function useCortexWallet(): CortexWalletState {
               signer,
               accountId,
               delegate: CORTEX_ENV.mcpAddress,
+            }).then((r) => {
+              digest = r.digest;
             }),
           );
         }
@@ -475,20 +478,24 @@ export function useCortexWallet(): CortexWalletState {
           );
         }
         await Promise.all(grants);
+        return digest;
       },
       revokeMcpAccess: async () => {
-        if (!contractsEnabled() || !CORTEX_ENV.mcpAddress) return;
+        if (!contractsEnabled() || !CORTEX_ENV.mcpAddress) return undefined;
         const accountId = await ensureAccount({
           signer,
           memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? ZERO_ID,
           displayName: "Cortex",
           handle: `cortex_${address.slice(2, 10)}`,
         });
+        let digest: string | undefined;
         const revocations: Promise<unknown>[] = [
           accountRevokeAdmin({
             signer,
             accountId,
             delegate: CORTEX_ENV.mcpAddress,
+          }).then((r) => {
+            digest = r.digest;
           }),
         ];
         if (sealEnabled()) {
@@ -498,6 +505,7 @@ export function useCortexWallet(): CortexWalletState {
           );
         }
         await Promise.all(revocations);
+        return digest;
       },
       listDelegates: async () => {
         if (!contractsEnabled()) return [];

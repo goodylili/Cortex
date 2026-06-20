@@ -138,7 +138,7 @@ function createdWorkspaceId(effects: ExecutionEffects | undefined): string {
 export async function createWorkspace(
   signer: PrivySuiSigner,
   accountId: string,
-): Promise<string> {
+): Promise<{ id: string; digest: string }> {
   const tx = new Transaction();
   tx.moveCall({
     target: workspaceTarget("create_workspace"),
@@ -152,7 +152,11 @@ export async function createWorkspace(
     exec.$kind === "Transaction"
       ? (exec.Transaction.effects as ExecutionEffects | undefined)
       : (exec.FailedTransaction.effects as ExecutionEffects | undefined);
-  return createdWorkspaceId(effects);
+  const digest =
+    exec.$kind === "Transaction"
+      ? exec.Transaction.digest
+      : exec.FailedTransaction.digest;
+  return { id: createdWorkspaceId(effects), digest };
 }
 
 // Resolve the user's Workspace object id: the on-chain Account setting is the source
@@ -170,12 +174,12 @@ export async function getWorkspaceId(accountId: string): Promise<string | null> 
 export async function setupWorkspace(
   signer: PrivySuiSigner,
   accountId: string,
-): Promise<string> {
+): Promise<{ id: string; digest?: string }> {
   const existing = await loadSettingValue(accountId, WORKSPACE_SETTING_KEY);
-  if (existing) return existing;
-  const workspaceId = await createWorkspace(signer, accountId);
-  await saveSettingValue(signer, accountId, WORKSPACE_SETTING_KEY, workspaceId);
-  return workspaceId;
+  if (existing) return { id: existing };
+  const { id, digest } = await createWorkspace(signer, accountId);
+  await saveSettingValue(signer, accountId, WORKSPACE_SETTING_KEY, id);
+  return { id, digest };
 }
 
 async function setBlob(

@@ -713,12 +713,14 @@ export function CortexApp({
     if (!w || !mcpAuthReady) return;
     setMcpAuthBusy(true);
     try {
-      await w.authorizeMcpAccess();
+      const digest = await w.authorizeMcpAccess();
       flash(
         "Authorized your MCP  -  it can now access your profile, memory and shared agent workspace.",
+        "success",
+        digest,
       );
     } catch (err) {
-      flash(err instanceof Error ? err.message : String(err));
+      flash(err instanceof Error ? err.message : String(err), "error");
     } finally {
       setMcpAuthBusy(false);
     }
@@ -729,10 +731,10 @@ export function CortexApp({
     if (!w || !mcpAuthReady) return;
     setMcpAuthBusy(true);
     try {
-      await w.revokeMcpAccess();
-      flash("Revoked MCP access.");
+      const digest = await w.revokeMcpAccess();
+      flash("Revoked MCP access.", "success", digest);
     } catch (err) {
-      flash(err instanceof Error ? err.message : String(err));
+      flash(err instanceof Error ? err.message : String(err), "error");
     } finally {
       setMcpAuthBusy(false);
     }
@@ -746,11 +748,15 @@ export function CortexApp({
     if (!w || !workspaceReady) return;
     setWorkspaceBusy(true);
     try {
-      const id = await w.setupWorkspace();
+      const { id, digest } = await w.setupWorkspace();
       setWorkspaceId(id);
-      flash("Agent workspace is live on chain  -  your team can now share a board.");
+      flash(
+        "Agent workspace is live on chain  -  your team can now share a board.",
+        "success",
+        digest,
+      );
     } catch (err) {
-      flash(err instanceof Error ? err.message : String(err));
+      flash(err instanceof Error ? err.message : String(err), "error");
     } finally {
       setWorkspaceBusy(false);
     }
