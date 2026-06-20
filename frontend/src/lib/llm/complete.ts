@@ -3,7 +3,7 @@
 // NEXT_PUBLIC). Returns ok:false (with a reason) instead of throwing so callers can
 // fall back gracefully when a key is missing or a provider errors.
 
-import type { ModelSpec, Provider } from "./models";
+import { DEFAULT_MODEL, type ModelSpec, type Provider } from "./models";
 
 const DEFAULT_MAX_TOKENS = 1200;
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -148,10 +148,20 @@ export function hasProviderKey(provider: Provider): boolean {
 }
 
 export async function complete(args: CompleteArgs): Promise<CompleteResult> {
+  // Free-tier safety net: if the chosen built-in model's provider has no server
+  // key (e.g. a Gemini-only deploy where the user picked Claude/GPT/Grok), fall
+  // back to the default Gemini model so users get a real answer instead of a
+  // route-level template. BYOK custom models never reach the server, so this only
+  // affects built-in picks the server can't actually run.
+  const model =
+    !hasProviderKey(args.model.provider) && hasProviderKey(DEFAULT_MODEL.provider)
+      ? DEFAULT_MODEL
+      : args.model;
+  const call = { ...args, model };
   try {
-    return args.model.provider === "anthropic"
-      ? await callAnthropic(args)
-      : await callOpenAiStyle(args);
+    return model.provider === "anthropic"
+      ? await callAnthropic(call)
+      : await callOpenAiStyle(call);
   } catch (err) {
     return { text: "", ok: false, reason: `fetch-failed: ${(err as Error).message}` };
   }

@@ -6,9 +6,10 @@
 "use client";
 
 import { blobIdFromInt } from "@mysten/walrus";
+import { getAccountId } from "./account";
 import { CORTEX_ENV } from "./env";
 import { fileUrl } from "./files";
-import { ownedObjects } from "./graphql";
+import { objectJson } from "./graphql";
 
 export interface KbFileInfo {
   id: string;
@@ -26,25 +27,40 @@ interface KbJson {
   walrus?: { blob_id?: string | number; size?: string | number };
 }
 
+// VecSet<ID> serializes as { contents: [id, ...] } (or a bare array, defensively).
+function vecSetIds(value: unknown): string[] {
+  const entries = Array.isArray(value)
+    ? value
+    : ((value as { contents?: unknown } | null | undefined)?.contents ?? []);
+  return Array.isArray(entries)
+    ? entries.filter((e): e is string => typeof e === "string")
+    : [];
+}
+
+// KbFile objects are shared on chain (transfer::share_object), so they don't show
+// up under the owner's owned objects. The Account holds the authoritative set of
+// the user's KbFile ids (account.kb_files), so read those and fetch each object.
 export async function listKbFiles(owner: string): Promise<KbFileInfo[]> {
   if (!CORTEX_ENV.packageId) return [];
-  const owned = await ownedObjects(
-    owner,
-    `${CORTEX_ENV.packageId}::walrus::KbFile`,
-  );
+  const accountId = await getAccountId(owner);
+  if (!accountId) return [];
+  const account = await objectJson(accountId);
+  const ids = vecSetIds(account?.kb_files);
+  if (ids.length === 0) return [];
 
+  const objects = await Promise.all(ids.map((id) => objectJson(id)));
   const files: KbFileInfo[] = [];
-  for (const { id, json } of owned) {
-    const fields = json as KbJson;
-    const blobInt = fields.walrus?.blob_id;
+  for (let i = 0; i < ids.length; i++) {
+    const fields = objects[i] as KbJson | null;
+    const blobInt = fields?.walrus?.blob_id;
     if (blobInt === undefined) continue;
     const blobId = blobIdFromInt(String(blobInt));
     files.push({
-      id,
-      name: String(fields.name ?? "file"),
-      mime: String(fields.mime ?? ""),
+      id: ids[i],
+      name: String(fields?.name ?? "file"),
+      mime: String(fields?.mime ?? ""),
       blobId,
-      size: Number(fields.walrus?.size ?? 0),
+      size: Number(fields?.walrus?.size ?? 0),
       url: fileUrl(blobId),
     });
   }

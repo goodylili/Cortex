@@ -24,6 +24,10 @@ const DELEGATE_LABEL_PREFIX = "cortex:memwal:v1:";
 const DEVICE_KEY_LABEL = "Cortex device";
 const ED25519_SECRET_KEY_LENGTH = 32;
 const MCP_DELEGATE_LABEL = "Cortex MCP";
+// recall() is top-K with no relevance floor, so a small namespace returns its
+// closest rows even when they're unrelated. Drop anything at/above this distance
+// (>= 0.7 is "usually unrelated") so the brain only ingests clearly-relevant hits.
+const RECALL_MAX_DISTANCE = 0.7;
 
 export interface MemoryCreds {
   accountId: string;
@@ -231,7 +235,11 @@ export async function recallLive(
 ): Promise<RecalledMemory[]> {
   const memwal = getMemoryClient(userKey, namespace);
   if (!memwal) return [];
-  const { results } = await memwal.recall({ query, limit });
+  const { results } = await memwal.recall({
+    query,
+    limit,
+    maxDistance: RECALL_MAX_DISTANCE,
+  });
   return results.map((r) => ({
     blobId: r.blob_id,
     text: r.text,

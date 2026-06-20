@@ -24,7 +24,7 @@ const DEFAULT_GRAPHQL: Record<CortexNetwork, string> = {
 };
 const DEFAULT_WALRUS_EPOCHS = 5;
 const DEFAULT_SEAL_THRESHOLD = 1;
-const DEFAULT_MEMWAL_SERVER = "https://relayer.memwal.ai";
+const DEFAULT_MEMWAL_SERVER = "https://relayer.memory.walrus.xyz";
 const DEFAULT_UPLOAD_RELAY: Record<CortexNetwork, string> = {
   testnet: "https://upload-relay.testnet.walrus.space",
   mainnet: "https://upload-relay.mainnet.walrus.space",
