@@ -1,10 +1,18 @@
 // Browser-side configuration for the live Walrus/Seal/Sui/MemWal path. Read from
 // NEXT_PUBLIC_* env (statically inlined by Next). The app runs fully on the local
 // mock store with none of these set; these wire the live, signed-in path.
+//
+// Dual-network: most values exist per network as _MAINNET / _TESTNET slots; the
+// reused wallets (MCP delegate address) are network-agnostic. Next only inlines
+// process.env.NEXT_PUBLIC_* for STATIC literal keys, so each slot is referenced
+// explicitly below (no dynamic key access). cortexEnvFor(network) returns the
+// resolved config for a network; networkAvailable(network) drives the UI's
+// network picker (a network shows "coming soon" until fully configured).
 
 "use client";
 
 export type CortexNetwork = "testnet" | "mainnet";
+export const CORTEX_NETWORKS: CortexNetwork[] = ["testnet", "mainnet"];
 
 const DEFAULT_RPC: Record<CortexNetwork, string> = {
   testnet: "https://fullnode.testnet.sui.io:443",
@@ -56,10 +64,6 @@ export interface CortexEnv {
   suinsParent: string;
 }
 
-function parseNetwork(value: string | undefined): CortexNetwork {
-  return value === "mainnet" ? "mainnet" : "testnet";
-}
-
 function parseIntOr(value: string | undefined, fallback: number): number {
   const n = value ? Number.parseInt(value, 10) : Number.NaN;
   return Number.isFinite(n) && n > 0 ? n : fallback;
@@ -72,48 +76,136 @@ function parseList(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
-const network = parseNetwork(process.env.NEXT_PUBLIC_SUI_NETWORK);
+// Network-agnostic (reused on both networks).
+const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "";
+const MCP_ADDRESS = process.env.NEXT_PUBLIC_CORTEX_MCP_ADDRESS ?? "";
+const WALRUS_EPOCHS = parseIntOr(
+  process.env.NEXT_PUBLIC_WALRUS_EPOCHS,
+  DEFAULT_WALRUS_EPOCHS,
+);
 
-export const CORTEX_ENV: CortexEnv = {
-  privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "",
-  network,
-  suiRpc: process.env.NEXT_PUBLIC_SUI_RPC ?? DEFAULT_RPC[network],
-  suiGraphql: process.env.NEXT_PUBLIC_SUI_GRAPHQL ?? DEFAULT_GRAPHQL[network],
-  packageId: process.env.NEXT_PUBLIC_CORTEX_PACKAGE_ID ?? "",
-  registryId: process.env.NEXT_PUBLIC_CORTEX_REGISTRY_ID ?? "",
-  accessRegistryId: process.env.NEXT_PUBLIC_CORTEX_ACCESS_REGISTRY ?? "",
-  executorCapId: process.env.NEXT_PUBLIC_CORTEX_EXECUTOR_CAP ?? "",
-  workspaceId: process.env.NEXT_PUBLIC_CORTEX_WORKSPACE_ID ?? "",
-  mcpAddress: process.env.NEXT_PUBLIC_CORTEX_MCP_ADDRESS ?? "",
-  mcpMemwalPubkey: process.env.NEXT_PUBLIC_CORTEX_MCP_MEMWAL_PUBKEY ?? "",
-  walrusEpochs: parseIntOr(
-    process.env.NEXT_PUBLIC_WALRUS_EPOCHS,
-    DEFAULT_WALRUS_EPOCHS,
-  ),
-  walrusUploadRelay:
-    process.env.NEXT_PUBLIC_WALRUS_UPLOAD_RELAY ??
-    DEFAULT_UPLOAD_RELAY[network],
-  walrusAggregator:
-    process.env.NEXT_PUBLIC_WALRUS_AGGREGATOR ?? DEFAULT_AGGREGATOR[network],
-  suiCoinType: SUI_COIN_TYPE,
-  walCoinType:
-    process.env.NEXT_PUBLIC_WAL_COIN_TYPE ?? DEFAULT_WAL_COIN_TYPE[network],
-  seal: {
-    serverObjectIds: parseList(process.env.NEXT_PUBLIC_SEAL_SERVER_IDS),
-    threshold: parseIntOr(
-      process.env.NEXT_PUBLIC_SEAL_THRESHOLD,
-      DEFAULT_SEAL_THRESHOLD,
-    ),
+// Per-network raw slots. Each key is a STATIC literal so Next inlines it.
+interface NetSlots {
+  packageId?: string;
+  registryId?: string;
+  accessRegistryId?: string;
+  executorCapId?: string;
+  mcpMemwalPubkey?: string;
+  memwalServerUrl?: string;
+  memwalPackageId?: string;
+  memwalRegistryId?: string;
+  sealServerIds?: string;
+  sealThreshold?: string;
+  suinsParent?: string;
+}
+
+const SLOTS: Record<CortexNetwork, NetSlots> = {
+  mainnet: {
+    packageId: process.env.NEXT_PUBLIC_CORTEX_PACKAGE_ID_MAINNET,
+    registryId: process.env.NEXT_PUBLIC_CORTEX_REGISTRY_ID_MAINNET,
+    accessRegistryId: process.env.NEXT_PUBLIC_CORTEX_ACCESS_REGISTRY_MAINNET,
+    executorCapId: process.env.NEXT_PUBLIC_CORTEX_EXECUTOR_CAP_MAINNET,
+    mcpMemwalPubkey: process.env.NEXT_PUBLIC_CORTEX_MCP_MEMWAL_PUBKEY_MAINNET,
+    memwalServerUrl: process.env.NEXT_PUBLIC_MEMWAL_SERVER_URL_MAINNET,
+    memwalPackageId: process.env.NEXT_PUBLIC_MEMWAL_PACKAGE_ID_MAINNET,
+    memwalRegistryId: process.env.NEXT_PUBLIC_MEMWAL_REGISTRY_ID_MAINNET,
+    sealServerIds: process.env.NEXT_PUBLIC_SEAL_SERVER_IDS_MAINNET,
+    sealThreshold: process.env.NEXT_PUBLIC_SEAL_THRESHOLD_MAINNET,
+    suinsParent: process.env.NEXT_PUBLIC_CORTEX_SUINS_PARENT_MAINNET,
   },
-  memwal: {
-    serverUrl:
-      process.env.NEXT_PUBLIC_MEMWAL_SERVER_URL ?? DEFAULT_MEMWAL_SERVER,
-    packageId: process.env.NEXT_PUBLIC_MEMWAL_PACKAGE_ID ?? "",
-    registryId: process.env.NEXT_PUBLIC_MEMWAL_REGISTRY_ID ?? "",
+  testnet: {
+    packageId: process.env.NEXT_PUBLIC_CORTEX_PACKAGE_ID_TESTNET,
+    registryId: process.env.NEXT_PUBLIC_CORTEX_REGISTRY_ID_TESTNET,
+    accessRegistryId: process.env.NEXT_PUBLIC_CORTEX_ACCESS_REGISTRY_TESTNET,
+    executorCapId: process.env.NEXT_PUBLIC_CORTEX_EXECUTOR_CAP_TESTNET,
+    mcpMemwalPubkey: process.env.NEXT_PUBLIC_CORTEX_MCP_MEMWAL_PUBKEY_TESTNET,
+    memwalServerUrl: process.env.NEXT_PUBLIC_MEMWAL_SERVER_URL_TESTNET,
+    memwalPackageId: process.env.NEXT_PUBLIC_MEMWAL_PACKAGE_ID_TESTNET,
+    memwalRegistryId: process.env.NEXT_PUBLIC_MEMWAL_REGISTRY_ID_TESTNET,
+    sealServerIds: process.env.NEXT_PUBLIC_SEAL_SERVER_IDS_TESTNET,
+    sealThreshold: process.env.NEXT_PUBLIC_SEAL_THRESHOLD_TESTNET,
+    suinsParent: process.env.NEXT_PUBLIC_CORTEX_SUINS_PARENT_TESTNET,
   },
-  suinsParent:
-    process.env.NEXT_PUBLIC_CORTEX_SUINS_PARENT ?? DEFAULT_SUINS_PARENT,
 };
+
+function buildEnv(network: CortexNetwork): CortexEnv {
+  const s = SLOTS[network];
+  return {
+    privyAppId: PRIVY_APP_ID,
+    network,
+    suiRpc: DEFAULT_RPC[network],
+    suiGraphql: DEFAULT_GRAPHQL[network],
+    packageId: s.packageId ?? "",
+    registryId: s.registryId ?? "",
+    accessRegistryId: s.accessRegistryId ?? "",
+    executorCapId: s.executorCapId ?? "",
+    workspaceId: "",
+    mcpAddress: MCP_ADDRESS,
+    mcpMemwalPubkey: s.mcpMemwalPubkey ?? "",
+    walrusEpochs: WALRUS_EPOCHS,
+    walrusUploadRelay: DEFAULT_UPLOAD_RELAY[network],
+    walrusAggregator: DEFAULT_AGGREGATOR[network],
+    suiCoinType: SUI_COIN_TYPE,
+    walCoinType: DEFAULT_WAL_COIN_TYPE[network],
+    seal: {
+      serverObjectIds: parseList(s.sealServerIds),
+      threshold: parseIntOr(s.sealThreshold, DEFAULT_SEAL_THRESHOLD),
+    },
+    memwal: {
+      serverUrl: s.memwalServerUrl || DEFAULT_MEMWAL_SERVER,
+      packageId: s.memwalPackageId ?? "",
+      registryId: s.memwalRegistryId ?? "",
+    },
+    suinsParent: s.suinsParent || DEFAULT_SUINS_PARENT,
+  };
+}
+
+const ENV_BY_NETWORK: Record<CortexNetwork, CortexEnv> = {
+  mainnet: buildEnv("mainnet"),
+  testnet: buildEnv("testnet"),
+};
+
+// Resolved config for a given network.
+export function cortexEnvFor(network: CortexNetwork): CortexEnv {
+  return ENV_BY_NETWORK[network];
+}
+
+// A network is offered in the UI once its core live path is in place: contracts +
+// access model + Seal key servers. (Walrus Memory and SuiNS are optional add-ons
+// that light up when their slots fill.) Seal is included so mainnet stays "coming
+// soon" while its paid key server is pending, while testnet (free Seal) is live.
+export function networkAvailable(network: CortexNetwork): boolean {
+  const e = ENV_BY_NETWORK[network];
+  return (
+    e.packageId.length > 0 &&
+    e.registryId.length > 0 &&
+    e.accessRegistryId.length > 0 &&
+    e.executorCapId.length > 0 &&
+    e.seal.serverObjectIds.length > 0
+  );
+}
+
+export function availableNetworks(): CortexNetwork[] {
+  return CORTEX_NETWORKS.filter(networkAvailable);
+}
+
+function parseNetwork(value: string | undefined): CortexNetwork | undefined {
+  return value === "mainnet" || value === "testnet" ? value : undefined;
+}
+
+// The network the app opens on: the configured default if available, else the
+// first available network, else the default (mock mode until something is wired).
+const DEFAULT_NETWORK: CortexNetwork =
+  parseNetwork(process.env.NEXT_PUBLIC_CORTEX_DEFAULT_NETWORK) ?? "testnet";
+
+export function defaultNetwork(): CortexNetwork {
+  if (networkAvailable(DEFAULT_NETWORK)) return DEFAULT_NETWORK;
+  return availableNetworks()[0] ?? DEFAULT_NETWORK;
+}
+
+// Active config for the default network. Consumers that need a user-selected
+// network at runtime should call cortexEnvFor(selected) instead.
+export const CORTEX_ENV: CortexEnv = cortexEnvFor(defaultNetwork());
 
 // Privy login is available whenever an app id is set.
 export function authEnabled(): boolean {
@@ -121,24 +213,21 @@ export function authEnabled(): boolean {
 }
 
 // Recording files as on-chain KbFile objects needs the deployed cortex package.
-export function contractsEnabled(): boolean {
-  return CORTEX_ENV.packageId.length > 0 && CORTEX_ENV.registryId.length > 0;
+export function contractsEnabled(env: CortexEnv = CORTEX_ENV): boolean {
+  return env.packageId.length > 0 && env.registryId.length > 0;
 }
 
 // Seal encryption is used only when key servers are configured.
-export function sealEnabled(): boolean {
-  return CORTEX_ENV.seal.serverObjectIds.length > 0;
+export function sealEnabled(env: CortexEnv = CORTEX_ENV): boolean {
+  return env.seal.serverObjectIds.length > 0;
 }
 
 // Walrus Memory can be auto-provisioned only when its contract ids are configured.
-export function memoryConfigured(): boolean {
-  return (
-    CORTEX_ENV.memwal.packageId.length > 0 &&
-    CORTEX_ENV.memwal.registryId.length > 0
-  );
+export function memoryConfigured(env: CortexEnv = CORTEX_ENV): boolean {
+  return env.memwal.packageId.length > 0 && env.memwal.registryId.length > 0;
 }
 
 // SuiNS username claiming/resolution is available whenever a parent domain is set.
-export function suinsEnabled(): boolean {
-  return CORTEX_ENV.suinsParent.length > 0;
+export function suinsEnabled(env: CortexEnv = CORTEX_ENV): boolean {
+  return env.suinsParent.length > 0;
 }

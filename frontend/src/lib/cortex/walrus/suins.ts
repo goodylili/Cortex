@@ -93,7 +93,7 @@ export async function claimUsername(
   const res = await fetch(CLAIM_ENDPOINT, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ username, address }),
+    body: JSON.stringify({ username, address, network: CORTEX_ENV.network }),
   });
 
   const data: unknown = await res.json().catch(() => null);

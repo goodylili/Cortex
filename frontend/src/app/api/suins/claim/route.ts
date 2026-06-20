@@ -34,10 +34,24 @@ const SERVICE_UNAVAILABLE = 503;
 const bodySchema = z.object({
   username: z.string().min(1),
   address: z.string().min(1),
+  network: z.enum(["testnet", "mainnet"]).optional(),
 });
 
 function parseNetwork(value: string | undefined): SuiNetwork {
   return value === "mainnet" ? "mainnet" : "testnet";
+}
+
+// SuiNS env is per-network (different parent domain / registration NFT per chain);
+// the signer wallet is reused, so its key stays untagged.
+function suinsConfig(network: SuiNetwork): {
+  parent: string;
+  parentNftId: string;
+} {
+  const tag = network.toUpperCase();
+  return {
+    parent: process.env[`NEXT_PUBLIC_CORTEX_SUINS_PARENT_${tag}`] ?? "",
+    parentNftId: process.env[`CORTEX_SUINS_PARENT_NFT_ID_${tag}`] ?? "",
+  };
 }
 
 function normalizeUsername(username: string): string | null {
@@ -77,22 +91,21 @@ export async function POST(req: Request) {
     return Response.json({ error: "invalid address" }, { status: 400 });
   }
 
-  // Server-only secrets (never NEXT_PUBLIC): the parent registration object the wallet
-  // holds, and the signer key that owns it. Absent either, claiming is not configured.
-  const parentNftId = process.env.CORTEX_SUINS_PARENT_NFT_ID ?? "";
+  // Network-scoped parent domain + registration NFT; signer wallet is reused, so
+  // its key is untagged. Absent any of them, claiming is not configured.
+  const network = parseNetwork(parsed.data.network);
+  const { parent: parentName, parentNftId } = suinsConfig(network);
   const signerKey = process.env.CORTEX_SUINS_SIGNER_KEY ?? "";
-  if (!parentNftId || !signerKey) {
+  if (!parentNftId || !signerKey || !parentName) {
     return Response.json(
       { error: "SuiNS claiming not configured" },
       { status: SERVICE_UNAVAILABLE },
     );
   }
 
-  const parent =
-    process.env.NEXT_PUBLIC_CORTEX_SUINS_PARENT ?? DEFAULT_SUINS_PARENT;
+  const parent = parentName || DEFAULT_SUINS_PARENT;
   const name = `${username}.${parent}`;
-  const network = parseNetwork(process.env.NEXT_PUBLIC_SUI_NETWORK);
-  const rpc = process.env.NEXT_PUBLIC_SUI_RPC ?? DEFAULT_RPC[network];
+  const rpc = DEFAULT_RPC[network];
 
   try {
     // fromSecretKey accepts a bech32 `suiprivkey...` string or a raw 32-byte key;

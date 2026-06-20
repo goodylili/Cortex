@@ -26,10 +26,35 @@ The full transaction receipt is in `published.json`; the toolchain pins in
 | Admin / publisher (holds `AdminCap` + `UpgradeCap`) | `0x25041c0da7e900e634ce629e8da3b7adf236a2836a2f010433db3ce7b714e1f8` |
 | MCP executor (holds `ExecutorCap`) | `0x552fb04f841b0db04d7ad1a4c3732ddea943434a27e8f947e031dc265639efa6` |
 
-The MCP executor wallet signs gated executor calls and needs native gas (mainnet
-SUI) to operate. Its private key is server-only and never committed.
+The MCP executor wallet signs gated executor calls and needs native gas to
+operate. Its private key is server-only and never committed.
+
+## Testnet
+
+- Network: `testnet`
+- Publish digest: `2fYED742simpoTfFsiKWjGuWZbofqqmwnvc8Z4jwq1xk`
+- Modules: `access`, `account`, `agents`, `cortex`, `private`, `seal`, `sharing`, `util`, `walrus`, `workspace`
+
+| Object | Id | Notes |
+| --- | --- | --- |
+| Package | `0xba40cb2abdeed0d6995dd2cfcdeccb2392cf8c0d5f1d78018d3f43e1217963e8` | the published package |
+| `account::Registry` | `0x64374b163766d9afef4ecf7ecab96cbe5f3ce7a9048aca703a82afb4122bd916` | shared |
+| `access::AccessRegistry` | `0xf1b18cd53be1ca2a3267319b64f203d83de589262f2b3620a199ee105ec3c0c7` | shared |
+| `access::AdminCap` | `0x3fb9b09c1e8ef2fb07a39f41104193649684dace435217b21dbf7bf4e188db66` | held by the admin wallet |
+| `access::ExecutorCap` | `0x8da0d85153c9a1a10a37353d594ce218913e0f2efee30c81d8edef3e6e48d1ee` | transferred to the MCP wallet |
+| `package::UpgradeCap` | `0xdeff46726173b8c144855d5b9b0a4d70e3bfcb8eb2092fb9cb903c35c8d4651c` | held by the admin wallet |
+
+The **same wallets** are reused on both networks (admin `0x25041c0d…`, MCP executor
+`0x552fb04f…`). The full receipt is in `published.testnet.json`.
 
 ### Where these are wired
 
-- Frontend (`frontend/.env.local`): `NEXT_PUBLIC_CORTEX_PACKAGE_ID`, `…_REGISTRY_ID`, `…_ACCESS_REGISTRY`, `…_EXECUTOR_CAP`, `…_MCP_ADDRESS`.
-- MCP server (`backend/mcp/.env`, see `backend/mcp/.env.example`): `CORTEX_PACKAGE_ID`, `CORTEX_ACCESS_REGISTRY`, `CORTEX_EXECUTOR_CAP`, `CORTEX_DELEGATE_KEY`.
+Both networks are configured side by side, selected at runtime by the user
+(frontend) or by `CORTEX_SUI_NETWORK` (MCP):
+
+- Frontend (`frontend/.env.local`): `NEXT_PUBLIC_CORTEX_*_MAINNET` / `*_TESTNET`
+  slots; reused wallets (`NEXT_PUBLIC_CORTEX_MCP_ADDRESS`, `CORTEX_SUINS_SIGNER_KEY`)
+  stay untagged. A network is offered only when its full slot set is filled.
+- MCP server (`backend/mcp/.env`, see `backend/mcp/.env.example`): `CORTEX_*_MAINNET`
+  / `*_TESTNET` slots, with `CORTEX_SUI_NETWORK` picking the active one; the
+  `CORTEX_DELEGATE_KEY` wallet is reused across both.

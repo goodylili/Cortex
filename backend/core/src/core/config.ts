@@ -93,30 +93,36 @@ export function loadConfig(
   }
   const cfg = deepMerge(DEFAULTS, fromFile);
   const fileModels = (fromFile.models ?? {}) as Partial<Config["models"]>;
-  // env overrides
-  if (process.env.CORTEX_NAMESPACE)
-    cfg.namespace = process.env.CORTEX_NAMESPACE;
-  if (process.env.CORTEX_SUI_RPC) cfg.sui.rpc = process.env.CORTEX_SUI_RPC;
+  // env overrides. CORTEX_SUI_NETWORK selects which network-tagged slot
+  // (FOO_MAINNET / FOO_TESTNET) is read; each falls back to the untagged name.
   if (process.env.CORTEX_SUI_NETWORK)
     cfg.sui.network = process.env.CORTEX_SUI_NETWORK;
-  if (process.env.CORTEX_WALRUS_PUBLISHER)
-    cfg.walrus.publisher = process.env.CORTEX_WALRUS_PUBLISHER;
-  if (process.env.CORTEX_WALRUS_AGGREGATOR)
-    cfg.walrus.aggregator = process.env.CORTEX_WALRUS_AGGREGATOR;
+  const net = cfg.sui.network ? cfg.sui.network.toUpperCase() : "";
+  const pick = (base: string): string | undefined =>
+    (net ? process.env[`${base}_${net}`] : undefined) ?? process.env[base];
+
+  if (process.env.CORTEX_NAMESPACE)
+    cfg.namespace = process.env.CORTEX_NAMESPACE;
+  const rpc = pick("CORTEX_SUI_RPC");
+  if (rpc) cfg.sui.rpc = rpc;
+  const walrusPublisher = pick("CORTEX_WALRUS_PUBLISHER");
+  if (walrusPublisher) cfg.walrus.publisher = walrusPublisher;
+  const walrusAggregator = pick("CORTEX_WALRUS_AGGREGATOR");
+  if (walrusAggregator) cfg.walrus.aggregator = walrusAggregator;
   if (process.env.CORTEX_WALRUS_EPOCHS) {
     const parsed = Number.parseInt(process.env.CORTEX_WALRUS_EPOCHS, 10);
     if (Number.isFinite(parsed) && parsed > 0) cfg.walrus.epochs = parsed;
   }
-  if (process.env.CORTEX_PACKAGE_ID)
-    cfg.seal.policyPackage = process.env.CORTEX_PACKAGE_ID;
-  if (process.env.CORTEX_SEAL_POLICY_OBJECT)
-    cfg.seal.policyObject = process.env.CORTEX_SEAL_POLICY_OBJECT;
-  const memwalUrl = process.env.MEMWAL_SERVER_URL || process.env.CORTEX_MEMWAL_URL;
+  const packageId = pick("CORTEX_PACKAGE_ID");
+  if (packageId) cfg.seal.policyPackage = packageId;
+  const sealPolicyObject = pick("CORTEX_SEAL_POLICY_OBJECT");
+  if (sealPolicyObject) cfg.seal.policyObject = sealPolicyObject;
+  const memwalUrl = pick("MEMWAL_SERVER_URL") || pick("CORTEX_MEMWAL_URL");
   if (memwalUrl) cfg.memwal.url = memwalUrl;
-  if (process.env.MEMWAL_PRIVATE_KEY)
-    cfg.memwal.key = process.env.MEMWAL_PRIVATE_KEY;
-  if (process.env.MEMWAL_ACCOUNT_ID)
-    cfg.memwal.accountId = process.env.MEMWAL_ACCOUNT_ID;
+  const memwalKey = pick("MEMWAL_PRIVATE_KEY");
+  if (memwalKey) cfg.memwal.key = memwalKey;
+  const memwalAccountId = pick("MEMWAL_ACCOUNT_ID");
+  if (memwalAccountId) cfg.memwal.accountId = memwalAccountId;
   if (process.env.CORTEX_DELEGATE_KEY)
     cfg.delegateKey = process.env.CORTEX_DELEGATE_KEY;
   if (process.env.ANTHROPIC_API_KEY)
@@ -142,18 +148,21 @@ export function loadConfig(
     cfg.webhookUrl = process.env.CORTEX_WEBHOOK_URL;
   if (process.env.CORTEX_WORKSPACE_ID)
     cfg.workspaceId = process.env.CORTEX_WORKSPACE_ID;
-  if (process.env.CORTEX_ACCESS_REGISTRY)
-    cfg.accessRegistryId = process.env.CORTEX_ACCESS_REGISTRY;
-  if (process.env.CORTEX_EXECUTOR_CAP)
-    cfg.executorCapId = process.env.CORTEX_EXECUTOR_CAP;
+  const accessRegistry = pick("CORTEX_ACCESS_REGISTRY");
+  if (accessRegistry) cfg.accessRegistryId = accessRegistry;
+  const executorCap = pick("CORTEX_EXECUTOR_CAP");
+  if (executorCap) cfg.executorCapId = executorCap;
   if (process.env.CORTEX_USER_ADDRESS)
     cfg.userAddress = process.env.CORTEX_USER_ADDRESS;
-  if (process.env.SEAL_SERVER_IDS)
-    cfg.seal.serverIds = process.env.SEAL_SERVER_IDS.split(",")
+  const sealServerIds = pick("SEAL_SERVER_IDS");
+  if (sealServerIds)
+    cfg.seal.serverIds = sealServerIds
+      .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
-  if (process.env.SEAL_THRESHOLD) {
-    const parsed = Number.parseInt(process.env.SEAL_THRESHOLD, 10);
+  const sealThreshold = pick("SEAL_THRESHOLD");
+  if (sealThreshold) {
+    const parsed = Number.parseInt(sealThreshold, 10);
     if (Number.isFinite(parsed) && parsed > 0) cfg.seal.threshold = parsed;
   }
   return cfg;
