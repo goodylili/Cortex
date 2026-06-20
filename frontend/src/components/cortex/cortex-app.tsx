@@ -1020,9 +1020,17 @@ export function CortexApp({
   function submit() {
     if (s.mode === "ask") {
       if (!input.trim()) return;
-      s.ask(input);
+      const q = input;
       setInput("");
       grow(ta.current);
+      // Recall from durable MemWal when signed in, so answers are grounded in
+      // (and cite) the user's stored memories; fall back to local retrieve.
+      if (wallet)
+        wallet
+          .recall(q)
+          .then((rec) => s.ask(q, rec))
+          .catch(() => s.ask(q));
+      else s.ask(q);
     } else {
       if (!input.trim()) return;
       const text = input;

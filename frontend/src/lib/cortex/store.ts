@@ -54,6 +54,7 @@ import {
   type SweepSummary,
 } from "./memory-model";
 import type { SessionMeta } from "./walrus/sessions";
+import type { RecalledMemory } from "./walrus/memory";
 import type { ShareSummary } from "./walrus/sharing";
 import { type UserProfile, profileToMemories } from "./profile";
 import {
@@ -361,7 +362,7 @@ interface State {
   toggleGifMode: () => void;
   attachDoc: (name: string) => void;
   removeDoc: (i: number) => void;
-  ask: (q: string) => void;
+  ask: (q: string, recalled?: RecalledMemory[]) => void;
   appendChatToken: (text: string) => void;
   keepClose: (id: string) => void;
   unkeep: (id: string) => void;
@@ -878,7 +879,7 @@ export const useCortex = create<State>((set, get) => ({
   attachDoc: (name) => set((s) => ({ docs: [...s.docs, name] })),
   removeDoc: (i) => set((s) => ({ docs: s.docs.filter((_, j) => j !== i) })),
 
-  ask: (q) => {
+  ask: (q, recalled) => {
     q = q.trim();
     if (!q) return;
     const now = Date.now();
@@ -886,10 +887,21 @@ export const useCortex = create<State>((set, get) => ({
     const live = get()
       .live()
       .filter((m) => isRetrievable(m, now, cfg));
-    const cites = retrieve(q, live);
-    // rehearsal: accessing a memory strengthens its trace
-    if (cites.length) {
-      const citeIds = new Set(cites.map((c) => c.id));
+    // Prefer the durable MemWal recall (passed in when signed in); otherwise fall
+    // back to the local heuristic retrieve over the in-app store.
+    const fromMemwal = !!(recalled && recalled.length);
+    const memCites = fromMemwal
+      ? recalled!.map((m) => ({
+          id: m.blobId,
+          text: m.text,
+          tags: [] as string[],
+          ts: now,
+        }))
+      : retrieve(q, live);
+    // rehearsal: accessing a local memory strengthens its trace. MemWal-recalled
+    // items aren't in the in-app store, so there's nothing to strengthen.
+    if (!fromMemwal && memCites.length) {
+      const citeIds = new Set(memCites.map((c) => c.id));
       set((s) => {
         const memories = s.memories.map((m) =>
           citeIds.has(m.id) ? onAccess(m, now, cfg) : m,
@@ -900,20 +912,20 @@ export const useCortex = create<State>((set, get) => ({
     }
     const web = get().web ? webSearch(q) : [];
     const sources: ChatSource[] = [
-      ...cites.map((c) => ({
+      ...memCites.map((c) => ({
         type: "memory" as const,
-        label: c.tags[0] || "note",
+        label: c.tags[0] || "memory",
         text: c.text,
-        when: ago(c.ts),
+        when: c.ts ? ago(c.ts) : "",
       })),
       ...web,
     ];
     const allTok = live.reduce((s, m) => s + toks(m.text), 0);
-    const sentTok = cites.reduce((s, m) => s + toks(m.text), 0);
+    const sentTok = memCites.reduce((s, m) => s + toks(m.text), 0);
     const savedTok = Math.max(0, allTok - sentTok);
     const savedNote =
-      cites.length && live.length > cites.length
-        ? `sent ${cites.length} of ${live.length} memories`
+      !fromMemwal && memCites.length && live.length > memCites.length
+        ? `sent ${memCites.length} of ${live.length} memories`
         : "";
     // Deterministic answer used when no model key is configured or the call fails.
     let fallback: string;
@@ -922,14 +934,15 @@ export const useCortex = create<State>((set, get) => ({
         "I don't have a memory or source that touches on that yet. Keep a note about it, or turn on web search, and I'll be able to answer.";
     } else {
       const parts: string[] = [];
-      if (cites[0]) parts.push(`From what you've kept, ${cites[0].text} [1]`);
-      if (cites[1])
+      if (memCites[0])
+        parts.push(`From what you've kept, ${memCites[0].text} [1]`);
+      if (memCites[1])
         parts.push(
-          `you also noted ${cites[1].text.charAt(0).toLowerCase()}${cites[1].text.slice(1)} [2]`,
+          `you also noted ${memCites[1].text.charAt(0).toLowerCase()}${memCites[1].text.slice(1)} [2]`,
         );
       if (web.length)
         parts.push(
-          `on the web, ${web[0]!.title.toLowerCase()} adds context [${cites.length + 1}]`,
+          `on the web, ${web[0]!.title.toLowerCase()} adds context [${memCites.length + 1}]`,
         );
       fallback = parts.join(". ") + ".";
     }
@@ -1010,7 +1023,7 @@ export const useCortex = create<State>((set, get) => ({
     };
 
     // Answer with the selected model, grounded in the retrieved memories.
-    const askMems = cites.map((c) => ({
+    const askMems = memCites.map((c) => ({
       text: c.text,
       label: c.tags[0] || "note",
       when: ago(c.ts),
