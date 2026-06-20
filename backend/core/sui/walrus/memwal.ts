@@ -99,40 +99,54 @@ class LiveMemWal implements MemWalClient {
     }
     return this.clientP;
   }
-  async remember(ns: string, text: string, opts?: MemWriteOpts) {
-    const c = await this.client();
-    const r = await c.remember({
+  // RecallMemory ({ blob_id, text, distance }) -> Cortex Memory. The relayer does
+  // not carry tags/agent/timestamps, so those default; confidence is 1 - distance.
+  private toMemory(ns: string, m: any): Memory {
+    const distance = typeof m?.distance === "number" ? m.distance : 0;
+    return {
+      id: String(m?.blob_id ?? m?.id ?? ""),
       namespace: ns,
-      text,
-      metadata: { agent: opts?.agent, via: opts?.via, tags: opts?.tags },
-    });
-    return { memoryId: r.id ?? r.memoryId, suiTxn: r.suiTxn ?? r.txn ?? "" };
+      text: String(m?.text ?? ""),
+      tags: [],
+      when: "",
+      createdAt: "",
+      agent: "memwal",
+      via: "remember",
+      confidence: Math.max(0, Math.min(1, 1 - distance)),
+    } as Memory;
+  }
+  async remember(ns: string, text: string, _opts?: MemWriteOpts) {
+    const c = await this.client();
+    const r = await c.rememberAndWait(text, ns);
+    return {
+      memoryId: String(r?.id ?? r?.job_id ?? ""),
+      suiTxn: String(r?.blob_id ?? ""),
+    };
   }
   async recall(ns: string, query: string, opts?: { limit?: number }) {
     const c = await this.client();
-    const r = await c.recall({ namespace: ns, query, limit: opts?.limit });
-    return (r.memories ?? r) as Memory[];
+    const r = await c.recall(query, opts?.limit ?? 10, ns);
+    return ((r?.results ?? []) as any[]).map((m) => this.toMemory(ns, m));
   }
   async restore(ns: string) {
+    // The relayer exposes no enumerate API; approximate the full set with a broad
+    // recall. Bounded by the limit, so this is best-effort, not an exhaustive list.
     const c = await this.client();
-    const r = await c.restore({ namespace: ns });
-    return { head: r.head, memories: (r.memories ?? []) as Memory[] };
+    const r = await c
+      .recall(" ", 100, ns)
+      .catch(() => ({ results: [] as any[] }));
+    const memories = ((r?.results ?? []) as any[]).map((m) =>
+      this.toMemory(ns, m),
+    );
+    return { head: memoryHead(memories), memories };
   }
   async tombstone(ns: string, id: string, note: string) {
     const c = await this.client();
-    await c.remember({
-      namespace: ns,
-      text: `__tombstone__:${id} ${note}`,
-      metadata: { tombstones: id },
-    });
+    await c.rememberAndWait(`__tombstone__:${id} ${note}`, ns);
   }
   async stampVerified(ns: string, id: string, at: string) {
     const c = await this.client();
-    await c.remember({
-      namespace: ns,
-      text: `__verify__:${id}@${at}`,
-      metadata: { verifies: id },
-    });
+    await c.rememberAndWait(`__verify__:${id}@${at}`, ns);
   }
 }
 
