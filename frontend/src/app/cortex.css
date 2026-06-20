@@ -159,6 +159,7 @@ body.mode-ask .remember-only{display:none!important}
 .mp-item.on{background:var(--accent-soft)}
 .mp-av{width:30px;height:30px;border-radius:var(--r);flex-shrink:0;display:grid;place-items:center;background:var(--surface2);font-size:13px;font-weight:600;color:var(--muted)}
 .mp-item.on .mp-av{background:var(--surface);color:var(--accent-ink)}
+.mp-av svg{width:17px;height:17px}
 .mp-meta{flex:1;min-width:0}
 .mp-name{font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px}
 .mp-price{font-size:12px;font-weight:500;color:var(--sage)}

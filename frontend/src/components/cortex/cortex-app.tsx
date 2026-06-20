@@ -29,6 +29,8 @@ import {
   siWindsurf,
   siCline,
   siVscodium,
+  siX,
+  siGooglegemini,
 } from "simple-icons";
 
 // Documentation site, surfaced as a floating widget on every page.
@@ -47,6 +49,14 @@ const BRAND_LOGO_PATHS: Record<string, string> = {
   codex: OPENAI_PATH,
   windsurf: siWindsurf.path,
   cline: siCline.path,
+};
+
+// Provider brand mark for model rows (xAI/Grok falls back to the X mark).
+const PROVIDER_LOGO_PATHS: Record<Provider, string> = {
+  anthropic: siClaude.path,
+  openai: OPENAI_PATH,
+  google: siGooglegemini.path,
+  xai: siX.path,
 };
 import {
   compilePrompt,
@@ -1680,6 +1690,18 @@ export function CortexApp({
         strokeLinejoin="round"
       >
         <path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0zM12 17v5" />
+      </svg>
+    );
+  };
+  // Provider brand mark for a model row; null when the provider is unknown so the
+  // caller can fall back to the initial.
+  const modelLogo = (name: string) => {
+    const prov = modelProvider(name, s.customModels);
+    const path = prov ? PROVIDER_LOGO_PATHS[prov] : undefined;
+    if (!path) return null;
+    return (
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d={path} />
       </svg>
     );
   };
@@ -3778,7 +3800,7 @@ export function CortexApp({
                                           }}
                                         >
                                           <span className="mp-av">
-                                            {m.prov[0]}
+                                            {modelLogo(m.name) ?? m.prov[0]}
                                           </span>
                                           <span className="mp-meta">
                                             <span className="mp-name">
@@ -6224,7 +6246,9 @@ export function CortexApp({
                                 chooseModel(m.name);
                               }}
                             >
-                              <span className="mp-av">{m.prov[0]}</span>
+                              <span className="mp-av">
+                                {modelLogo(m.name) ?? m.prov[0]}
+                              </span>
                               <span className="mp-meta">
                                 <span className="mp-name">
                                   {m.name}{" "}
