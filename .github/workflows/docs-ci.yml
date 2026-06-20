@@ -1,4 +1,4 @@
-name: Docs CI
+name: Vocs Docs CI
 
 on:
   pull_request:
@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  docs:
+  vocs-docs:
     runs-on: ubuntu-latest
 
     steps:
@@ -36,14 +36,14 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck docs
+      - name: Typecheck Vocs docs
         run: pnpm --filter cortex-docs typecheck
 
-      - name: Build docs
+      - name: Build Vocs docs
         run: pnpm --filter cortex-docs build

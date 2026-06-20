@@ -14,7 +14,8 @@ export default defineConfig({
   },
   topNav: [
     { text: 'Docs', link: '/', match: '/' },
-    { text: 'Launch App', link: 'https://github.com/goodylili/Cortex' },
+    { text: 'Website', link: 'https://usecortexai.xyz' },
+    { text: 'Launch App', link: 'https://usecortexai.xyz/app' },
   ],
   sidebar: [
     {
@@ -76,9 +77,12 @@ export default defineConfig({
       items: [{ text: 'Sui · Walrus · Seal · MemWal', link: '/infrastructure/overview' }],
     },
   ],
-  socials: [{ icon: 'github', link: 'https://github.com/goodylili/Cortex' }],
+  socials: [
+    { icon: 'x', link: 'https://x.com/usecortexai' },
+    { icon: 'github', link: 'https://github.com/goodylili/cortex' },
+  ],
   editLink: {
-    link: 'https://github.com/goodylili/Cortex/edit/main/docs/pages/:path',
+    link: 'https://github.com/goodylili/cortex/edit/main/docs/pages/:path',
     text: 'Edit this page on GitHub',
   },
 })
