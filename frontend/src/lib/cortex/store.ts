@@ -1421,6 +1421,8 @@ export const useCortex = create<State>((set, get) => ({
     }),
   newSession: () =>
     set((s) => {
+      // Already on a fresh, empty chat: don't spawn another one.
+      if (s.chat.length === 0 && s.activeId) return {};
       const id = uid("ses");
       persist({
         memories: s.memories,
