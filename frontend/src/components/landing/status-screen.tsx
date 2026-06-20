@@ -6,7 +6,6 @@ import { ArrowUpRight } from "lucide-react";
 
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
-import { Footer } from "@/components/landing/footer";
 
 const BrainOrb = dynamic(() => import("./brain-orb").then((m) => m.BrainOrb), {
   ssr: false,
@@ -66,13 +65,13 @@ export function StatusScreen({
           {title}
         </h1>
 
-        <div className="relative z-10 mt-10 flex flex-col items-center gap-4 sm:flex-row">
+        <div className="relative z-10 mt-9 flex flex-col items-center gap-3 sm:flex-row">
           {onRetry ? (
             <>
               <Button
                 size="lg"
                 onClick={onRetry}
-                className="bg-ink px-8 text-canvas hover:bg-ink/90"
+                className="rounded-full bg-white px-8 font-medium text-black shadow-sm hover:bg-white/90"
               >
                 Try Again
               </Button>
@@ -80,7 +79,7 @@ export function StatusScreen({
                 asChild
                 size="lg"
                 variant="outline"
-                className="border-ink/20 bg-transparent px-8 text-ink hover:bg-ink/10 hover:text-ink"
+                className="rounded-full border-white/25 bg-transparent px-8 font-medium text-white hover:bg-white/10 hover:text-white"
               >
                 <Link href="/">Back to Homepage</Link>
               </Button>
@@ -90,7 +89,7 @@ export function StatusScreen({
               <Button
                 asChild
                 size="lg"
-                className="bg-ink px-8 text-canvas hover:bg-ink/90"
+                className="rounded-full bg-white px-8 font-medium text-black shadow-sm hover:bg-white/90"
               >
                 <Link href="/">Back to Homepage</Link>
               </Button>
@@ -98,7 +97,7 @@ export function StatusScreen({
                 asChild
                 size="lg"
                 variant="outline"
-                className="border-ink/20 bg-transparent px-8 text-ink hover:bg-ink/10 hover:text-ink"
+                className="rounded-full border-white/25 bg-transparent px-8 font-medium text-white hover:bg-white/10 hover:text-white"
               >
                 <Link href="/app">Launch App</Link>
               </Button>
@@ -106,8 +105,6 @@ export function StatusScreen({
           )}
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 }

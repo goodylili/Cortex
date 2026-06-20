@@ -4064,14 +4064,17 @@ export function CortexApp({
               <div className="composer-dock">
                 <div className="capture">
                   <textarea
-                    rows={3}
+                    rows={1}
                     placeholder={
                       studioMode === "loop"
                         ? "What should the loop work toward? e.g. keep my reading list summarized"
                         : "What do you need a prompt for? e.g. a hero image for my notes app"
                     }
                     value={studioTask}
-                    onChange={(e) => setStudioTask(e.target.value)}
+                    onChange={(e) => {
+                      setStudioTask(e.target.value);
+                      grow(e.target);
+                    }}
                   />
                   <div className="capture-bar studio-bar">
                     <button
