@@ -18,7 +18,7 @@ import {
   type CustomModel,
 } from "@/lib/llm/byok";
 import { passkeySupported, passkeyEnrolled } from "@/lib/llm/byok-vault";
-import type { Modality, Provider } from "@/lib/llm/models";
+import { LLM_MODELS, type Modality, type Provider } from "@/lib/llm/models";
 import {
   compilePrompt,
   DEFAULT_MODALITY,
@@ -2079,6 +2079,29 @@ export function CortexApp({
     setAmError("");
     setAddModelOpen(true);
   };
+  // Selecting a model. Gemini is the free server model; custom (BYOK) models the
+  // user added are used with their key. Any other built-in (Claude/GPT/Grok) has
+  // no server key, so selecting it opens Add Model prefilled to prompt BYOK.
+  const chooseModel = (name: string) => {
+    const custom = s.customModels.find((c) => c.label === name);
+    if (custom) {
+      s.setModel(name);
+      if (!s.byokKeys[custom.id]) s.unlockByok();
+      return;
+    }
+    const builtin = LLM_MODELS.find((m) => m.name === name);
+    if (!builtin || builtin.provider === "google") {
+      s.setModel(name);
+      return;
+    }
+    setAmProvider(builtin.provider);
+    setAmKind("text");
+    setAmApiId(builtin.apiId);
+    setAmKey("");
+    setAmUrl("");
+    setAmError("");
+    setAddModelOpen(true);
+  };
   const baseFromUrl = (u: string) =>
     u.replace(/\/+$/, "").replace(/\/(chat\/completions|messages)$/, "");
   const submitAddModel = async () => {
@@ -3686,13 +3709,8 @@ export function CortexApp({
                                               : "")
                                           }
                                           onClick={() => {
-                                            s.setModel(m.name);
                                             setModelOpen(false);
-                                            const custom = s.customModels.find(
-                                              (c) => c.label === m.name,
-                                            );
-                                            if (custom && !s.byokKeys[custom.id])
-                                              s.unlockByok();
+                                            chooseModel(m.name);
                                           }}
                                         >
                                           <span className="mp-av">
@@ -4198,8 +4216,8 @@ export function CortexApp({
                                 (s.model.name === m.name ? " on" : "")
                               }
                               onClick={() => {
-                                s.setModel(m.name);
                                 setStudioDrop(null);
+                                chooseModel(m.name);
                               }}
                             >
                               <span className="st2-dd-name">
@@ -6116,13 +6134,8 @@ export function CortexApp({
                                 (m.name === s.model.name ? " on" : "")
                               }
                               onClick={() => {
-                                s.setModel(m.name);
                                 setModelOpen(false);
-                                const custom = s.customModels.find(
-                                  (c) => c.label === m.name,
-                                );
-                                if (custom && !s.byokKeys[custom.id])
-                                  s.unlockByok();
+                                chooseModel(m.name);
                               }}
                             >
                               <span className="mp-av">{m.prov[0]}</span>

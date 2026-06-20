@@ -33,7 +33,7 @@ import {
   type GenerateEvent,
   type MediaOutput,
 } from "@/lib/llm/generate";
-import { modelKind } from "@/lib/llm/models";
+import { modelKind, DEFAULT_MODEL } from "@/lib/llm/models";
 import { ASK_MAX_TOKENS, askSystem, askUser } from "@/lib/llm/ask-prompt";
 import {
   type MemoryConfig,
@@ -523,7 +523,7 @@ export const useCortex = create<State>((set, get) => ({
   shares: [],
   mode: "remember",
   importance: "normal",
-  model: MODELS[1]!,
+  model: MODELS.find((m) => m.name === DEFAULT_MODEL.name) ?? MODELS[1]!,
   web: false,
   gifMode: false,
   docs: [],
