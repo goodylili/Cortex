@@ -41,6 +41,9 @@ import {
 import type { CortexWalletState } from "@/lib/cortex/use-wallet";
 import {
   CORTEX_ENV,
+  CORTEX_NETWORKS,
+  networkAvailable,
+  setPreferredNetwork,
   contractsEnabled,
   sealEnabled,
 } from "@/lib/cortex/walrus/env";
@@ -2219,6 +2222,33 @@ export function CortexApp({
                         <div className="sub">Free · just you</div>
                       )}
                     </div>
+                  </div>
+                  <div
+                    className="tb-net"
+                    role="group"
+                    aria-label="Network"
+                  >
+                    {CORTEX_NETWORKS.map((n) => {
+                      const active = CORTEX_ENV.network === n;
+                      const avail = networkAvailable(n);
+                      const label = n === "mainnet" ? "Mainnet" : "Testnet";
+                      return (
+                        <button
+                          key={n}
+                          className={"tb-net-opt" + (active ? " on" : "")}
+                          disabled={!avail || active}
+                          title={avail ? `Switch to ${label}` : `${label} coming soon`}
+                          onClick={() => {
+                            if (!avail || active) return;
+                            setPreferredNetwork(n);
+                            window.location.reload();
+                          }}
+                        >
+                          <span>{label}</span>
+                          {!avail && <span className="tb-net-soon">Soon</span>}
+                        </button>
+                      );
+                    })}
                   </div>
                   <button
                     className="tb-menu-item"

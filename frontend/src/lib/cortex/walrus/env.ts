@@ -193,12 +193,31 @@ function parseNetwork(value: string | undefined): CortexNetwork | undefined {
   return value === "mainnet" || value === "testnet" ? value : undefined;
 }
 
-// The network the app opens on: the configured default if available, else the
-// first available network, else the default (mock mode until something is wired).
+// The network the app opens on: a user preference (set from the profile toggle)
+// if it's available, else the configured default, else the first available
+// network, else the default (mock mode until something is wired).
 const DEFAULT_NETWORK: CortexNetwork =
   parseNetwork(process.env.NEXT_PUBLIC_CORTEX_DEFAULT_NETWORK) ?? "testnet";
+const NETWORK_PREF_KEY = "cortex-network";
+
+export function setPreferredNetwork(network: CortexNetwork): void {
+  try {
+    localStorage.setItem(NETWORK_PREF_KEY, network);
+  } catch {}
+}
+
+function preferredNetwork(): CortexNetwork | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    return parseNetwork(localStorage.getItem(NETWORK_PREF_KEY) ?? undefined);
+  } catch {
+    return undefined;
+  }
+}
 
 export function defaultNetwork(): CortexNetwork {
+  const pref = preferredNetwork();
+  if (pref && networkAvailable(pref)) return pref;
   if (networkAvailable(DEFAULT_NETWORK)) return DEFAULT_NETWORK;
   return availableNetworks()[0] ?? DEFAULT_NETWORK;
 }
