@@ -94,7 +94,9 @@ export const LLM_MODELS: ModelSpec[] = [
   },
 ];
 
-export const DEFAULT_MODEL: ModelSpec = LLM_MODELS[1]!;
+export const DEFAULT_MODEL: ModelSpec = LLM_MODELS.find(
+  (m) => m.id === "gemini-2.5-flash",
+)!;
 
 export function modelByName(name?: string): ModelSpec {
   if (!name) return DEFAULT_MODEL;
