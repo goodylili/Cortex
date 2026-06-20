@@ -408,7 +408,13 @@ export function CortexApp({
   const [sharedRefreshing, setSharedRefreshing] = useState(false);
   const [revokingShareId, setRevokingShareId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<
-    { id: number; body: string; kind: "info" | "success" | "error"; view: View }[]
+    {
+      id: number;
+      body: string;
+      kind: "info" | "success" | "error";
+      view: View;
+      tx?: string;
+    }[]
   >([]);
   const toastSeq = useRef(0);
   const [chatRailOpen, setChatRailOpen] = useState(true);
@@ -662,12 +668,16 @@ export function CortexApp({
       setProfileSaved(false);
     }
   }, [settingsOpen]);
-  function flash(m: string, kind: "info" | "success" | "error" = "info") {
+  function flash(
+    m: string,
+    kind: "info" | "success" | "error" = "info",
+    tx?: string,
+  ) {
     const id = ++toastSeq.current;
-    setToasts((t) => [...t, { id, body: m, kind, view }].slice(-4));
+    setToasts((t) => [...t, { id, body: m, kind, view, tx }].slice(-4));
     setTimeout(
       () => setToasts((t) => t.filter((x) => x.id !== id)),
-      4200,
+      tx ? 8000 : 4200,
     );
   }
   useEffect(() => {
@@ -930,7 +940,7 @@ export function CortexApp({
       try {
         localStorage.setItem("cortex-username", result.name);
       } catch {}
-      flash(`Claimed ${result.name}.`);
+      flash(`Claimed ${result.name}.`, "success", result.digest);
     } catch (err) {
       setClaimErr(err instanceof Error ? err.message : String(err));
     } finally {
@@ -1971,13 +1981,17 @@ export function CortexApp({
     flash(`Storing ${file.name} on Walrus…`);
     try {
       const stored = await wallet.storeFile(file);
-      flash(`Stored ${file.name} on Walrus · ${stored.blobId.slice(0, 10)}…`);
+      flash(
+        `Stored ${file.name} on Walrus.`,
+        "success",
+        stored.digest,
+      );
       wallet
         .listFiles()
         .then((files) => s.syncFiles(files))
         .catch(() => {});
     } catch (err) {
-      flash(`Walrus upload failed: ${(err as Error).message}`);
+      flash(`Walrus upload failed: ${(err as Error).message}`, "error");
     }
   }
 
@@ -7167,6 +7181,16 @@ export function CortexApp({
               <div className="ntf-body">
                 <div className="ntf-title">{meta?.[1] ?? "Cortex"}</div>
                 <div className="ntf-msg">{t.body}</div>
+                {t.tx && (
+                  <a
+                    className="ntf-link"
+                    href={`https://suiscan.xyz/${CORTEX_ENV.network}/tx/${t.tx}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    View on Suiscan ↗
+                  </a>
+                )}
               </div>
             </div>
           );

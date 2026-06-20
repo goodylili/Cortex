@@ -1010,6 +1010,8 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .ntf-msg{font-size:13px;line-height:1.35;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
 .ntf-success .ntf-ic{background:#16a34a;color:#fff}
 .ntf-error .ntf-ic{background:#dc2626;color:#fff}
+.ntf-link{display:inline-block;margin-top:6px;font-size:12.5px;font-weight:600;color:var(--accent);text-decoration:none}
+.ntf-link:hover{text-decoration:underline}
 @media(max-width:1160px){.tb-item span{display:none}.tb-item{padding:9px}}
 @media(max-width:760px){.tb-brand b{display:none}.tb-you-name{display:none}.topbar-inner{gap:10px}}
 
