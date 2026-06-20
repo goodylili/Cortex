@@ -121,7 +121,8 @@ img,pre{max-width:100%}
 @media(min-width:1024px){.composer-dock{padding-left:64px;padding-right:64px}}
 @media(max-width:880px){.composer-dock{left:0;padding:12px 18px 16px}}
 .capture-bar{flex-wrap:nowrap}
-.capture-bar.studio-bar{flex-wrap:wrap;row-gap:8px}
+.capture-bar.studio-bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+.capture-bar.studio-bar::-webkit-scrollbar{display:none}
 .cap-tool{white-space:nowrap;flex-shrink:0}
 .model-chip span,.web-chip{white-space:nowrap}
 /* segmented controls: mode + importance */
