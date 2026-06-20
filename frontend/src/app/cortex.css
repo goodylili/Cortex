@@ -266,7 +266,9 @@ body.mode-ask .remember-only{display:none!important}
 @media(min-width:1024px){.wrap{padding-left:64px;padding-right:64px}}
 .view{display:none;animation:rise .4s cubic-bezier(.2,.7,.2,1)}
 .view.on{display:block}
-@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* Opacity-only so an animating .view never establishes a containing block that
+   would trap a position:fixed child (e.g. the studio composer dock). */
+@keyframes rise{from{opacity:0}to{opacity:1}}
 
 .eyebrow{font-size:13px;color:var(--muted);letter-spacing:.02em;margin-bottom:8px}
 .h1{font-family:var(--serif);font-weight:700;font-size:40px;line-height:1.08;letter-spacing:-.025em}
@@ -655,10 +657,7 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 @media(max-width:900px){.studio{grid-template-columns:1fr;gap:26px}.studio-right{position:static}}
 
 /* studio v2  -  composer-centric, AI-generated */
-.st2{margin-top:28px;display:flex;flex-direction:column;gap:18px;padding-bottom:24px}
-/* The studio composer lives inside the animated .view (whose transform would trap a
-   position:fixed child), so render it in normal flow below the result instead. */
-.st2 .composer-dock{position:static;order:2;z-index:auto;background:transparent;padding:0}
+.st2{margin-top:28px;display:flex;flex-direction:column;gap:18px;padding-bottom:150px}
 .composer-dock .st2-composer{max-width:var(--composer-max);margin:0 auto}
 .st2-composer{border:1px solid var(--line2);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow-lg)}
 .st2-task{width:100%;border:none;outline:none;background:transparent;resize:none;font-family:var(--sans);font-size:15.5px;line-height:1.6;color:var(--ink);padding:18px 18px 8px;min-height:88px}
