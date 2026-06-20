@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://usecortexai.com"),
   title: "Cortex, sovereign memory for AI on Sui",
   description:
     "Cortex is a decentralized sovereign memory layer built on Sui, Walrus, and Seal, with shared memory, prompt generation, loop generation, multi-agent workflows, and dreams.",
