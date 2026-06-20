@@ -59,7 +59,7 @@ export async function transcribeAudio(file: File): Promise<string> {
   if (!d.ok || !d.text) {
     throw new Error(
       d.reason === "no-key"
-        ? "Set OPENAI_API_KEY to transcribe audio"
+        ? "Set GEMINI_API_KEY to transcribe audio"
         : "Couldn't transcribe that audio",
     );
   }
