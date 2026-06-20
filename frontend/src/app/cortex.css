@@ -8,14 +8,14 @@
   --paper:#FFFFFF;
   --surface:#FFFFFF;
   --surface2:#F4F4F5;
-  --ink:#0A0A0A;
+  --ink:#000000;
   --muted:#666666;
   --faint:#A1A1A1;
   --line:#EBEBEB;
   --line2:#DCDCDC;
-  --accent:#0A0A0A;
+  --accent:#000000;
   --accent-soft:#F4F4F5;
-  --accent-ink:#0A0A0A;
+  --accent-ink:#000000;
   --warm:#3F3F3F;
   --warm-soft:#F4F4F5;
   --sage:#3F3F3F;
@@ -35,8 +35,8 @@
 [data-theme="dark"]{
   /* very dark, Vercel v0: pure-black canvas, crisp white text, near-black surfaces, low-alpha white hairlines */
   --paper:#000000;
-  --surface:#0A0A0A;
-  --surface2:#171717;
+  --surface:#000000;
+  --surface2:#0E0E0E;
   --ink:#FFFFFF;
   --muted:#A1A1A1;
   --faint:#6E6E6E;
