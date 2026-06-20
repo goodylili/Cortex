@@ -4477,6 +4477,36 @@ export function CortexApp({
               )}
 
               <div className="st2-output">
+               <div className="cmsg">
+                <div className="cmsg-q">
+                  <div className="bubble-q">
+                    {studioTask.trim() || "Generate from my memory"}
+                  </div>
+                  <span className="cmsg-uav">
+                    <GenAvatar
+                      seed={sess?.addr ?? walletState?.label ?? "you"}
+                      size={28}
+                    />
+                  </span>
+                </div>
+                <div className="cmsg-a">
+                  {(() => {
+                    // BYOK models answer under their own avatar; the free Gemini
+                    // assistant keeps the Cortex mark, exactly like the chat page.
+                    const prov = modelProvider(s.model.name, s.customModels);
+                    if (prov && prov !== "google")
+                      return (
+                        <span className="cmsg-av plain" title={s.model.name}>
+                          <GenAvatar seed={s.model.name} size={34} />
+                        </span>
+                      );
+                    return (
+                      <span className="cmsg-av" aria-hidden="true">
+                        <Logo variant="current" className="cmsg-logo" />
+                      </span>
+                    );
+                  })()}
+                  <div className="cmsg-card">
                 <div className="st2-out-top">
                   <span className="st-tok">
                     ~{Math.round(studioOut.length / 4)} tokens
@@ -4570,6 +4600,9 @@ export function CortexApp({
                     Download
                   </button>
                 </div>
+                  </div>
+                </div>
+               </div>
               </div>
               {studioMenu && (
                 <div

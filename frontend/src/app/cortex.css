@@ -121,7 +121,7 @@ img,pre{max-width:100%}
 @media(min-width:1024px){.composer-dock{padding-left:64px;padding-right:64px}}
 @media(max-width:880px){.composer-dock{left:0;padding:12px 18px 16px}}
 .capture-bar{flex-wrap:nowrap}
-.capture-bar.studio-bar{flex-wrap:nowrap}
+.capture-bar.studio-bar{flex-wrap:nowrap;padding-right:14px;padding-bottom:12px}
 .cap-tool{white-space:nowrap;flex-shrink:0}
 .model-chip span,.web-chip{white-space:nowrap}
 /* segmented controls: mode + importance */
@@ -705,6 +705,10 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .st2-bubble{background:var(--surface2);border:1px solid var(--line);border-radius:var(--r);padding:22px 24px;font-size:15px;line-height:1.65;color:var(--ink);white-space:pre-wrap;word-break:break-word;transition:opacity .2s}
 .st2-bubble.mono{font-family:var(--mono);font-size:12.5px;line-height:1.7}
 .st2-bubble.loading{opacity:.45}
+.cmsg-card .st2-out-top{margin-bottom:8px}
+.cmsg-card .st2-bubble{background:transparent;border:none;border-radius:0;padding:0;font-size:15px}
+.cmsg-card .st2-bubble.mono{background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.cmsg-card .st2-actions{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 .st2-actions{display:flex;align-items:center;gap:10px}
 /* split copy button + open-in menu */
 .st2-copy{position:relative;display:inline-flex}
