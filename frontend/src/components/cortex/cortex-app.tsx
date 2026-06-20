@@ -2176,6 +2176,90 @@ export function CortexApp({
     setAmError("");
     setAddModelOpen(true);
   };
+  // The shared "Use any model" picker (search + brand logos + Add model), used by
+  // the chat composer and the studio composer so model selection is consistent.
+  const modelPicker = () => (
+    <div className="model-anchor">
+      <button
+        className="cap-tool model-chip"
+        onClick={(e) => {
+          e.stopPropagation();
+          setModelOpen((o) => !o);
+        }}
+      >
+        <span className="mdot" />
+        <span>{s.model.name}</span> <span className="mchev">▾</span>
+      </button>
+      {modelOpen && (
+        <div className="model-pop">
+          <div className="mp-up">
+            <div>
+              <div className="mp-up-t">Use any model</div>
+              <div className="mp-up-s">Free while Cortex is in preview</div>
+            </div>
+            <span className="mp-badge">Preview</span>
+          </div>
+          <label className="mp-search">
+            <svg viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+            <input
+              placeholder="Search models…"
+              value={modelSearch}
+              onChange={(e) => setModelSearch(e.target.value)}
+              autoFocus
+            />
+          </label>
+          <div className="mp-list">
+            {modelList.map((m) => (
+              <button
+                key={m.name}
+                className={"mp-item" + (m.name === s.model.name ? " on" : "")}
+                onClick={() => {
+                  setModelOpen(false);
+                  chooseModel(m.name);
+                }}
+              >
+                <span className="mp-av">{modelLogo(m.name) ?? m.prov[0]}</span>
+                <span className="mp-meta">
+                  <span className="mp-name">
+                    {m.name}{" "}
+                    <span
+                      className={"mp-price" + (m.price.length > 2 ? " hi" : "")}
+                    >
+                      {m.price}
+                    </span>
+                  </span>
+                  <span className="mp-desc">
+                    {m.prov} · {m.desc}
+                  </span>
+                </span>
+                {m.name === s.model.name && <span className="mp-check">✓</span>}
+              </button>
+            ))}
+          </div>
+          <button
+            className="mp-add"
+            onClick={() => {
+              setModelOpen(false);
+              openAddModel();
+            }}
+          >
+            <span className="mp-add-ic">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </span>
+            <span className="mp-meta">
+              <span className="mp-name">Add model</span>
+              <span className="mp-desc">Bring your own API key</span>
+            </span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
   const baseFromUrl = (u: string) =>
     u.replace(/\/+$/, "").replace(/\/(chat\/completions|messages)$/, "");
   const submitAddModel = async () => {
@@ -4288,41 +4372,7 @@ export function CortexApp({
                         </div>
                       )}
                     </div>
-                    <div className="st2-dd">
-                      <button
-                        className="st2-dd-btn"
-                        onClick={() =>
-                          setStudioDrop((d) => (d === "model" ? null : "model"))
-                        }
-                      >
-                        <span className="mdot" />
-                        <span className="st2-dd-v">{s.model.name}</span>
-                        <span className="st2-dd-c">▾</span>
-                      </button>
-                      {studioDrop === "model" && (
-                        <div className="st2-dd-pop wide">
-                          {MODELS.map((m) => (
-                            <button
-                              key={m.name}
-                              className={
-                                "st2-dd-item" +
-                                (s.model.name === m.name ? " on" : "")
-                              }
-                              onClick={() => {
-                                setStudioDrop(null);
-                                chooseModel(m.name);
-                              }}
-                            >
-                              <span className="st2-dd-name">
-                                {m.name}{" "}
-                                <span className="st2-dd-price">{m.price}</span>
-                              </span>
-                              <span className="st2-dd-hint">{m.desc}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    {modelPicker()}
                     <button
                       className={
                         "cap-tool icon web-chip" + (s.web ? " on" : "")
