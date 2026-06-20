@@ -130,10 +130,14 @@ export function loadConfig(
     cfg.models.provider = envProvider;
   else if (!fileModels.provider)
     cfg.models.provider = cfg.models.googleApiKey ? "google" : "anthropic";
-  // fill model ids from the provider's defaults unless pinned in config
+  // fill model ids from the provider's defaults unless pinned in config or env
   const fam = PROVIDER_MODELS[cfg.models.provider];
   if (!fileModels.chat) cfg.models.chat = fam.chat;
   if (!fileModels.extract) cfg.models.extract = fam.extract;
+  if (process.env.CORTEX_MODEL_CHAT)
+    cfg.models.chat = process.env.CORTEX_MODEL_CHAT;
+  if (process.env.CORTEX_MODEL_EXTRACT)
+    cfg.models.extract = process.env.CORTEX_MODEL_EXTRACT;
   if (process.env.CORTEX_WEBHOOK_URL)
     cfg.webhookUrl = process.env.CORTEX_WEBHOOK_URL;
   if (process.env.CORTEX_WORKSPACE_ID)
