@@ -17,7 +17,7 @@ export interface Config {
     serverIds: string[];
     threshold: number;
   };
-  memwal: { url: string; apiKey: string };
+  memwal: { url: string; key: string; accountId: string };
   delegateKey: string;
   models: {
     provider: ModelProvider;
@@ -43,7 +43,7 @@ const DEFAULTS: Config = {
     epochs: 5,
   },
   seal: { policyPackage: "", policyObject: "", serverIds: [], threshold: 1 },
-  memwal: { url: "", apiKey: "" },
+  memwal: { url: "", key: "", accountId: "" },
   delegateKey: "",
   models: {
     provider: "anthropic",
@@ -111,11 +111,14 @@ export function loadConfig(
     cfg.seal.policyPackage = process.env.CORTEX_PACKAGE_ID;
   if (process.env.CORTEX_SEAL_POLICY_OBJECT)
     cfg.seal.policyObject = process.env.CORTEX_SEAL_POLICY_OBJECT;
-  if (process.env.CORTEX_MEMWAL_URL) cfg.memwal.url = process.env.CORTEX_MEMWAL_URL;
+  const memwalUrl = process.env.MEMWAL_SERVER_URL || process.env.CORTEX_MEMWAL_URL;
+  if (memwalUrl) cfg.memwal.url = memwalUrl;
+  if (process.env.MEMWAL_PRIVATE_KEY)
+    cfg.memwal.key = process.env.MEMWAL_PRIVATE_KEY;
+  if (process.env.MEMWAL_ACCOUNT_ID)
+    cfg.memwal.accountId = process.env.MEMWAL_ACCOUNT_ID;
   if (process.env.CORTEX_DELEGATE_KEY)
     cfg.delegateKey = process.env.CORTEX_DELEGATE_KEY;
-  if (process.env.MEMWAL_API_KEY)
-    cfg.memwal.apiKey = process.env.MEMWAL_API_KEY;
   if (process.env.ANTHROPIC_API_KEY)
     cfg.models.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
   const googleKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
@@ -159,7 +162,8 @@ export function missingForLive(cfg: Config): string[] {
     ["walrus.aggregator", cfg.walrus.aggregator],
     ["sui.rpc", cfg.sui.rpc],
     ["memwal.url", cfg.memwal.url],
-    ["memwal.apiKey", cfg.memwal.apiKey],
+    ["memwal.key", cfg.memwal.key],
+    ["memwal.accountId", cfg.memwal.accountId],
     ["delegateKey", cfg.delegateKey],
   ];
   return need.filter(([, v]) => !v).map(([k]) => k);

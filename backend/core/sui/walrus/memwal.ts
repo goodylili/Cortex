@@ -89,10 +89,11 @@ class LiveMemWal implements MemWalClient {
     if (!this.clientP) {
       this.clientP = (async () => {
         const mod: any = await importExternal("@mysten-incubation/memwal");
-        return new mod.MemWal({
-          url: this.cfg.memwal.url,
-          apiKey: this.cfg.memwal.apiKey,
-          delegateKey: this.cfg.delegateKey,
+        return mod.MemWal.create({
+          key: this.cfg.memwal.key,
+          accountId: this.cfg.memwal.accountId,
+          serverUrl: this.cfg.memwal.url,
+          namespace: this.cfg.namespace,
         });
       })();
     }

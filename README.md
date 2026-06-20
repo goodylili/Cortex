@@ -193,7 +193,7 @@ cp backend/mcp/.env.example backend/mcp/.env
 - Walrus publisher and aggregator (`CORTEX_WALRUS_PUBLISHER`, `CORTEX_WALRUS_AGGREGATOR`, `CORTEX_WALRUS_EPOCHS`)
 - cortex package id and on-chain access model (`CORTEX_PACKAGE_ID`, `CORTEX_ACCESS_REGISTRY`, `CORTEX_EXECUTOR_CAP`)
 - the MCP delegate wallet (`CORTEX_DELEGATE_KEY`), which must hold the `ExecutorCap`
-- MemWal URL and API key (`CORTEX_MEMWAL_URL`, `MEMWAL_API_KEY`)
+- MemWal relayer, account id, and delegate key (`MEMWAL_SERVER_URL`, `MEMWAL_ACCOUNT_ID`, `MEMWAL_PRIVATE_KEY`)
 - Seal servers and threshold (`SEAL_SERVER_IDS`, `SEAL_THRESHOLD`)
 - model provider and keys (`CORTEX_MODEL_PROVIDER`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`)
 
