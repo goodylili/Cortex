@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 
 /* The two-family system, loaded in layout.tsx:
-   Expose (headings — Bold/Medium) and Roboto (all body text). */
+   Expose (headings  -  Bold/Medium) and Roboto (all body text). */
 
 @custom-variant dark (&:is(.dark *));
 

@@ -1,11 +1,11 @@
 // Autonomous scheduler host (phase 2). The loop runtime in ./loops can advance a single
-// loop on demand, and tickLoops fires every loop whose schedule/event trigger is due —
+// loop on demand, and tickLoops fires every loop whose schedule/event trigger is due  - 
 // but nothing drives tickLoops unattended. This module is that missing daemon: a thin
 // setInterval wrapper that calls tickLoops on a recurring cadence, with two guarantees
 // the runtime itself doesn't provide. First, a re-entrancy guard: a single in-flight
 // boolean means a slow tick never overlaps the next interval fire, so ticks can't pile
 // up. Second, fault isolation: every tick is wrapped so a thrown error is routed to
-// onError (or swallowed) and the host keeps running — one bad tick must never kill the
+// onError (or swallowed) and the host keeps running  -  one bad tick must never kill the
 // scheduler. stop() clears the interval and lets any in-flight tick finish naturally.
 
 import type { Config } from "./config";

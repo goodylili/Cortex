@@ -2,7 +2,7 @@
 // (e.g. `great.cortex.sui`). An owner bundles a CHOSEN subset of their memories,
 // Seal-encrypts it under an identity scoped to the share object itself, stores the
 // blob on Walrus, and grants named recipients read access. A recipient decrypts the
-// bundle as a delegate of THIS share only — never the owner's wider account memory —
+// bundle as a delegate of THIS share only  -  never the owner's wider account memory  - 
 // and surfaces those memories in their own brain tagged "shared" with the owner's
 // handle as provenance. Per-recipient revocation and a whole-share revoke are
 // supported; the Seal policy denies a revoked share to everyone but the owner.
@@ -10,7 +10,7 @@
 // Scoping is the security boundary. The owner reuses one Account across many shares,
 // so the encrypted bundle's Seal identity MUST be prefixed with this share's object
 // id (enforced in `set_bundle`), and `seal_approve` checks the same prefix. A
-// recipient added to one share can therefore only ever unseal that share's blob —
+// recipient added to one share can therefore only ever unseal that share's blob  - 
 // crafting an account-scoped identity to reach the owner's private memory fails the
 // prefix check.
 module cortex::sharing;
@@ -136,7 +136,7 @@ public fun create_share(account: &Account, title: String, clock: &Clock, ctx: &m
 
 // Attach (or replace) the Seal-encrypted Walrus bundle of the chosen memories and
 // flip the share live. The bundle's Seal identity must be prefixed with this share's
-// id so recipients can only ever decrypt this share — re-keying with a fresh blob is
+// id so recipients can only ever decrypt this share  -  re-keying with a fresh blob is
 // just another call here.
 public fun set_bundle(
     share: &mut MemoryShare,
@@ -209,7 +209,7 @@ public fun unshare(share: &mut MemoryShare, recipient: address, clock: &Clock, c
 
 // Retire the whole share. seal_approve then denies every recipient (the owner keeps
 // access so they can still inspect or re-key). The owner's original memories are
-// untouched — only this shared copy is withdrawn.
+// untouched  -  only this shared copy is withdrawn.
 public fun revoke(share: &mut MemoryShare, clock: &Clock, ctx: &TxContext) {
     assert!(ctx.sender() == share.owner, ENotOwner);
     let now_ms = clock.timestamp_ms();

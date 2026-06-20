@@ -1,4 +1,4 @@
-// Dreams (V1) — the offline pass that surfaces insights you didn't ask for:
+// Dreams (V1)  -  the offline pass that surfaces insights you didn't ask for:
 // connections, summaries and emerging patterns across your memories. Uses the
 // Anthropic API when ANTHROPIC_API_KEY is set; otherwise a deterministic
 // fallback so reflection always returns something.
@@ -29,7 +29,7 @@ function fallbackDreams(memories: Memory[]): Dream[] {
   if (top[0] && top[1])
     out.push({
       title: `A thread between ${top[0][0]} and ${top[1][0]}`,
-      body: `Your ${top[0][0]} and ${top[1][0]} memories keep surfacing in the same stretches — there may be a connection there.`,
+      body: `Your ${top[0][0]} and ${top[1][0]} memories keep surfacing in the same stretches  -  there may be a connection there.`,
     });
   const kept = memories.filter((m) => m.kept);
   if (kept.length)
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     )
     .join("\n");
   const system =
-    'You are the dreaming layer of Cortex, a personal memory system. While the user is away you look across their memories and surface insights they did NOT explicitly ask for: genuine connections between memories, emerging patterns, and short summaries. Be specific and grounded only in the memories given — never invent facts. Return STRICT JSON only: an array of 2 to 4 objects, each {"title": short, "body": one or two sentences}. No prose outside the JSON.';
+    'You are the dreaming layer of Cortex, a personal memory system. While the user is away you look across their memories and surface insights they did NOT explicitly ask for: genuine connections between memories, emerging patterns, and short summaries. Be specific and grounded only in the memories given  -  never invent facts. Return STRICT JSON only: an array of 2 to 4 objects, each {"title": short, "body": one or two sentences}. No prose outside the JSON.';
   const result = await complete({
     model: DEFAULT_MODEL,
     system,

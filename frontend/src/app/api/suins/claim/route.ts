@@ -1,5 +1,5 @@
 // Server-side mint of a SuiNS *leaf* subname under the project's parent domain.
-// The browser cannot mint these — the parent `cortex.sui` registration NFT lives in a
+// The browser cannot mint these  -  the parent `cortex.sui` registration NFT lives in a
 // server wallet, so the claim is signed here. A leaf subname carries no NFT of its own:
 // it is a pointer the parent owns, which is exactly what we want (the project retains
 // control, the user just gets `<username>.cortex.sui` resolving to their address).
@@ -103,7 +103,7 @@ export async function POST(req: Request) {
 
     const transaction = new Transaction();
     const suinsTx = new SuinsTransaction(suinsClient, transaction);
-    // Leaf subname: no expiry/NFT — points `name` at `address`, parent NFT authorizes it.
+    // Leaf subname: no expiry/NFT  -  points `name` at `address`, parent NFT authorizes it.
     suinsTx.createLeafSubName({
       parentNft: parentNftId,
       name,

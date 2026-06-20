@@ -1,0 +1,46 @@
+name: Move Test CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/move_test.yml"
+      - "backend/sui/contract/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/move_test.yml"
+      - "backend/sui/contract/**"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install Sui using Homebrew
+        run: brew install sui
+
+      - name: Run Move tests in all contract subdirectories, with exclusions
+        shell: bash
+        run: |
+          excluded_dirs=()
+          for dir in backend/sui/contract/*; do
+            dir_name=$(basename "$dir")
+            if [[ ! " ${excluded_dirs[*]} " =~ (^|[[:space:]])${dir_name}($|[[:space:]]) ]] && [ -d "$dir" ] && [ -f "$dir/Move.toml" ]; then
+              echo "Running sui move test in $dir"
+              extra_args=""
+              if [ "$dir_name" = "voting" ]; then
+                extra_args="--gas-limit 2000000000"
+              fi
+              sui move test --path "$dir" $extra_args
+            fi
+          done

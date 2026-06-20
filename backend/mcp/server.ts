@@ -40,6 +40,7 @@ import {
 } from "@cortex/core";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 
 const DEFAULT_PERIOD = { from: "0000", to: "9999" };
 const SUMMARY_RECENT_LIMIT = 20;
@@ -47,6 +48,10 @@ const FETCH_TIMEOUT_MS = 30_000;
 const RESOURCE_MIME = "application/json";
 const MCP_PATH = "/mcp";
 const HTTP_PORT = 8787;
+const ENV_FILE = process.env.CORTEX_ENV_FILE ?? ".env";
+
+// Load the MCP's own .env (CORTEX_ENV_FILE to point elsewhere) before reading config.
+if (existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE);
 
 const cfg = loadConfig();
 const live = isLive(cfg);

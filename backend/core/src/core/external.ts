@@ -1,5 +1,5 @@
 // Loads an optional peer SDK at runtime. The module specifier is a variable so
-// the compiler does NOT try to resolve it — that keeps mock-only builds light
+// the compiler does NOT try to resolve it  -  that keeps mock-only builds light
 // (the @mysten/* and @mysten-incubation/memwal SDKs are optional peers, only
 // needed for the live path). Throws a clear error if the SDK isn't installed.
 

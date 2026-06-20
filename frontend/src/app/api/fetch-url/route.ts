@@ -1,6 +1,6 @@
 // Fetch a webpage server-side (avoids browser CORS) and reduce it to readable
 // text + a title, so the capture layer can distill it into memories. Best-effort
-// HTML stripping — enough to feed extraction, not a full reader-mode parser.
+// HTML stripping  -  enough to feed extraction, not a full reader-mode parser.
 
 const MAX_CHARS = 20_000;
 const FETCH_TIMEOUT_MS = 12_000;

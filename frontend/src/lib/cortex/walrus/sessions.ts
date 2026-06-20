@@ -168,7 +168,7 @@ async function getSetting(
   return null;
 }
 
-// A plain (unencrypted) on-chain setting value — used for non-secret pointers like
+// A plain (unencrypted) on-chain setting value  -  used for non-secret pointers like
 // the user's Workspace object id, which is just a public object reference.
 export async function saveSettingValue(
   signer: PrivySuiSigner,

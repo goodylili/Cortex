@@ -18,7 +18,7 @@ export default function Error({
   return (
     <StatusScreen
       code="500"
-      title="A memory slipped — that wasn't supposed to happen."
+      title="A memory slipped  -  that wasn't supposed to happen."
       onRetry={reset}
     />
   );

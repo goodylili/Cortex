@@ -1,26 +1,32 @@
 {
   "name": "cortex-docs",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
+  "description": "Standalone Vocs documentation package for Cortex.",
+  "type": "module",
   "scripts": {
-    "dev": "next dev -p 3001",
-    "build": "next build",
-    "start": "next start -p 3001",
+    "dev": "vocs dev",
+    "build": "vocs build",
+    "preview": "vocs preview",
+    "start": "vocs preview",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "beautiful-mermaid": "^0.1.2",
-    "framer-motion": "^12.28.1",
-    "next": "^16.2.9",
-    "prism-react-renderer": "^2.4.1",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/goodylili/Cortex.git",
+    "directory": "docs"
   },
-  "devDependencies": {
-    "@types/node": "^24.0.0",
-    "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.2",
-    "sass": "^1.69.0",
-    "typescript": "^5.9.3"
+  "bugs": {
+    "url": "https://github.com/goodylili/Cortex/issues"
+  },
+  "homepage": "https://github.com/goodylili/Cortex/tree/main/docs",
+  "dependencies": {
+    "@types/react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "typescript": "latest",
+    "vite": "^8.0.0",
+    "vocs": "latest",
+    "waku": "^1.0.0-beta.3"
   }
 }

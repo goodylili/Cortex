@@ -176,7 +176,7 @@ function labelOf(user: PrivyUser): string {
 
 // Turn a share recipient typed by the user into a concrete Sui address. Accepts a raw
 // 0x address, a bare cortex username ("bob"), or a full SuiNS subname ("bob.cortex.sui")
-// — the latter two resolve through SuiNS to the address the leaf subname points at.
+//  -  the latter two resolve through SuiNS to the address the leaf subname points at.
 async function resolveRecipient(
   input: string,
 ): Promise<{ address: string; displayName: string }> {
@@ -186,7 +186,7 @@ async function resolveRecipient(
   const address = await resolveSuinsAddress(name);
   if (!address) {
     throw new Error(
-      `Could not resolve ${name} to a Sui address — has that username been claimed?`,
+      `Could not resolve ${name} to a Sui address  -  has that username been claimed?`,
     );
   }
   return { address, displayName: name };
@@ -262,7 +262,7 @@ export function useCortexWallet(): CortexWalletState {
       storeFile: async (file: File) => {
         const bytes = new Uint8Array(await file.arrayBuffer());
         // When the contracts are deployed, the file is recorded as an on-chain
-        // KbFile owned by the user's Account — discover or create that Account on
+        // KbFile owned by the user's Account  -  discover or create that Account on
         // chain. Otherwise the upload is a bare Walrus blob and the wallet address
         // is only used as the Seal identity scope.
         let accountId = address;
@@ -424,7 +424,7 @@ export function useCortexWallet(): CortexWalletState {
         await accountRevokeAdmin({ signer, accountId, delegate });
       },
       // The resolved Workspace object id (account setting first, env fallback), or
-      // null when no workspace has been created yet. Read-only — no transaction.
+      // null when no workspace has been created yet. Read-only  -  no transaction.
       workspaceStatus: async () => {
         if (!contractsEnabled()) return null;
         const accountId = await getAccountId(address);
@@ -561,7 +561,7 @@ export function useCortexWallet(): CortexWalletState {
             const items = await decryptShareBundle(signer, share.id);
             for (const item of items) out.push(sharedItemToMemory(item, share));
           } catch {
-            /* unreadable share — skip, keep the rest of the inbox */
+            /* unreadable share  -  skip, keep the rest of the inbox */
           }
         }
         return out;

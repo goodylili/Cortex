@@ -13,42 +13,48 @@ interface FaqItem {
   answer: string;
 }
 
-const HEADLINE = "Questions About Cortex";
+const HEADLINE = "Questions About Sovereign Memory";
 
 const FAQS: FaqItem[] = [
   {
     id: "1",
-    question: "What makes Cortex different from other note-taking apps?",
+    question: "What makes Cortex different from other memory layers?",
     answer:
-      "Cortex is a sovereign memory layer, not just a notes product. It is built on the Sui stack with Walrus for durable storage and Seal for encryption, then adds shared memory, prompt generation, loop generation, multi-agent workflows, and dreams on top.",
+      "Cortex is a sovereign memory layer for uploaded intelligence, not a note-taking app. It is built on the Sui stack with Walrus for durable storage and Seal for encryption, then adds shared memory, prompt generation, agentic loops, multi-agent workflows, dreams, and an elastic brain that keeps memory useful over time.",
   },
   {
     id: "2",
-    question: "Is my data really private?",
+    question: "How does sovereign memory stay private?",
     answer:
       "Yes. Cortex encrypts memory before it is stored or shared, and access stays scoped to you and the collaborators you authorize. Seal protects content and Sui-native identity controls who can read shared memory.",
   },
   {
     id: "3",
-    question: "How does Cortex work with other AI tools?",
+    question: "How does Cortex work with agents and AI tools?",
     answer:
       "Cortex speaks MCP, the standard protocol for AI tool interoperability. Once memory is in Cortex, your agents and external AI tools can query the same grounded context instead of re-uploading and re-explaining everything.",
   },
   {
     id: "4",
-    question: "What are loops and why do they matter?",
+    question: "What are Agentic Loops and why do they matter?",
     answer:
       "Loops turn memory into action. Cortex can generate a workflow from your saved context, assign it to an agent, run iterative passes, and keep the whole cycle grounded in the same memory graph.",
   },
   {
     id: "5",
-    question: "What are dreams?",
+    question: "What is Cortex's elastic brain?",
+    answer:
+      "The elastic brain is Cortex's memory hygiene system. The codebase already runs consolidation sweeps that fade weak memories, fold duplicates, promote durable ones, and ease down weaker signals, so your memory graph keeps learning from use instead of bloating forever.",
+  },
+  {
+    id: "6",
+    question: "What are dreams inside Cortex?",
     answer:
       "Dreams are memory-derived insights. Cortex looks across what you have saved, connects weak signals, and surfaces higher-order synthesis so the system can tell you what is emerging, not just what is already obvious.",
   },
   {
-    id: "6",
-    question: "Can I share memories with collaborators?",
+    id: "7",
+    question: "Can I share memory without exposing everything?",
     answer:
       "Yes. Encrypted sharing lets you send memories by recipient name, not by key. Content is sealed before delivery, only the intended recipient can open it, and each share stays scoped so you never expose your whole memory.",
   },
@@ -91,8 +97,9 @@ export function FaqSection() {
 
             <Reveal>
               <p className="max-w-md text-balance text-base leading-relaxed text-ink/60 md:text-lg">
-                Get answers about how Cortex keeps, connects, and recalls your
-                memory. Your privacy, your infrastructure, your terms.
+                Get answers about how Cortex stores, shares, and activates
+                sovereign memory across people, agents, and workflows. Your
+                privacy, your infrastructure, your terms.
               </p>
             </Reveal>
           </div>

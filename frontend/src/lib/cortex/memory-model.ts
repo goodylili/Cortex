@@ -1,4 +1,4 @@
-// Cortex Memory Model — human-like retention.
+// Cortex Memory Model  -  human-like retention.
 // Two orthogonal axes: tier (importance floor) and activation (usage signal).
 // Forgetting is de-indexing, never deletion. The raw record lives on Walrus/Seal;
 // hard forget is the single audited exception that purges it.

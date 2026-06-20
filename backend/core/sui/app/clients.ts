@@ -47,7 +47,7 @@ export async function getArtifact<T extends Artifact = Artifact>(
   return decode<T>(bytes, kind);
 }
 
-/** Raw fetch straight from Walrus — the independence/verify check (no decrypt). */
+/** Raw fetch straight from Walrus  -  the independence/verify check (no decrypt). */
 export async function fetchRaw(
   c: Clients,
   blobId: string,

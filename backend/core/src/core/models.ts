@@ -1,5 +1,5 @@
 // Cortex domain models. Every persisted artifact is JSON, Seal-encrypted before
-// it hits Walrus, and addressed by its blob id (content hash). Lock these early —
+// it hits Walrus, and addressed by its blob id (content hash). Lock these early  - 
 // the whole system (backend, desktop, mobile) agrees on them.
 
 export type SourceKind =

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="currentColor" role="img" aria-label="cortex">
+  <circle cx="60" cy="60" r="13"/>
+  <g transform="rotate(0 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
+  <g transform="rotate(45 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
+  <g transform="rotate(90 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
+  <g transform="rotate(135 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
+  <g transform="rotate(180 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
+  <g transform="rotate(225 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
+  <g transform="rotate(270 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
+  <g transform="rotate(315 60 60)"><rect x="51.5" y="19" width="6.5" height="25" rx="3.25"/><rect x="62" y="19" width="6.5" height="25" rx="3.25"/></g>
+</svg>

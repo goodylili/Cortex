@@ -37,6 +37,6 @@ next-env.d.ts
 coverage/
 dist/
 
-# personal markdown docs — only README.md is ever tracked
+# personal markdown docs  -  only README.md is ever tracked
 /*.md
 !/README.md

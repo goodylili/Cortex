@@ -166,7 +166,7 @@ export async function getWorkspaceId(accountId: string): Promise<string | null> 
 
 // One-time setup: create the shared Workspace object on chain and persist its id to
 // the user's Account settings so every reader (browser, backend, MCP) resolves it.
-// Idempotent — returns the existing id when one is already recorded.
+// Idempotent  -  returns the existing id when one is already recorded.
 export async function setupWorkspace(
   signer: PrivySuiSigner,
   accountId: string,

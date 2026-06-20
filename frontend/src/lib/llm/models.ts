@@ -1,4 +1,4 @@
-// Canonical model registry — the single source of truth for the chat/studio
+// Canonical model registry  -  the single source of truth for the chat/studio
 // picker and the server-side LLM caller. Eight text models across four providers.
 // `apiId` is the provider's model id; change it here if a provider renames a model.
 

@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
   const system =
     "You extract concise, factual context from images for a personal memory system. " +
-    "Describe what is actually shown — visible text, objects, people, scene, charts, any readable details — " +
+    "Describe what is actually shown  -  visible text, objects, people, scene, charts, any readable details  -  " +
     "in a few plain sentences. Never speculate or invent; if something is unclear, say so.";
 
   const result = await complete({

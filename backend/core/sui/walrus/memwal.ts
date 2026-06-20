@@ -1,4 +1,4 @@
-// MemWal — the live memory plane (@mysten-incubation/memwal). The SDK handles the
+// MemWal  -  the live memory plane (@mysten-incubation/memwal). The SDK handles the
 // relayer, embeddings and Seal. Cortex reads current state through it and writes
 // consolidated memories on apply. Prune is a tombstone convention (no delete).
 

@@ -1,9 +1,9 @@
-// Walrus Memory (MemWal) — the live memory plane. The relayer handles embedding,
+// Walrus Memory (MemWal)  -  the live memory plane. The relayer handles embedding,
 // Seal encryption, Walrus upload and vector search; the SDK only signs with an
 // Ed25519 delegate key. Each user has their own MemWal account, and each device
 // holds its OWN delegate key, derived deterministically from the user's wallet
 // signature plus a non-secret per-device salt. The private delegate key is never
-// written to storage — it lives only in an in-memory session cache, re-derived on
+// written to storage  -  it lives only in an in-memory session cache, re-derived on
 // demand. The keystore persists only the account id, the device salt, and the
 // public keys of registered delegates.
 
@@ -89,7 +89,7 @@ export function saveMemoryCreds(userKey: string, creds: MemoryCreds): void {
       }),
     );
   } catch {
-    /* storage unavailable — memory stays in-session only */
+    /* storage unavailable  -  memory stays in-session only */
   }
 }
 
@@ -242,7 +242,7 @@ export async function recallLive(
 // One-time provisioning: derive this device's delegate key in memory, create the
 // MemWal account on chain (signed by the Privy wallet), authorize the device's
 // public key, and persist the creds (account id + device id + registered public
-// keys) — never the private key. The relayer handles embeddings, so no embedding
+// keys)  -  never the private key. The relayer handles embeddings, so no embedding
 // key is needed here.
 export async function provisionMemory(opts: {
   userKey: string;
@@ -290,7 +290,7 @@ export async function provisionMemory(opts: {
 // Seal-encrypts per namespace and gates access by the account's delegate-key list,
 // so authorizing the MCP's public delegate key (set via env, e.g.
 // NEXT_PUBLIC_CORTEX_MCP_MEMWAL_PUBKEY) lets the MCP read/write that memory without
-// making anything public. The MCP's private delegate key never leaves the server —
+// making anything public. The MCP's private delegate key never leaves the server  - 
 // only its public key is passed here. Returns false (no-op) when memwal isn't
 // configured or the user has no MemWal account yet.
 export async function authorizeMemoryDelegate(opts: {
@@ -362,7 +362,7 @@ function extractDelegatePublicKeys(json: Record<string, unknown>): string[] {
 // Best-effort read of the on-chain MemWalAccount's delegate-key list, flagging the
 // entry that matches this device's derived public key. Degrades to [] on any
 // failure (missing creds, unreachable node, unexpected object shape) rather than
-// throwing — callers use this for display only.
+// throwing  -  callers use this for display only.
 export async function listMemoryDelegates(
   userKey: string,
 ): Promise<{ publicKey: string; isThisDevice: boolean }[]> {

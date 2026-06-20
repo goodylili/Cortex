@@ -1,0 +1,57 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/frontend-ci.yml"
+      - "frontend/**"
+      - "backend/core/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/frontend-ci.yml"
+      - "frontend/**"
+      - "backend/core/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint frontend
+        run: pnpm --filter cortex-frontend lint
+
+      - name: Typecheck frontend
+        run: pnpm --filter cortex-frontend typecheck
+
+      - name: Test frontend
+        run: pnpm --filter cortex-frontend test
+
+      - name: Build frontend
+        run: pnpm --filter cortex-frontend build

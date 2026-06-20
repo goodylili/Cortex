@@ -1,6 +1,6 @@
 // SuiNS usernames for Cortex. The project owns the parent domain (cortex.sui) and
 // hands each user a *leaf* subname `<username>.<parent>` that points at their Sui
-// address. Leaves carry no NFT — the parent registration keeps control — so claiming
+// address. Leaves carry no NFT  -  the parent registration keeps control  -  so claiming
 // is a single server-signed transaction (see /api/suins/claim). This module does the
 // browser-side work: normalize/validate a username, resolve a name to an address
 // (used by memory-sharing to turn a typed handle into a recipient), and POST a claim.
@@ -61,7 +61,7 @@ function getSuinsClient(): SuinsClient {
 }
 
 // Resolve a full SuiNS name (e.g. `bob.cortex.sui`) to its target Sui address.
-// Returns null on not-found / unset target / any network failure — never throws — so
+// Returns null on not-found / unset target / any network failure  -  never throws  -  so
 // callers (memory-sharing) can fall back to treating the input as a raw address.
 export async function resolveSuinsAddress(
   name: string,

@@ -1,4 +1,4 @@
-// Cortex memory logic — pure, deterministic, client-side. Ported to TS from the
+// Cortex memory logic  -  pure, deterministic, client-side. Ported to TS from the
 // verified vanilla app. The Next app uses these via the zustand store.
 
 import { LLM_MODELS } from "@/lib/llm/models";

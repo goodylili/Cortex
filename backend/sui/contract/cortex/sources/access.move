@@ -15,7 +15,7 @@ public struct AdminCap has key, store {
     id: UID,
 }
 
-/// Held by the off-chain execution engine — in Cortex, the MCP service wallet.
+/// Held by the off-chain execution engine  -  in Cortex, the MCP service wallet.
 /// Authorizes acting on shared state (managing memory/KB access, writing agent
 /// workspace pointers) on a user's behalf. Treated as hot and rotated often.
 public struct ExecutorCap has key, store {
@@ -107,7 +107,7 @@ public fun new_admin_cap(
     transfer::transfer(new_cap, recipient);
 }
 
-/// Mints an additional ExecutorCap to a recipient — used to rotate the engine's
+/// Mints an additional ExecutorCap to a recipient  -  used to rotate the engine's
 /// key: mint a new cap for the new key, then burn or revoke the old one.
 public fun new_executor_cap(
     cap: &AdminCap,
@@ -130,7 +130,7 @@ public fun burn_executor_cap(cap: ExecutorCap) {
 
 // === Executor revocation ===
 
-/// Revokes an ExecutorCap by object ID — no need for the holder to sign. Every
+/// Revokes an ExecutorCap by object ID  -  no need for the holder to sign. Every
 /// executor-gated function checks this set. Idempotent.
 public fun revoke_executor_cap(
     cap: &AdminCap,
@@ -218,7 +218,7 @@ public fun restore_admin_cap(
 // === Gates ===
 
 /// Aborts `EExecutorRevoked` if `cap`'s ID is blacklisted. The first line of every
-/// executor-gated function. Read-only — no write contention on the registry.
+/// executor-gated function. Read-only  -  no write contention on the registry.
 public fun assert_executor(registry: &AccessRegistry, cap: &ExecutorCap) {
     assert!(!registry.revoked.contains(object::id(cap)), EExecutorRevoked);
 }

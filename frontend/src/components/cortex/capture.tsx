@@ -120,7 +120,7 @@ export function CaptureModal({
     {
       id: "file",
       name: "Upload files",
-      desc: "Images, audio, video, text and docs — distilled into memories",
+      desc: "Images, audio, video, text and docs  -  distilled into memories",
     },
   ];
 
@@ -189,7 +189,7 @@ export function CaptureModal({
                   {busy ? "Working…" : "Choose files"}
                 </div>
                 <div className="cap-drop-s">
-                  images, audio, video, text — distilled into memories
+                  images, audio, video, text  -  distilled into memories
                 </div>
               </button>
             </div>

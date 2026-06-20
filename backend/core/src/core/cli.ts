@@ -40,7 +40,7 @@ const TYPE: Record<string, SourceKind> = {
 async function main() {
   if (!isLive(cfg))
     console.log(
-      `(mock mode — missing for live: ${missingForLive(cfg).join(", ") || "nothing"})\n`,
+      `(mock mode  -  missing for live: ${missingForLive(cfg).join(", ") || "nothing"})\n`,
     );
 
   switch (cmd) {

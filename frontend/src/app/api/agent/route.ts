@@ -1,7 +1,7 @@
 // Runs ONE step for a single collaboration agent. Given the agent's id, the task
 // goal, its prior observations, and the shared memories it may draw on, this builds
 // the agent's system prompt and grounded user content and calls the chosen model.
-// Mirrors the ask route: it never 500s on a missing provider key — it degrades to a
+// Mirrors the ask route: it never 500s on a missing provider key  -  it degrades to a
 // deterministic observation that restates the goal so the team can keep moving.
 
 import { agentById } from "@/lib/cortex/agents";

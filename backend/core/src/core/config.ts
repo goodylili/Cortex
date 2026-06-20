@@ -93,7 +93,25 @@ export function loadConfig(
   }
   const cfg = deepMerge(DEFAULTS, fromFile);
   const fileModels = (fromFile.models ?? {}) as Partial<Config["models"]>;
-  // env overrides for secrets
+  // env overrides
+  if (process.env.CORTEX_NAMESPACE)
+    cfg.namespace = process.env.CORTEX_NAMESPACE;
+  if (process.env.CORTEX_SUI_RPC) cfg.sui.rpc = process.env.CORTEX_SUI_RPC;
+  if (process.env.CORTEX_SUI_NETWORK)
+    cfg.sui.network = process.env.CORTEX_SUI_NETWORK;
+  if (process.env.CORTEX_WALRUS_PUBLISHER)
+    cfg.walrus.publisher = process.env.CORTEX_WALRUS_PUBLISHER;
+  if (process.env.CORTEX_WALRUS_AGGREGATOR)
+    cfg.walrus.aggregator = process.env.CORTEX_WALRUS_AGGREGATOR;
+  if (process.env.CORTEX_WALRUS_EPOCHS) {
+    const parsed = Number.parseInt(process.env.CORTEX_WALRUS_EPOCHS, 10);
+    if (Number.isFinite(parsed) && parsed > 0) cfg.walrus.epochs = parsed;
+  }
+  if (process.env.CORTEX_PACKAGE_ID)
+    cfg.seal.policyPackage = process.env.CORTEX_PACKAGE_ID;
+  if (process.env.CORTEX_SEAL_POLICY_OBJECT)
+    cfg.seal.policyObject = process.env.CORTEX_SEAL_POLICY_OBJECT;
+  if (process.env.CORTEX_MEMWAL_URL) cfg.memwal.url = process.env.CORTEX_MEMWAL_URL;
   if (process.env.CORTEX_DELEGATE_KEY)
     cfg.delegateKey = process.env.CORTEX_DELEGATE_KEY;
   if (process.env.MEMWAL_API_KEY)

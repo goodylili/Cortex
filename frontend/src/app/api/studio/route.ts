@@ -41,14 +41,14 @@ export async function POST(req: Request) {
 
   const system =
     "You are an expert prompt engineer working inside Cortex, a personal memory system. " +
-    "Write ONE ready-to-use prompt and nothing else — no preamble, no commentary, no markdown code fences around it. " +
+    "Write ONE ready-to-use prompt and nothing else  -  no preamble, no commentary, no markdown code fences around it. " +
     "Ground it in the user's stated memories, treat their standing preferences as non-negotiable, and keep their voice. " +
     (web
       ? "Where the memories don't cover something, you may draw on broad general knowledge. "
       : "Do not invent facts beyond the user's memories and the task. ") +
     `Render the prompt in the requested output format (${type}).`;
   const user = [
-    `Prompting technique (style): ${style} — ${spec.system}`,
+    `Prompting technique (style): ${style}  -  ${spec.system}`,
     `Output format (type): ${type}`,
     `Target modality: ${modality}`,
     "",

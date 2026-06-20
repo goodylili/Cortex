@@ -1,0 +1,35 @@
+name: Move Format CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/move_format.yml"
+      - ".github/actions/move-formatter/action.yml"
+      - "backend/sui/contract/**/*.move"
+      - "backend/sui/contract/**/Move.toml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/move_format.yml"
+      - ".github/actions/move-formatter/action.yml"
+      - "backend/sui/contract/**/*.move"
+      - "backend/sui/contract/**/Move.toml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Move formatting
+        uses: ./.github/actions/move-formatter
+        with:
+          working-directory: backend/sui/contract/cortex
+          pattern: "**/*.move"

@@ -85,7 +85,7 @@ export async function POST(req: Request) {
     return Response.json({
       verdict: "fail",
       review:
-        "No verifier model available; cannot confirm the goal is met — escalating to a human.",
+        "No verifier model available; cannot confirm the goal is met  -  escalating to a human.",
       criticModel: critic.name,
       ai: false,
       reason: result.reason,

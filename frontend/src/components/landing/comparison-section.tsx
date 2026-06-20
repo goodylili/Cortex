@@ -1,9 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, Minus } from "lucide-react";
-
-import { Logo } from "@/components/logo";
+import { Check, X } from "lucide-react";
 
 interface ComparisonRow {
   feature: string;
@@ -74,6 +72,15 @@ const ROWS: ComparisonRow[] = [
     supermemoryTone: "muted",
   },
   {
+    feature: "Elastic brain",
+    detail:
+      "Learns from use, runs consolidation sweeps, folds duplicates, and fades weak signals to reduce memory bloat over time",
+    cortex: "Native",
+    supermemory: "No",
+    cortexTone: "strong",
+    supermemoryTone: "muted",
+  },
+  {
     feature: "Sovereignity",
     detail: "Built on Sui with Walrus storage and Seal encryption",
     cortex: "Yes",
@@ -83,34 +90,6 @@ const ROWS: ComparisonRow[] = [
   },
 ];
 
-function SupermemoryLogo({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 120 120"
-      className={className}
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <rect
-        x="14"
-        y="14"
-        width="92"
-        height="92"
-        rx="24"
-        stroke="currentColor"
-        strokeWidth="8"
-      />
-      <path
-        d="M41 41h38c6.6 0 12 5.4 12 12s-5.4 12-12 12H53c-6.6 0-12 5.4-12 12s5.4 12 12 12h26"
-        stroke="currentColor"
-        strokeWidth="8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function CapabilityPill({
   value,
   tone,
@@ -118,28 +97,42 @@ function CapabilityPill({
   value: string;
   tone: "strong" | "soft" | "muted";
 }) {
+  const Icon = tone === "muted" ? X : Check;
+
   if (tone === "muted") {
     return (
-      <span className="inline-flex min-w-[108px] items-center justify-center gap-2 rounded-full border border-ink/10 bg-transparent px-3 py-1 text-center text-xs font-medium uppercase tracking-[0.2em] text-ink/35">
-        <Minus className="h-3.5 w-3.5" />
-        {value}
+      <span
+        aria-label={value}
+        title={value}
+        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--r)] border border-ink/10 bg-transparent text-ink/35"
+      >
+        <Icon className="h-4 w-4" />
+        <span className="sr-only">{value}</span>
       </span>
     );
   }
 
   if (tone === "soft") {
     return (
-      <span className="inline-flex min-w-[108px] items-center justify-center gap-2 rounded-full border border-ink/15 bg-ink/[0.04] px-3 py-1 text-center text-xs font-medium uppercase tracking-[0.2em] text-ink/60">
-        <Check className="h-3.5 w-3.5" />
-        {value}
+      <span
+        aria-label={value}
+        title={value}
+        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--r)] border border-ink/15 bg-ink/[0.04] text-ink/60"
+      >
+        <Icon className="h-4 w-4" />
+        <span className="sr-only">{value}</span>
       </span>
     );
   }
 
   return (
-    <span className="inline-flex min-w-[108px] items-center justify-center gap-2 rounded-full border border-white/15 bg-white px-3 py-1 text-center text-xs font-medium uppercase tracking-[0.2em] text-[#0A0A0A]">
-      <Check className="h-3.5 w-3.5" />
-      {value}
+    <span
+      aria-label={value}
+      title={value}
+      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--r)] border border-white/15 bg-white text-[#0A0A0A]"
+    >
+      <Icon className="h-4 w-4" />
+      <span className="sr-only">{value}</span>
     </span>
   );
 }
@@ -185,8 +178,10 @@ export function ComparisonSection() {
 
             <p className="max-w-xl text-balance text-base leading-relaxed text-ink/60 md:text-lg lg:justify-self-end">
               Cortex covers the same core memory jobs users expect, then goes
-              further with Sovereignity, shared memory,
-              prompts, loops, multi-agent coordination, and dreams.
+              further with an elastic brain that learns from usage, reduces
+              memory bloat through consolidation sweeps, and layers
+              Sovereignity, shared memory, prompts, loops, agents, and dreams
+              on top.
             </p>
           </div>
         </motion.div>
@@ -196,29 +191,25 @@ export function ComparisonSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="overflow-hidden rounded-[calc(var(--r)*1.6)] border border-ink/10 bg-ink/[0.03] shadow-[0_20px_80px_rgba(0,0,0,0.12)]"
+          className="overflow-hidden rounded-[var(--r)] border border-ink/10 bg-ink/[0.03] shadow-[0_20px_80px_rgba(0,0,0,0.12)]"
         >
           <div className="overflow-x-auto">
             <table className="min-w-full border-separate border-spacing-0">
               <thead>
                 <tr className="text-left">
-                  <th className="min-w-[320px] border-b border-ink/10 px-6 py-5 md:px-8" />
-                  <th className="min-w-[240px] border-b border-l border-r border-[#262626] bg-[#0A0A0A] px-6 py-5 text-white md:px-8">
-                    <div className="flex flex-col items-center justify-center gap-3 text-center">
-                      <div className="flex items-center justify-center gap-3">
-                        <Logo variant="white" className="h-7 w-7 shrink-0" />
-                        <div className="flex flex-col items-start">
-                          <span className="text-xl font-medium tracking-tight text-white">
-                            Cortex
-                          </span>
-                        </div>
-                      </div>
+                  <th className="min-w-[320px] border-b border-ink/10 px-6 py-5 align-middle md:px-8" />
+                  <th className="min-w-[240px] border-b border-l border-r border-[#262626] bg-[#0A0A0A] px-6 py-5 align-middle text-white md:px-8">
+                    <div className="flex min-h-[76px] items-center justify-center text-center">
+                      <span className="text-2xl font-semibold tracking-tight text-white md:text-[2rem]">
+                        Cortex
+                      </span>
                     </div>
                   </th>
-                  <th className="min-w-[220px] border-b border-ink/10 px-6 py-5 text-ink/65 md:px-8">
-                    <div className="flex items-center justify-center gap-3 text-center">
-                      <SupermemoryLogo className="h-7 w-7 shrink-0 text-ink/75" />
-                      <span className="text-xl font-medium text-ink">Supermemory</span>
+                  <th className="min-w-[220px] border-b border-ink/10 px-6 py-5 align-middle text-ink/65 md:px-8">
+                    <div className="flex min-h-[76px] items-center justify-center text-center">
+                      <span className="text-2xl font-semibold tracking-tight text-ink md:text-[2rem]">
+                        Supermemory
+                      </span>
                     </div>
                   </th>
                 </tr>
@@ -228,7 +219,7 @@ export function ComparisonSection() {
                 {ROWS.map((row, index) => (
                   <motion.tr
                     key={row.feature}
-                    className="align-top"
+                    className="align-middle"
                     initial={{ opacity: 0, y: 28 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true, margin: "-100px" }}
@@ -238,7 +229,7 @@ export function ComparisonSection() {
                       ease: [0.22, 1, 0.36, 1],
                     }}
                   >
-                    <td className="border-b border-ink/10 px-6 py-5 md:px-8">
+                    <td className="border-b border-ink/10 px-6 py-5 align-middle md:px-8">
                       <div className="flex flex-col gap-1.5">
                         <span className="text-base font-medium text-ink">
                           {row.feature}
@@ -249,21 +240,21 @@ export function ComparisonSection() {
                       </div>
                     </td>
 
-                    <td className="border-b border-l border-r border-[#262626] bg-[#0A0A0A] px-6 py-5 text-white md:px-8">
-                      <div className="flex items-center justify-center">
-                      <CapabilityPill
-                        value={row.cortex}
-                        tone={row.cortexTone ?? "strong"}
-                      />
+                    <td className="border-b border-l border-r border-[#262626] bg-[#0A0A0A] px-6 py-5 align-middle text-white md:px-8">
+                      <div className="flex min-h-[72px] items-center justify-center">
+                        <CapabilityPill
+                          value={row.cortex}
+                          tone={row.cortexTone ?? "strong"}
+                        />
                       </div>
                     </td>
 
-                    <td className="border-b border-ink/10 px-6 py-5 md:px-8">
-                      <div className="flex items-center justify-center">
-                      <CapabilityPill
-                        value={row.supermemory}
-                        tone={row.supermemoryTone ?? "soft"}
-                      />
+                    <td className="border-b border-ink/10 px-6 py-5 align-middle md:px-8">
+                      <div className="flex min-h-[72px] items-center justify-center">
+                        <CapabilityPill
+                          value={row.supermemory}
+                          tone={row.supermemoryTone ?? "soft"}
+                        />
                       </div>
                     </td>
                   </motion.tr>

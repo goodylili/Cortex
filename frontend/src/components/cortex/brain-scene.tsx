@@ -24,7 +24,7 @@ const TAG_COLOR: Record<string, string> = {
   note: "#9b8cff",
 };
 
-// the iridescent, fluid central mass — the "mind"
+// the iridescent, fluid central mass  -  the "mind"
 function Mind() {
   const ref = useRef<THREE.Mesh>(null);
   useFrame((_, dt) => {

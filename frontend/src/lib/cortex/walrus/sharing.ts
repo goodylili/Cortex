@@ -2,7 +2,7 @@
 // bundles a CHOSEN subset of their memories, Seal-encrypts the bundle under an identity
 // PREFIXED by the share object's own id, stores it on Walrus, and grants named
 // recipients read access. A recipient decrypts the bundle as a delegate of THIS share
-// only (via seal_approve) — never the owner's wider account memory.
+// only (via seal_approve)  -  never the owner's wider account memory.
 //
 // Write path: create_share (DRAFT, surfaces the share object id) -> derive the Seal
 // identity from that id -> sha256 + Seal-encrypt the bundle -> Walrus writeBlob ->
@@ -38,7 +38,7 @@ const CREATED_ID_OPERATION = "Created";
 const STATUS_ACTIVE = 1;
 
 // One shared memory the owner chose to include in a bundle. Mirrors the brain's Memory
-// shape narrowly — only the fields a recipient needs to surface it in their own brain.
+// shape narrowly  -  only the fields a recipient needs to surface it in their own brain.
 export interface SharedMemoryItem {
   id: string;
   text: string;
@@ -351,7 +351,7 @@ export async function loadMyShares(owner: string): Promise<ShareSummary[]> {
 }
 
 // Shares granted TO this recipient, read from RecipientAdded events then filtered to
-// those whose on-chain object STILL lists the recipient and is ACTIVE — so unshared and
+// those whose on-chain object STILL lists the recipient and is ACTIVE  -  so unshared and
 // revoked shares drop off the inbox.
 export async function loadReceivedShares(
   recipient: string,

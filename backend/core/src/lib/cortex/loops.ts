@@ -458,7 +458,7 @@ export const commandGateVerdict = (
 // === Self-improving rubric (phase 3) ===
 // A reviewer gate scores work against an explicit rubric. When a human flags a miss
 // the reviewer let through, the flagged criterion is appended (and any near-duplicate
-// dropped) so the next run's verifier is sharper — the loop gets better at judging.
+// dropped) so the next run's verifier is sharper  -  the loop gets better at judging.
 
 export interface LoopRubric {
   id: string;

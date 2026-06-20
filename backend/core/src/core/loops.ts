@@ -4,7 +4,7 @@
 // browser driver (which can only escalate a command/invariant gate to a human), this
 // runtime executes the REAL gate command via node:child_process and decides "done" from
 // the exit code. It respects the spec's budget, give-up, and error policy, fires loops
-// on schedule/event triggers, and — for composition — lets a monitor/coordinator loop
+// on schedule/event triggers, and  -  for composition  -  lets a monitor/coordinator loop
 // spawn worker loops (sequential by default; parallel only when no board conflict).
 
 import { spawn } from "node:child_process";
@@ -186,7 +186,7 @@ export async function getLoop(
 }
 
 // Pause a running loop without giving up on it: a paused loop is skipped by tickLoops
-// (which only fires loops that aren't done/gave_up — a human resumes it by stepping it
+// (which only fires loops that aren't done/gave_up  -  a human resumes it by stepping it
 // again). Terminal loops (done/gave_up) are returned unchanged so stop is idempotent.
 export async function stopLoop(
   c: Clients,
@@ -238,7 +238,7 @@ interface GateOutcome {
 
 // Run the spec's terminal gate against the latest action. Command/invariant gates run
 // the real command and decide from the exit code; reviewer gates run the adversarial
-// critic (different model) against the persisted, self-improving rubric — the criteria
+// critic (different model) against the persisted, self-improving rubric  -  the criteria
 // the loop has accumulated across runs, not a throwaway built from the gate's check.
 async function evaluateGate(
   cfg: Config,
@@ -478,7 +478,7 @@ export async function spawnWorkerLoop(
 
   if (args.parallel && hasBoardConflict(loops, child))
     throw new Error(
-      `spawnWorkerLoop: parallel spawn refused — another running loop targets board entry "${child.boardEntry}". Run sequentially or pick a distinct board entry.`,
+      `spawnWorkerLoop: parallel spawn refused  -  another running loop targets board entry "${child.boardEntry}". Run sequentially or pick a distinct board entry.`,
     );
 
   const childRun = newRun(child, now);

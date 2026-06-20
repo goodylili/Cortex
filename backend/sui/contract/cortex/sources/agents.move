@@ -183,7 +183,7 @@ public fun delete_agent(account: &mut Account, agent: Agent, clock: &Clock) {
 }
 
 // Owner-only Seal policy: only the agent's owner can decrypt its private details
-// blob. Identities are prefixed with the agent id. No delegates — private to the user.
+// blob. Identities are prefixed with the agent id. No delegates  -  private to the user.
 entry fun seal_approve(id: vector<u8>, agent: &Agent, ctx: &TxContext) {
     assert!(ctx.sender() == agent.owner, ENoAccess);
     let prefix = util::id_bytes(object::id(agent));

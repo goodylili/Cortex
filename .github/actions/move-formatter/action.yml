@@ -1,0 +1,41 @@
+# Copyright (c) Mysten Labs, Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+name: "Move Formatter"
+description: "Check or fix formatting of Move code using `prettier-plugin-move`"
+author: "Mysten Labs"
+inputs:
+  working-directory:
+    description: "Directory containing Move files to check"
+    required: false
+    default: "."
+  pattern:
+    description: "Glob pattern for Move files"
+    required: false
+    default: "**/*.move"
+  prettier-plugin-move-version:
+    description: "Version of `prettier-plugin-move` to use"
+    required: false
+    default: "latest"
+  write-changes:
+    description: "Write changes to files"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-node@v4
+
+    - name: Install prettier-plugin-move
+      shell: bash
+      run: npm install @mysten/prettier-plugin-move@${{ inputs.prettier-plugin-move-version }}
+
+    - name: Run prettier-move
+      shell: bash
+      run: |
+        if [ "${{ inputs.write-changes }}" = "true" ]; then
+          cd "${{ inputs.working-directory }}" && npx prettier-move -w "${{ inputs.pattern }}"
+        else
+          cd "${{ inputs.working-directory }}" && npx prettier-move -c "${{ inputs.pattern }}"
+        fi

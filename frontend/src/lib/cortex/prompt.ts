@@ -1,4 +1,4 @@
-// Prompt Studio — V1's "Prompt Generation / taste retention" pillar.
+// Prompt Studio  -  V1's "Prompt Generation / taste retention" pillar.
 // Two orthogonal axes the user picks independently:
 //   • Style  = the prompting technique/strategy (role, few-shot, chain-of-thought…)
 //   • Type   = the output format/structure (plain text, JSON, XML, YAML…)
@@ -84,11 +84,11 @@ export interface CompileInput {
 
 const MODALITY_FRAMING: Record<Exclude<PromptModality, "text">, string> = {
   image:
-    "Produce a prompt for an IMAGE-generation model: turn the intent and grounding below into a vivid visual description — subject, composition, style, lighting, mood.",
+    "Produce a prompt for an IMAGE-generation model: turn the intent and grounding below into a vivid visual description  -  subject, composition, style, lighting, mood.",
   audio:
-    "Produce a prompt for an AUDIO / music-generation model: turn the intent and grounding below into a sound description — instrumentation, tempo, mood, texture.",
+    "Produce a prompt for an AUDIO / music-generation model: turn the intent and grounding below into a sound description  -  instrumentation, tempo, mood, texture.",
   video:
-    "Produce a prompt for a VIDEO-generation model: turn the intent and grounding below into a scene description — action, motion, camera, pacing, mood.",
+    "Produce a prompt for a VIDEO-generation model: turn the intent and grounding below into a scene description  -  action, motion, camera, pacing, mood.",
 };
 
 // ---- taste retention: standing preferences outrank passing context ----------
@@ -234,7 +234,7 @@ function render(type: PromptType, spec: PromptSpec): string {
         spec.instructions.length &&
           `Instructions:\n${bullets(spec.instructions)}`,
         `Task: ${spec.task}`,
-        `— ${spec.provenance}`,
+        ` -  ${spec.provenance}`,
       ]
         .filter(Boolean)
         .join("\n\n");
@@ -271,7 +271,7 @@ function render(type: PromptType, spec: PromptSpec): string {
       const turns = [`System:\n${sys}`];
       spec.demos.forEach((d, i) => {
         turns.push(`User (example ${i + 1}):\n${d}`);
-        turns.push(`Assistant:\nNoted — I'll stay consistent with this.`);
+        turns.push(`Assistant:\nNoted  -  I'll stay consistent with this.`);
       });
       turns.push(`User:\n${spec.task}`);
       return turns.join("\n\n") + `\n\n<!-- ${spec.provenance} -->`;
@@ -330,7 +330,7 @@ function render(type: PromptType, spec: PromptSpec): string {
 
     case "template":
       return [
-        `# ${spec.styleName} template — fill {{task}} (and {{tone}}) at call time`,
+        `# ${spec.styleName} template  -  fill {{task}} (and {{tone}}) at call time`,
         ``,
         `SYSTEM: ${spec.system}`,
         spec.standing.length ? `\nSTANDING:\n${bullets(spec.standing)}` : "",

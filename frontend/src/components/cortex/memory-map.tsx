@@ -11,17 +11,19 @@ import { type Memory } from "@/lib/cortex/logic";
 export function MemoryMap({
   onOpen,
   theme = "dark",
+  memories,
 }: {
   onOpen: (m: Memory) => void;
   theme?: "light" | "dark";
+  memories?: Memory[];
 }) {
   const ownLive = useCortex((s) => s.live)();
   const sharedMemories = useCortex((s) => s.sharedMemories);
-  // Memories shared with you are part of your brain too — graph them alongside your
+  // Memories shared with you are part of your brain too  -  graph them alongside your
   // own (they carry shared: true so the card/drawer mark them).
   const live = useMemo(
-    () => [...ownLive, ...sharedMemories],
-    [ownLive, sharedMemories],
+    () => memories ?? [...ownLive, ...sharedMemories],
+    [memories, ownLive, sharedMemories],
   );
   const rootRef = useRef<HTMLDivElement>(null);
   const liveRef = useRef(live);
@@ -1345,7 +1347,7 @@ export function MemoryMap({
       peek.classList.remove("on");
     }
 
-    // legend — categories only (the real axis)
+    // legend  -  categories only (the real axis)
     const rowsCat = q("#rowsCat")!;
     rowsCat.innerHTML = "";
     Object.entries(CATS).forEach(([k, v]) => {
@@ -1534,12 +1536,18 @@ export function MemoryMap({
       bPin.onclick = () => {
         if (!selectedMem) return;
         selectedMem.pinned = !selectedMem.pinned;
+        const store = useCortex.getState();
+        if (selectedMem.pinned) store.keepClose(selectedMem.id);
+        else store.unkeep(selectedMem.id);
         openCard(selectedMem);
       };
     if (bForget)
       bForget.onclick = () => {
         if (!selectedMem) return;
         selectedMem.forgotten = !selectedMem.forgotten;
+        const store = useCortex.getState();
+        if (selectedMem.forgotten) store.forgetMem(selectedMem.id);
+        else store.restoreMem(selectedMem.id);
         if (selectedMem.forgotten) closeCard();
         else openCard(selectedMem);
         updateStats();

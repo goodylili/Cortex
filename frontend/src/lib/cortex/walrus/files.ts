@@ -133,12 +133,12 @@ export async function storeFile(opts: {
 }
 
 // Fast direct download URL via the public Walrus aggregator (CDN-style GET). Use
-// this as an href for unencrypted blobs — no SDK round-trip needed.
+// this as an href for unencrypted blobs  -  no SDK round-trip needed.
 export function fileUrl(blobId: string): string {
   return `${CORTEX_ENV.walrusAggregator}/v1/blobs/${blobId}`;
 }
 
-// Raw fetch straight from Walrus — works without Cortex, the independence check.
+// Raw fetch straight from Walrus  -  works without Cortex, the independence check.
 export async function fetchBlob(blobId: string): Promise<Uint8Array> {
   return getWalrusClient().readBlob({ blobId });
 }

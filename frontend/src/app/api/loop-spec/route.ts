@@ -77,7 +77,7 @@ const loopSpecSchema = z.object({
 
 const SYSTEM =
   "You are a loop-spec generator inside Cortex, a personal memory system. " +
-  "You read the agent's recalled memory and emit ONLY a single JSON LoopSpec object — " +
+  "You read the agent's recalled memory and emit ONLY a single JSON LoopSpec object  -  " +
   "no preamble, no commentary, no markdown code fences. " +
   "The LoopSpec has exactly these fields: " +
   "id (string), agentId (string), goal (string), " +
