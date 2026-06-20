@@ -1,0 +1,84 @@
+---
+title: How Cortex Works
+description: How raw inputs become durable memories, get stored, and are recalled later.
+---
+
+# How Cortex Works
+
+Cortex turns raw inputs into durable, recallable memory and keeps that memory useful
+over time. The whole system is one loop.
+
+## The pipeline
+
+::::steps
+
+##### Capture a source
+You give Cortex a **source**: a note, document, image, audio file, video, URL, or
+structured payload.
+
+##### Store & extract
+Cortex stores the raw source and runs **extraction**, distilling it into one or more
+**memories**, each with text, tags, confidence, and provenance.
+
+##### Persist to a namespace
+Memories are written into a **namespace**, a per-user memory space with a manifest that
+tracks versions and artifacts. They can be recalled from here at any time.
+
+##### Recall on demand
+Later, any surface (the app, the CLI, or an MCP host) recalls the right memories for a
+task, **verified-first**.
+
+##### Consolidate ("dream")
+Periodically Cortex runs **consolidation**: it computes a `MemoryDiff` that merges
+duplicates, verifies facts, prunes noise, and surfaces patterns, then applies it.
+
+::::
+
+```text
+source ─▶ extract ─▶ memories ─▶ namespace ─▶ recall
+                          ▲                       │
+                          └──── consolidate ◀─────┘
+                                 (dream)
+```
+
+## The flow in one read
+
+1. The user gives Cortex a source such as a note, document, file, or URL.
+2. Cortex stores the source and extracts memories from it.
+3. Those memories are persisted in a namespace and can be recalled later.
+4. Cortex periodically consolidates memory into diffs, patterns, verifications, and prunes.
+5. The resulting state becomes reusable context for agents, prompts, workspaces, and external tools.
+
+## The facade
+
+In code, the entire system is fronted by the `Cortex` class
+(`backend/core/src/core/cortex.ts`). It handles:
+
+- ingesting sources into memory
+- recalling memories from a namespace
+- running consolidation and applying diffs
+- producing derived views: tags, digest, timeline, connections
+- verifying storage fetchability on the live path
+
+Every surface (app, CLI, MCP) calls into this one facade, which is why memory behaves
+identically wherever you reach it.
+
+## Why this shape matters
+
+This design gives Cortex properties a transcript or a vector index can't offer on their own:
+
+:::info[Durable & inspectable]
+Memory is structured state with provenance and versions, not opaque hidden context.
+You can list it, tag it, diff it, and verify it.
+:::
+
+- **Persistence** across sessions, tools, and models.
+- **Portability.** The namespace travels; the same memories reach every surface.
+- **Separation** of raw durable storage from active retrieval behavior.
+- **Correction as truth.** Consolidation makes updates the current fact, not a competing one.
+
+## Keep reading
+
+- The artifact types behind each step: [The Memory Model](/concepts/memory-model).
+- How memory stays clean over time: [The Elastic Brain](/concepts/elastic-brain).
+- How consolidation surfaces insight: [Dreams](/concepts/dreams).

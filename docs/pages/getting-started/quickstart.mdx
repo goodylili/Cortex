@@ -1,0 +1,108 @@
+---
+title: Quickstart
+description: "From zero to a working Cortex memory flow: the app, the demo pipeline, and the MCP server."
+---
+
+# Quickstart
+
+The fastest path from a fresh clone to a working memory flow. Everything here runs in
+**mock mode** with no credentials.
+
+:::tip
+Already installed? Skip ahead. Otherwise start with [Installation](/getting-started/installation).
+:::
+
+## Choose your entry point
+
+import { Tabs, Tab } from 'vocs'
+
+<Tabs stateKey="quickstart-surface">
+<Tab title="Demo pipeline">
+
+The demo command is the quickest way to exercise the whole Cortex pipeline outside the
+UI. It seeds sample sources, runs consolidation, applies the resulting diff, and
+verifies that artifacts are fetchable.
+
+```bash
+pnpm demo
+```
+
+::::steps
+
+##### Seed sources
+Sample notes and documents are ingested into a namespace.
+
+##### Extract memories
+Each source is distilled into durable memories with tags, confidence, and provenance.
+
+##### Consolidate
+A `MemoryDiff` is computed: merges, verifications, prunes, and pattern matches.
+
+##### Apply & verify
+The diff is applied and Cortex confirms every blob is fetchable on the live path.
+
+::::
+
+This is the best way to see [How Cortex Works](/concepts/how-cortex-works) in motion.
+
+</Tab>
+<Tab title="The app">
+
+Start the Next.js product experience:
+
+```bash
+pnpm dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+With an empty `.env.local`, the app still runs. It stays on the mock path for
+storage and memory, so you can capture sources, browse memory, and try agents without
+any live dependency. See the [App Overview](/app/overview).
+
+</Tab>
+<Tab title="MCP server">
+
+Expose the same memory plane to external agents and hosts over the Model Context
+Protocol:
+
+```bash
+# stdio transport (for local hosts like Claude Code / Cursor)
+pnpm start:mcp
+
+# Streamable-HTTP transport (connect by URL)
+pnpm start:mcp:http
+```
+
+Then point a client at it. See the [MCP Overview](/mcp/overview) and the
+[connector guides](/mcp/connectors/claude-code).
+
+</Tab>
+</Tabs>
+
+## What just happened
+
+Whichever path you took, you exercised the same core loop:
+
+1. A **source** (note, document, file, URL) goes in.
+2. Cortex stores it and **extracts memories**.
+3. Those memories are persisted in a **namespace** and can be recalled later.
+4. **Consolidation** folds them into diffs, patterns, verifications, and prunes.
+5. The resulting state becomes reusable **context** for prompts, agents, and tools.
+
+## Useful scripts
+
+| Command | What it does |
+| --- | --- |
+| `pnpm dev` | Start the Next.js app |
+| `pnpm demo` | Seed and run the core Cortex demo pipeline |
+| `pnpm dev:mcp` | Run the MCP server in watch mode |
+| `pnpm dev:docs` | Preview this documentation site |
+| `pnpm typecheck` | Type-check every workspace package |
+| `pnpm build` | Build the web app |
+
+## Next steps
+
+- Wire durable, encrypted, user-controlled storage in [Configuration](/getting-started/configuration).
+- Understand the artifacts you're creating in [The Memory Model](/concepts/memory-model).
+- Connect an agent host in the [MCP connector guides](/mcp/connectors/claude-code).

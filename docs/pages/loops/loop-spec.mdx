@@ -1,0 +1,96 @@
+---
+title: The Loop Spec
+description: The first-class, inspectable object that defines what a loop wants and what the runtime enforces.
+---
+
+# The Loop Spec
+
+A loop spec is structured data the generator fills from **memory plus the spawn task**.
+It is the contract between *what the user wants* and *what the runtime enforces*. It lives
+in the shared `Workspace` alongside the task board, so it is durable, crash-recoverable,
+and visible over MCP.
+
+## The shape
+
+```ts
+interface LoopSpec {
+  id: string;              // uid("lp")
+  agentId: string;         // which roster agent owns it
+  goal: string;            // plain-language end state
+  loopType: LoopType;
+  trigger: { type: "manual" | "schedule" | "event"; on?: string };
+  stateSource: string;     // what "sense" reads (test output, a queue, a diff, memory)
+  gates: VerificationGate[];
+  budget: LoopBudget;
+  giveUp: string;          // "same gate fails 3× with no diff → escalate"
+  errorPolicy: string;     // "retry once w/ backoff, then pause + log"
+  guardrails: string[];    // allowed actions / paths; everything else denied
+  humanGate: string;       // "open a PR, do not merge"
+}
+```
+
+## Field by field
+
+| Field | Role |
+| --- | --- |
+| `goal` | The pinned end state, re-asserted to the agent every iteration |
+| `loopType` | Deterministic vs non-deterministic; decides how "done" is judged |
+| `trigger` | How the loop starts: manual, scheduled, or on an event |
+| `stateSource` | What the **Sense** step reads each iteration |
+| `gates` | The objective checks the runtime runs in **Verify** |
+| `budget` | Token, wall-clock, and item caps |
+| `giveUp` | When to stop trying and escalate to a human |
+| `errorPolicy` | What to do on transient failure |
+| `guardrails` | The whitelist of allowed actions/paths; everything else denied |
+| `humanGate` | The terminal action's safety boundary (propose, don't commit) |
+
+## The budget
+
+```ts
+interface LoopBudget {
+  maxTokens: number;       // ties into the app's existing token accounting
+  maxWallClockMs: number;
+  maxItems?: number;       // queue cap, so a bug can't fan out to 50 things
+}
+```
+
+:::note[Why budgets are mandatory]
+A loop hands path-finding to the model, which is inherently token-expensive. The budget
+makes that cost bounded and predictable instead of open-ended.
+:::
+
+## Verification gates
+
+A gate is how the runtime, not the model, decides whether an iteration succeeded.
+
+| `gate.kind` | Decided by | Use for |
+| --- | --- | --- |
+| `command` | A command's exit status | tests, `tsc`, linters |
+| `invariant` | A boolean condition | data reconciliation, schema validation |
+| `reviewer` | A critic model against a rubric | UI, writing, judgement calls |
+
+:::tip[Generate, don't hand-write]
+You rarely author a spec by hand. The generator reads the agent's accumulated memory,
+including the exact test command it has run before, and fills the spec for you. Memory is
+what makes the spec correct.
+:::
+
+## Templates
+
+`loop_create` accepts a `templateId` that pre-shapes a spec's gates and budget:
+
+| Template | Shape |
+| --- | --- |
+| `keep-tests-green` | Deterministic; gate is the project's test command |
+| `research-monitor` | Recurring; senses a source and accumulates findings |
+| *(omitted)* | The deterministic skeleton, ready to fill |
+
+## Inspectability
+
+Because the spec is a durable object, not hidden prompt state, every loop is auditable:
+
+- `loop_get` returns the spec **and** the full five-step trace per iteration.
+- The Workspace records each run's status, iteration count, and rubric.
+- A human can read exactly what the loop sensed, decided, did, gathered, and verified.
+
+See the [Tool Reference](/mcp/tools) for the full loop lifecycle.

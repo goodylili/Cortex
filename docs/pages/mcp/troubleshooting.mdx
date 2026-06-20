@@ -1,9 +1,70 @@
 ---
 title: Troubleshooting
-description: Troubleshoot the MCP setup.
+description: Common issues connecting to and running the Cortex MCP server.
 ---
 
 # Troubleshooting
 
-Capture common connection issues, auth problems, environment setup misses, and
-validation steps.
+Common problems when connecting a host to the Cortex MCP server, and how to resolve them.
+
+## The server won't start
+
+:::details[`pnpm --filter cortex-mcp` can't find the package]
+Run the command from the **repo root** so pnpm can resolve the workspace filter. If you're
+launching from elsewhere (e.g. a global host config), set the working directory to the
+repo root or point at an absolute path to the built server.
+:::
+
+:::details[Port already in use (HTTP transport)]
+Another process is bound to the HTTP port. Stop it, or start the server on a different
+port and update your host's URL to match.
+:::
+
+## The host doesn't see the server
+
+::::steps
+
+##### Confirm it's registered
+In Claude Code run `/mcp`; in Cursor open **Settings → MCP**. The `cortex` server should
+appear.
+
+##### Restart the host
+Most hosts only pick up MCP config changes on restart. Reload the window or restart the
+app after editing config.
+
+##### Check the command runs standalone
+Run the exact launch command in a terminal (`pnpm --filter cortex-mcp start`). If it
+errors there, fix that first, since the host runs the same command.
+
+::::
+
+## `wallet_info` shows mock / not live
+
+This is expected when the [runtime isn't configured](/getting-started/configuration). To go
+live, supply Sui, Walrus, Seal, and MemWal config in `config.yaml` (or the matching
+environment variables) and restart the server.
+
+| Symptom | Likely cause |
+| --- | --- |
+| `live: false` | No `delegateKey` / live infra configured (running on mock) |
+| Writes fail on-chain | The executor wallet has no gas, or no valid `ExecutorCap` |
+| Decryption fails | Seal key servers unreachable or `threshold` exceeds available servers |
+
+## Live writes fail
+
+:::warning[The executor needs gas and a cap]
+On the live path the MCP acts under an [`ExecutorCap`](/concepts/sharing#the-capability-model).
+Writes fail if the executor wallet has no gas, or if `CORTEX_EXECUTOR_CAP` /
+`CORTEX_ACCESS_REGISTRY` aren't set. Fund the wallet and confirm the cap ids.
+:::
+
+## Memory recall returns nothing
+
+- Confirm you're pointed at the right **namespace** (`namespace:` in config).
+- Check the head with `memory_head` and list with `memory_list` to see what's actually stored.
+- A forgotten memory is tombstoned, so `memory_recall` won't surface it, but `memwal_restore` will show it.
+
+## Still stuck?
+
+Open an issue at [github.com/goodylili/Cortex/issues](https://github.com/goodylili/Cortex/issues)
+with the launch command, transport, and the output of `wallet_info`.

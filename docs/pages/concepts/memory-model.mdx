@@ -1,0 +1,83 @@
+---
+title: The Memory Model
+description: The core artifact types. Source, Memory, Extraction, MemoryDiff, and NamespaceManifest.
+---
+
+# The Memory Model
+
+Cortex is a memory system with structured artifacts and durable state, not a chatbot
+wrapper or a prompt library. Five artifact types form its backbone. They live in
+`backend/core/src/core/models.ts`.
+
+## The artifacts
+
+| Artifact | What it is |
+| --- | --- |
+| **`Source`** | A raw input: note, document, image, audio, video, URL, or structured payload |
+| **`Memory`** | A durable extracted memory with text, tags, confidence, provenance, and timestamps |
+| **`Extraction`** | The result of processing a source into memories |
+| **`MemoryDiff`** | A structured consolidation result that can merge, verify, prune, or pattern-match |
+| **`NamespaceManifest`** | The per-namespace pointer record for versions and artifacts |
+
+## How they relate
+
+```text
+Source ──(extract)──▶ Extraction ──▶ [ Memory, Memory, … ]
+                                            │
+                                  recorded in
+                                            ▼
+                                   NamespaceManifest  ◀── MemoryDiff (consolidation)
+```
+
+::::steps
+
+##### A Source enters
+Raw, untouched input. The original is preserved so memory always has provenance to trace
+back to.
+
+##### Extraction produces Memories
+Processing a source yields an `Extraction` containing the durable `Memory` records it
+distilled, each carrying tags, a confidence score, and a link back to its source.
+
+##### The Manifest tracks state
+The `NamespaceManifest` is the namespace's source of truth: it points at the current
+versions and artifacts, so the head is always well-defined and history is traceable.
+
+##### A MemoryDiff evolves it
+Consolidation emits a `MemoryDiff` describing how memory should change (merges,
+verifications, prunes, pattern matches), which is then applied to advance the manifest.
+
+::::
+
+## Memory is first-class
+
+Because memories are structured records rather than chat lines, Cortex can do things a
+transcript can't:
+
+:::tip[Provenance & confidence]
+Every memory knows where it came from and how sure Cortex is about it. Recall is
+**verified-first**, so trusted facts surface ahead of unconfirmed ones.
+:::
+
+- **Tags** make memory navigable and group-able.
+- **Timestamps** give every memory a position in the [timeline](/concepts/how-cortex-works).
+- **Tombstones** let you [forget](/concepts/sharing) a memory without destroying its raw record; recall simply stops surfacing it.
+
+## Derived views
+
+From these artifacts, Cortex produces read-only **derived views** without changing state:
+
+| View | Answer it gives |
+| --- | --- |
+| **Tags** | What themes dominate this namespace? |
+| **Digest** | What does a period of memory summarize to? |
+| **Timeline** | How has the namespace changed across versions? |
+| **Connections** | Which memories relate to one another? |
+
+These power the app's memory surfaces and are exposed as MCP tools. See the
+[Tool Reference](/mcp/tools).
+
+## Keep reading
+
+- Where these artifacts physically live: [Infrastructure](/infrastructure/overview).
+- How the diff keeps memory clean: [The Elastic Brain](/concepts/elastic-brain).

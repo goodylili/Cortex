@@ -1,0 +1,92 @@
+---
+title: Cortex App
+description: The product surface for capture, memory views, sharing, agents, loops, and dreams.
+---
+
+import { Tabs, Tab } from 'vocs'
+
+# Cortex App
+
+The Cortex App is the Next.js product experience over the memory plane, where you capture
+sources, browse memory, share selectively, run agents, and read dreams. It is built on the
+Sui stack and lights up live infrastructure when you wire it.
+
+```bash
+pnpm dev
+# open http://localhost:3000
+```
+
+## What's inside
+
+<Tabs stateKey="app-area">
+<Tab title="Capture">
+
+Bring anything into memory, including notes, documents, links, audio, images, and video.
+Each source is stored and distilled into durable [memories](/concepts/memory-model) with
+tags, confidence, and provenance.
+
+</Tab>
+<Tab title="Knowledge base">
+
+Browse and organize what Cortex remembers. Memory views expose the
+[derived reads](/concepts/memory-model#derived-views) (tags, digest, timeline, and
+connections) so you can navigate your graph instead of scrolling a transcript.
+
+</Tab>
+<Tab title="Sharing">
+
+Send specific memories to a recipient by identity. Content is
+[Seal-encrypted](/concepts/encryption) before delivery and scoped to the share. See
+[Sharing & Permissions](/concepts/sharing). Inbox and outbox track what came in and what
+went out.
+
+</Tab>
+<Tab title="Agents & loops">
+
+The Agents view is a pipeline room: spawn specialist agents, assign tasks, and run
+[agentic loops](/loops/overview) over one shared memory graph. Each task has a thread with
+its observations and outputs.
+
+</Tab>
+<Tab title="Dreams">
+
+Read memory-derived [dreams](/concepts/dreams), which synthesize across patterns and weak
+signals, and trigger consolidation sweeps that keep the
+[elastic brain](/concepts/elastic-brain) sharp.
+
+</Tab>
+</Tabs>
+
+## Capture, recall, act
+
+::::steps
+
+##### Capture
+Drop a source into the app. It becomes durable, encrypted memory.
+
+##### Recall
+Memory surfaces verified-first wherever you need it, in views, prompts, or agent steps.
+
+##### Generate
+Turn memory into prompts and loop specs without hand-writing them.
+
+##### Coordinate
+Let specialist agents run iterative research, planning, and review over the shared graph.
+
+##### Dream
+Read higher-order synthesis the graph surfaces on its own.
+
+::::
+
+## Develop without credentials
+
+:::note
+Cortex is built on the Sui stack. For development, an empty `.env.local` keeps the app on
+the mock path, fully usable for building and testing. Configure Privy, Sui, Walrus, Seal,
+and MemWal to go live. See [Configuration](/getting-started/configuration).
+:::
+
+## Keep reading
+
+- The same memory plane for external agents: [MCP Overview](/mcp/overview).
+- The infrastructure behind durable memory: [Infrastructure](/infrastructure/overview).

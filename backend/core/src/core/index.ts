@@ -1,4 +1,4 @@
-// @cortex/sui  -  public surface. Local-first: the Cortex facade is embedded
+// @cortex/sui  -  public surface. The Cortex facade is embedded
 // directly; the only server is the MCP connector (the @cortex/mcp package).
 export * from "./cortex";
 export * from "./models";

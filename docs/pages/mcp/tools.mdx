@@ -1,0 +1,108 @@
+---
+title: Tool Reference
+description: Every tool the Cortex MCP server exposes, grouped by capability.
+---
+
+# Tool Reference
+
+The Cortex MCP server registers its tools under the `cortex` server name. They fall into a
+handful of groups. Most operate on the configured **namespace**; live writes act through
+the [`ExecutorCap`](/concepts/sharing#the-capability-model).
+
+## Memory
+
+The core read/write surface over durable memory.
+
+| Tool | Description |
+| --- | --- |
+| `memory_recall` | Recall memories from the namespace (verified-first). |
+| `memory_remember` | Write a durable memory. |
+| `memory_ingest` | Ingest a note/document and extract memories from it. |
+| `memory_forget` | De-index a memory (tombstone). The raw record stays on Walrus; recall stops surfacing it. |
+| `memory_verify_stamp` | Stamp a memory as verified at a given time (defaults to now). |
+| `verify_memory` | Verify all blobs are fetchable from the public aggregator. |
+| `dream_run` | Consolidate memory. Commits a diff first; applies only if `apply=true`. |
+
+## Derived reads
+
+Read-only views over the namespace, with no state change.
+
+| Tool | Description |
+| --- | --- |
+| `memory_list` | List all live memories in the namespace. |
+| `memory_timeline` | Version history (manifest versions) for the namespace. |
+| `memory_tags` | Tag frequencies across live memories. |
+| `memory_digest` | Period digest of memories. Optional `from`/`to` bound the window. |
+| `memory_connections` | Inferred relations between live memories. |
+| `memory_extraction` | Fetch the extraction artifact stored at a Walrus blob id. |
+| `memory_head` | Current head (latest committed version hash) of the namespace. |
+
+## Agents & tasks
+
+Multi-agent collaboration over the shared Workspace.
+
+| Tool | Description |
+| --- | --- |
+| `agent_list` | List the specialist agents (id, name, role, blurb) that share this memory. |
+| `task_create` | Open a task and assign it to an agent. Returns the durable task record. |
+| `task_list` | List the team's tasks (latest revision of each), newest first. |
+| `task_get` | Fetch one task by id, including its observations and outputs. |
+| `task_observe` | Append an observation to a task as a given agent. |
+| `task_handoff` | Reassign a task to another agent so they continue it. |
+| `task_complete` | Mark a task done, rolling its latest observation into outputs. |
+| `agent_run_step` | Run one collaborative step: recall shared memory, reason, record an observation + bus message. |
+| `agent_message_post` | Post a message to the durable agent bus (`from`/`to` may be an agent id, `user`, or `team`). |
+| `agent_message_list` | Read the agent message bus, newest first. Optionally filter by `taskId`. |
+
+## Loops
+
+The [agentic loop](/loops/overview) lifecycle.
+
+| Tool | Description |
+| --- | --- |
+| `loop_create` | Spawn a loop over the Workspace and register it as a draft. Pass a `templateId` (`keep-tests-green`, `research-monitor`) to shape gates/budget. |
+| `loop_list` | List durable loop runs (spec, status, iterations), newest first. |
+| `loop_get` | Fetch one loop run, including its full five-step iteration trace and rubric. |
+| `loop_run_step` | Advance a loop one iteration as the executor: sense, run the agent step, gather, verify against the gate. |
+| `loop_stop` | Pause a running loop so the scheduler stops firing it; resume by stepping it again. |
+
+## Bridges
+
+Reach the outside world.
+
+| Tool | Description |
+| --- | --- |
+| `web_fetch` | Fetch a URL and return its text. With `ingest=true`, the content also becomes durable memory. |
+| `service_notify` | POST a JSON payload to the configured `CORTEX_WEBHOOK_URL` (Slack/Discord/Zapier). |
+| `service_export` | Return a portable JSON bundle (namespace, head, memories) for syncing into other tools. |
+
+## Infrastructure
+
+Direct access to the live primitives. See [Infrastructure](/infrastructure/overview).
+
+| Tool | Description |
+| --- | --- |
+| `wallet_info` | The MCP server's own Sui wallet (admin identity), network, and live status. |
+| `walrus_put_blob` | Store raw bytes on Walrus. `data` is utf8 by default; set `encoding=base64` for binary. Returns the blob id. |
+| `walrus_get_blob` | Fetch a raw Walrus blob by id. Returns base64 by default; set `encoding=utf8` for text. |
+| `sui_record_pointer` | Record a namespace → manifest blob pointer on Sui. Returns the transaction digest. |
+| `sui_read_pointer` | Read the on-chain manifest pointer for a namespace. |
+| `kb_grant_access` | Grant a delegate read access to a shared `KbFile`, acting as the executor. Returns the tx digest. |
+| `kb_renew` | Extend a shared `KbFile`'s Walrus storage to a later end epoch, acting as the executor. |
+| `memwal_restore` | Restore the full namespace head + memories (including tombstoned) straight from MemWal. |
+
+## User access
+
+Read an authorized user's shared, on-chain memory surface.
+
+| Tool | Description |
+| --- | --- |
+| `user_profile` | Read an authorized user's public on-chain account: profile, MemWal pointer, and which context keys exist. |
+| `user_memory` | Recall an authorized user's distilled memory facts from their shared MemWal namespace. |
+| `user_context` | Read an authorized user's durable CONTEXT pointers (sessions, events, docs, agent state). |
+
+:::tip
+`dream_run` is a two-phase operation: it always **commits** a diff so you can inspect what
+would change, then **applies** it only when you pass `apply=true`. This mirrors the
+[elastic brain](/concepts/elastic-brain)'s inspectable design.
+:::

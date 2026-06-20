@@ -1,9 +1,90 @@
 ---
-title: Overview
-description: Product overview for the MCP experience.
+title: MCP Overview
+description: Expose the Cortex memory plane to external agents and hosts over the Model Context Protocol.
 ---
 
-# Overview
+import { Tabs, Tab } from 'vocs'
 
-Use this page to position Cortex MCP, its capabilities, and its role in the
-broader Cortex stack.
+# MCP Server
+
+The Cortex MCP server exposes the **same memory plane** the app and CLI use, to any
+external agent or host that speaks the [Model Context Protocol](https://modelcontextprotocol.io).
+Connect Claude Code, Cursor, or your own agent and give it durable, shared, encrypted
+memory.
+
+## What it exposes
+
+| Group | Capabilities |
+| --- | --- |
+| **Memory** | recall, remember, ingest, forget, verify, and consolidate (dream) |
+| **Derived reads** | tags, digest, connections, extraction, timeline, head |
+| **Agents & tasks** | list agents, open/observe/hand off/complete tasks, run steps, message bus |
+| **Loops** | create, list, get, step, and stop [agentic loops](/loops/overview) |
+| **Bridges** | fetch URLs, post notifications, export portable bundles |
+| **Infra** | wallet info, raw Walrus put/get, Sui pointer read/write, MemWal restore |
+| **User access** | read an authorized user's profile, distilled memory, and durable context |
+
+See the full list in the [Tool Reference](/mcp/tools).
+
+## Transports
+
+Cortex ships two transports. Pick by how your host connects.
+
+<Tabs stateKey="mcp-transport">
+<Tab title="stdio (local)">
+
+The default for local hosts like Claude Code and Cursor. The host launches the server as a
+subprocess and talks over stdin/stdout.
+
+```bash
+pnpm start:mcp
+```
+
+</Tab>
+<Tab title="Streamable HTTP">
+
+A hostable transport you connect to by **URL**, good for shared or remote deployments.
+
+```bash
+pnpm start:mcp:http
+```
+
+</Tab>
+</Tabs>
+
+## Run it
+
+::::steps
+
+##### Configure the runtime (optional)
+For live memory, copy `config.example.yaml` to `config.yaml` and fill in Sui, Walrus,
+Seal, and MemWal. With no config, the server runs against mock infra. See
+[Configuration](/getting-started/configuration).
+
+##### Start the server
+`pnpm start:mcp` for stdio, or `pnpm start:mcp:http` for HTTP. Use `pnpm dev:mcp` for
+watch mode while developing.
+
+##### Connect a host
+Point Claude Code, Cursor, or your own client at it. See the connector guides.
+
+##### Verify
+Run `wallet_info` from the host to confirm the server's identity, network, and live
+status.
+
+::::
+
+## Identity & authority
+
+:::warning[The MCP acts as an executor]
+On the live path, the MCP server runs under an [`ExecutorCap`](/concepts/sharing#the-capability-model),
+a revocable, gated capability that lets it write on a user's behalf without owning their
+memory. The executor wallet needs gas to transact. Keep its delegate key server-side only.
+:::
+
+## Connectors
+
+- [Claude Code](/mcp/connectors/claude-code)
+- [Cursor](/mcp/connectors/cursor)
+
+Hitting an issue? See [Troubleshooting](/mcp/troubleshooting).

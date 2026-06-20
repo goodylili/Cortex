@@ -1,0 +1,107 @@
+---
+title: Agentic Loops
+description: Loops that write themselves from memory, run unattended behind real guardrails, and get sharper every time.
+---
+
+# Agentic Loops
+
+> Everyone can run an agent in a loop now. **Cortex is the only place where the loop
+> writes itself from what the agent already knows, runs unattended behind real
+> guardrails, and gets sharper every time it runs.**
+
+A loop is a long-running, self-correcting agent. You don't hand-write goals, gates, and
+stop conditions. You spawn an agent, point it at a task, and Cortex reads the agent's
+accumulated memory to **generate the loop specification for you**.
+
+## The wedge
+
+Cortex already turns prompts into memory, and memory into prompts. Loops reuse that same
+generation mechanism to turn **memory into a loop spec**, then run that spec as a
+long-running agent.
+
+```text
+prompts ─▶ memory                                                  (today)
+memory  ─▶ loop spec ─▶ long-running agent ─▶ new memory ─▶ sharper loop spec   (next)
+```
+
+The loop itself is commodity. The **spec-from-memory generator** is the moat.
+
+## The five-step cycle
+
+Every loop, deterministic or not, runs this once per iteration. The runtime owns the
+last two steps; a human used to.
+
+::::steps
+
+##### Sense
+Read the current world state from the spec's `stateSource`: the Workspace, test output, a
+queue, a diff, or a MemWal recall.
+
+##### Decide
+The assigned roster agent reasons over the sensed state and the **pinned goal**, then
+chooses the next action. This is the only step prompt engineering ever owned; the loop
+owns all five.
+
+##### Act
+Call tools or write the artifact, constrained by the spec's `guardrails`. Everything not
+allowed is denied.
+
+##### Gather feedback
+Collect the result (test results, a screenshot, a compiler error, a diff) and write it
+as **evidence** into the Workspace.
+
+##### Verify & decide done
+Run the spec's `gates` against the feedback. Done → terminate and write memory. Not done →
+loop again. **The gate is the runtime's verdict, not the model's opinion.**
+
+::::
+
+## Deterministic first, adversarial second
+
+:::tip[Prefer an objective gate]
+Whenever possible, a loop's "done" is decided by something objective: tests pass, `tsc`
+returns 0, a schema validates, numbers reconcile. The generator pulls the exact check
+from memory, because the agent already knows this project's test command.
+:::
+
+| Loop kind | How "done" is decided | Gate kind |
+| --- | --- | --- |
+| **Deterministic** | An objective check passes | `command` · `invariant` |
+| **Non-deterministic** | A critic reviews against an explicit rubric | `reviewer` |
+
+For non-deterministic loops (UI, writing, taste), a *different model* acts as the verifier
+against an explicit rubric: generate with one, judge with another.
+
+## Guardrails, budgets, and the human gate
+
+Loops run unattended, so the safety rails are first-class, not afterthoughts:
+
+- **Guardrails:** a whitelist of allowed actions and paths; everything else is denied.
+- **Budgets:** caps on tokens, wall-clock time, and queue size, so a single bug can't fan out to 50 tasks.
+- **The human gate:** above the lowest risk tier, a loop's terminal action is to *propose*, not commit (e.g. "open a PR, do not merge").
+- **On-chain authority:** a loop acting through the MCP runs under the [`ExecutorCap`](/concepts/sharing#the-capability-model), which is revocable.
+
+:::warning
+Loops are token-expensive by nature, since you handed path-finding to the model. Budgets and
+the give-up policy (`same gate fails 3× with no diff → escalate`) keep that bounded.
+:::
+
+## Run a loop over MCP
+
+The MCP server exposes the loop lifecycle as tools:
+
+| Tool | What it does |
+| --- | --- |
+| `loop_create` | Spawn a loop over the shared Workspace (optionally from a template) |
+| `loop_list` | List durable loop runs, newest first |
+| `loop_get` | Fetch a run with its full five-step iteration trace |
+| `loop_run_step` | Advance one iteration: sense → act → gather → verify |
+| `loop_stop` | Pause a running loop; resume by stepping it again |
+
+Built-in templates like `keep-tests-green` and `research-monitor` shape a loop's gates and
+budget. See the [Tool Reference](/mcp/tools).
+
+## Keep reading
+
+- The structured object behind every loop: [The Loop Spec](/loops/loop-spec).
+- Where loop memory lives: [Infrastructure](/infrastructure/overview).

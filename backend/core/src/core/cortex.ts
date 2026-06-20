@@ -1,4 +1,4 @@
-// Cortex  -  the local-first facade. Desktop and mobile embed this directly; there
+// Cortex  -  the core facade, embedded directly by desktop and mobile; there
 // is no HTTP backend. The only server in the system is the MCP connector (mcp.ts),
 // which lets external agents reach the same memory through this same facade.
 

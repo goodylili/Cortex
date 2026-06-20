@@ -1,0 +1,90 @@
+---
+title: Cursor
+description: Connect Cursor to the Cortex MCP server for durable, shared memory.
+---
+
+import { Tabs, Tab } from 'vocs'
+
+# Connect Cursor
+
+Connect [Cursor](https://cursor.com) to the Cortex MCP server to give it durable,
+shared memory and access to the full set of [Cortex tools](/mcp/tools).
+
+## Prerequisites
+
+- The Cortex workspace [installed](/getting-started/installation).
+- Optionally, a [configured runtime](/getting-started/configuration) for live memory.
+
+## Add the server
+
+Cursor reads MCP servers from an `mcp.json` file. Add one for Cortex.
+
+<Tabs stateKey="cursor-scope">
+<Tab title="Project (.cursor/mcp.json)">
+
+Create `.cursor/mcp.json` in the repo root for a project-scoped server:
+
+```json
+{
+  "mcpServers": {
+    "cortex": {
+      "command": "pnpm",
+      "args": ["--filter", "cortex-mcp", "start"]
+    }
+  }
+}
+```
+
+</Tab>
+<Tab title="Global (~/.cursor/mcp.json)">
+
+For a server available in every project, add it to `~/.cursor/mcp.json` and point at an
+absolute path:
+
+```json
+{
+  "mcpServers": {
+    "cortex": {
+      "command": "pnpm",
+      "args": ["--filter", "cortex-mcp", "start"],
+      "cwd": "/absolute/path/to/Cortex"
+    }
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+## Connect over HTTP
+
+Running the [Streamable-HTTP transport](/mcp/overview#transports)? Point Cursor at the URL
+instead:
+
+```json
+{
+  "mcpServers": {
+    "cortex": {
+      "url": "http://localhost:PORT"
+    }
+  }
+}
+```
+
+## Verify the connection
+
+::::steps
+
+##### Open MCP settings
+In Cursor, open **Settings → MCP** and confirm `cortex` shows as connected with its tools
+listed.
+
+##### Check identity
+Ask Cursor to call `wallet_info` to confirm the server's network and live status.
+
+##### Try memory
+`memory_remember` a fact and `memory_recall` it back.
+
+::::
+
+Trouble connecting? See [Troubleshooting](/mcp/troubleshooting).

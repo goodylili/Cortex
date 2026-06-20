@@ -1,0 +1,143 @@
+---
+title: Configuration
+description: "Mock mode vs live mode, and the two configuration surfaces: the app and the core/MCP runtime."
+---
+
+import { Tabs, Tab } from 'vocs'
+
+# Configuration
+
+Cortex has two configuration surfaces and two modes. By default it runs entirely
+locally; you opt into live infrastructure when you want durable, encrypted,
+user-controlled storage.
+
+## Modes
+
+<Tabs stateKey="config-mode">
+<Tab title="Mock mode (default)">
+
+Mock mode is active whenever live config is incomplete. The deterministic core runs
+with **none** of the live infrastructure.
+
+Use it to:
+
+- build the product and UI
+- test the memory pipeline locally
+- iterate on prompts, extraction, and derived artifacts
+- develop without blockchain or storage dependencies
+
+</Tab>
+<Tab title="Live mode">
+
+Live mode turns on once the required infrastructure config is present. You get:
+
+- durable storage on **Walrus**
+- coordinated identity and permissions on **Sui**
+- encrypted blobs through **Seal**
+- persistent **MemWal**-backed namespaces
+
+See [Infrastructure](/infrastructure/overview) for what each primitive does.
+
+</Tab>
+</Tabs>
+
+## Surface 1: Frontend app
+
+Copy the app environment template:
+
+```bash
+cp .env.example .env.local
+```
+
+This controls the browser/client surface:
+
+- Privy authentication
+- client-side Sui and Walrus endpoints
+- deployed Cortex package and registry ids
+- Seal key-server ids and threshold
+- MemWal relayer and contract ids
+- model provider API keys for the app's API routes
+
+:::note
+Leave these unset and the frontend stays usable in local mock mode.
+:::
+
+## Surface 2: Core / MCP runtime
+
+Copy the runtime config template:
+
+```bash
+cp frontend/config/config.example.yaml frontend/config/config.yaml
+```
+
+This file drives the core runtime and the MCP server:
+
+```yaml
+namespace: personal
+
+sui:
+  rpc: https://fullnode.testnet.sui.io
+  network: testnet
+
+walrus:
+  publisher: https://publisher.walrus-testnet.walrus.space
+  aggregator: https://aggregator.walrus-testnet.walrus.space
+  epochs: 5
+
+seal:
+  policyPackage: ""   # Move package id for the allowlist policy
+  policyObject: ""    # the namespace's allowlist object id
+  serverIds: []       # key-server object ids (empty = SDK testnet defaults)
+  threshold: 1        # how many servers must return a key share to decrypt
+
+memwal:
+  url: ""
+  apiKey: ""
+
+models:
+  provider: anthropic # "anthropic" | "google" (Gemini)
+  chat: ""
+  extract: ""
+```
+
+:::warning[Secrets stay server-side]
+`delegateKey` and provider API keys are **never** shipped to a client. Keep
+`config.yaml` out of version control (it is gitignored).
+:::
+
+### Server-side LLM provider
+
+Server-side reasoning runs through a provider you choose: extraction (`memory_ingest`),
+consolidation (`dream_run`), and agent/loop steps. Leave `provider` blank and Cortex
+infers it from whichever key is present.
+
+| Provider | Default chat model | Default extract model |
+| --- | --- | --- |
+| `anthropic` | `claude-sonnet-4-6` | `claude-sonnet-4-6` |
+| `google` (Gemini) | `gemini-3-pro` | `gemini-2.5-flash` |
+
+:::tip[No key? No problem.]
+With no provider key configured, the core falls back to **deterministic heuristics**, and
+the pipeline still runs end to end.
+:::
+
+## Environment variable overrides
+
+Many runtime values can be overridden by environment variable, which is handy for CI and
+secret managers:
+
+| Variable | Overrides |
+| --- | --- |
+| `CORTEX_MODEL_PROVIDER` | `models.provider` |
+| `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` | provider keys |
+| `CORTEX_DELEGATE_KEY` | the delegate that writes + decrypts |
+| `MEMWAL_API_KEY` | MemWal access |
+| `SEAL_SERVER_IDS` / `SEAL_THRESHOLD` | Seal key servers / threshold |
+| `CORTEX_ACCESS_REGISTRY` / `CORTEX_EXECUTOR_CAP` | on-chain access objects |
+| `CORTEX_WORKSPACE_ID` / `CORTEX_USER_ADDRESS` | the shared agent workspace |
+| `CORTEX_WEBHOOK_URL` | outbound notifications target |
+
+## Next steps
+
+- Learn what gets encrypted and how in [Encryption](/concepts/encryption).
+- See the live primitives in [Infrastructure](/infrastructure/overview).

@@ -1,0 +1,80 @@
+---
+title: Installation
+description: Clone the Cortex monorepo and install dependencies with pnpm.
+---
+
+# Installation
+
+Cortex is a `pnpm` workspace monorepo with three packages: the **frontend** app, the
+**MCP** server, and the core/Sui **backend**. One install wires them all.
+
+## Requirements
+
+| Tool | Version | Notes |
+| --- | --- | --- |
+| [Node.js](https://nodejs.org) | `20+` | LTS recommended |
+| [pnpm](https://pnpm.io) | `9+` | The repo pins `pnpm@9.12.0` |
+| [Sui CLI](https://docs.sui.io) | latest | Only for the live path / Move contracts |
+
+:::note
+You do **not** need Sui, Walrus, Seal, or MemWal credentials to start. Cortex runs the
+full pipeline in [mock mode](/getting-started/configuration#modes) out of the box.
+:::
+
+## Install
+
+::::steps
+
+##### Clone the repository
+
+```bash
+git clone https://github.com/goodylili/Cortex.git
+cd Cortex
+```
+
+##### Install dependencies
+
+```bash
+pnpm install
+```
+
+This installs every workspace package in one pass.
+
+##### Verify the toolchain
+
+```bash
+pnpm typecheck
+```
+
+A clean type check across the workspace confirms the install is healthy.
+
+::::
+
+## Workspace layout
+
+```text
+cortex/
+  frontend/          Next.js app, API routes, and the Cortex UI
+    src/lib/cortex/  browser-side memory flows, Walrus/Seal integration
+    src/lib/llm/     model registry and completion helpers
+    config/          config.example.yaml for the core/MCP runtime
+  backend/
+    core/            the Cortex facade, config, CLI, watcher
+    sui/contract/    Move contracts (access, agents, sharing, workspace)
+    mcp/server.ts    MCP server over the shared memory plane
+  docs/              this Vocs documentation site
+```
+
+## Run the docs locally
+
+These docs are a Vocs site in `docs/`. To preview them while you work:
+
+```bash
+pnpm dev:docs
+```
+
+## Next steps
+
+Now that the workspace is installed, exercise the pipeline in the
+[Quickstart](/getting-started/quickstart), then wire live infrastructure in
+[Configuration](/getting-started/configuration).

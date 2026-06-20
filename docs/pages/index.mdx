@@ -1,17 +1,92 @@
 ---
-title: Overview
-description: Start here to navigate Cortex app, platform, MCP, and infrastructure docs.
+title: Introduction
+description: Cortex is the sovereign memory layer built on Sui, Walrus, and Seal. Durable, encrypted, and yours.
 ---
 
-# Cortex Docs
+# Sovereign Uploaded Intelligence
 
-Start with the part of Cortex you need:
+**Cortex is the sovereign memory layer built on Sui, Walrus, and Seal.** Keep durable
+encrypted memory, share it selectively, and turn it into prompts, loops, multi-agent
+workflows, and dreams.
 
-- [Cortex App](/dashboard) for the product experience and core workflows.
-- [Developer Platform](/platform/getting-started/overview) for APIs, concepts, and implementation guides.
-- [Cortex MCP](/mcp/overview) for connector setup and agent-facing workflows.
-- [Infrastructure](/smfs) for the live storage and namespace model.
+AI should not forget you. Every time the session, tool, or model changes, your context
+disappears and you start over. Cortex fixes that at the substrate. It ingests notes,
+files, links, and media, distills durable memories from them, stores the artifacts on the
+Sui stack, recalls the right context later, and gets sharper over time through
+consolidation and correction.
 
-## Recommended Start
+:::tip[The one idea]
+Most memory tools stop at storage and search. Cortex adds sovereign ownership, encrypted
+shared memory, and programmable recall, so memory becomes a substrate that agents, tools,
+and people build on rather than a feature locked inside one app.
+:::
 
-If you are new to the project, begin with [Platform Overview](/platform/getting-started/overview).
+## What you can build
+
+:::code-group
+
+```text [Store]
+Commit notes, files, links, and media to sovereign memory
+on the Sui stack. Walrus gives you durable storage and
+Seal keeps every blob encrypted before it leaves the client.
+```
+
+```text [Coordinate]
+Specialist agents work over one shared memory graph. Spawn
+loops from memory, hand off tasks, and run iterative
+research, planning, and review cycles unattended.
+```
+
+```text [Dream]
+Cortex synthesizes patterns, weak signals, and long-horizon
+insight from your graph, surfacing what matters before you
+ask, not just what is already obvious.
+```
+
+:::
+
+## Pick your surface
+
+Cortex ships as three surfaces over one memory plane. Start wherever you are.
+
+| Surface | What it is | Start here |
+| --- | --- | --- |
+| **Cortex App** | The Next.js product: capture, memory views, sharing, agents, dreams | [App Overview](/app/overview) |
+| **Core Runtime** | The Cortex facade and CLI that run the full pipeline | [Quickstart](/getting-started/quickstart) |
+| **MCP Server** | The same memory plane, exposed to external agents and hosts | [MCP Overview](/mcp/overview) |
+
+## Get oriented
+
+::::steps
+
+##### Install the workspace
+Clone the repo and install dependencies with `pnpm`. See [Installation](/getting-started/installation).
+
+##### Run the demo pipeline
+`pnpm demo` seeds sources, runs consolidation, and verifies storage end to end, with no
+credentials required. See [Quickstart](/getting-started/quickstart).
+
+##### Understand the model
+Learn how raw inputs become durable memories in [How Cortex Works](/concepts/how-cortex-works).
+
+##### Go live
+Wire Sui, Walrus, Seal, and MemWal for durable, encrypted, user-controlled storage. See
+[Configuration](/getting-started/configuration).
+
+::::
+
+:::note[Develop without credentials]
+Cortex is built on the Sui stack, but the runtime ships a **mock mode** for development.
+With no credentials configured, the pipeline runs against mock infrastructure so you can
+build the product and exercise memory flows before wiring live storage.
+:::
+
+## Why it's different
+
+- **Memory, not chat history.** Structured artifacts and durable state, not a transcript.
+- **Sovereign by design.** Built on Sui with Walrus storage and Seal encryption, aligned with ownership instead of platform lock-in.
+- **Portable across tools.** The same memory plane reaches the app, the CLI, and any MCP host.
+- **Self-improving.** The [elastic brain](/concepts/elastic-brain) folds duplicates, fades weak signals, and promotes durable facts so memory stays useful instead of bloating.
+
+Ready? Head to [Why Cortex](/why-cortex) for the full picture, or jump straight to the
+[Quickstart](/getting-started/quickstart).

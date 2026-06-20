@@ -1,0 +1,70 @@
+---
+title: Sharing & Permissions
+description: Identity-scoped, Seal-encrypted memory sharing, and the capability model behind it.
+---
+
+# Sharing & Permissions
+
+Cortex lets you share memory **without exposing everything**. Encrypted sharing sends
+memories by recipient, not by key. Content is sealed before delivery, only the intended
+recipient can open it, and each share stays scoped so you never reveal your whole graph.
+
+## Share by identity, not by key
+
+You address a share to a person, and Cortex handles the cryptography:
+
+::::steps
+
+##### Pick what to share
+Select the specific memories you want to send, not your whole namespace.
+
+##### Address the recipient
+Share by recipient identity (a SuiNS-style handle), not by handing out a raw key.
+
+##### Seal before delivery
+Content is encrypted under the recipient's identity with [Seal](/concepts/encryption)
+before it leaves you.
+
+##### Recipient opens it
+Only the intended recipient can decrypt, and access stays scoped to that share.
+
+::::
+
+:::tip[Scoped to the share]
+Identity is scoped to the **share id**, which is the security boundary: a recipient can
+open what you shared with them and nothing else. One share never widens into access to
+your graph.
+:::
+
+## The capability model
+
+Underneath sharing and agent execution sits an on-chain capability model
+(`cortex::access`):
+
+| Capability | Holder | Grants |
+| --- | --- | --- |
+| **`AdminCap`** | The namespace owner | Full control; can mint and revoke other caps |
+| **`ExecutorCap`** | A delegated executor (e.g. the MCP) | Gated writes on the owner's behalf |
+
+Writes on the live path are **executor-gated**: an agent or service acts only with a valid
+`ExecutorCap`, and caps can be revoked. This is how Cortex lets agents work over your
+memory without handing them ownership.
+
+## Forgetting
+
+Sharing's inverse is forgetting. Cortex de-indexes a memory with a **tombstone**: recall
+stops surfacing it, but the raw record stays on Walrus. You control visibility without
+destroying provenance.
+
+→ See `memory_forget` in the [Tool Reference](/mcp/tools).
+
+## Delegated reads
+
+For shared knowledge-base files, the executor can grant a delegate read access and renew
+storage on the owner's behalf. See `kb_grant_access` and `kb_renew` in the
+[Tool Reference](/mcp/tools).
+
+## Keep reading
+
+- The encryption schemes behind sharing: [Encryption](/concepts/encryption).
+- How agents act under the capability model: [Agentic Loops](/loops/overview).

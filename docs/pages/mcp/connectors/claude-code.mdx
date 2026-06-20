@@ -1,0 +1,67 @@
+---
+title: Claude Code
+description: Connect Claude Code to the Cortex MCP server for durable, shared memory.
+---
+
+# Connect Claude Code
+
+Give [Claude Code](https://claude.com/claude-code) durable memory by connecting it to the
+Cortex MCP server. Once connected, Claude can recall, remember, ingest, and consolidate
+memory, and drive agents and loops, all over the [tools](/mcp/tools) Cortex exposes.
+
+## Prerequisites
+
+- The Cortex workspace [installed](/getting-started/installation).
+- Optionally, a [configured runtime](/getting-started/configuration) for live memory. Without it, the server runs on mock infra.
+
+## Connect over stdio
+
+Claude Code launches the server as a subprocess. Register it with the `claude mcp add`
+command:
+
+```bash
+claude mcp add cortex -- pnpm --filter cortex-mcp start
+```
+
+This adds a server named `cortex` that Claude Code starts on demand.
+
+:::note
+Run the command from the repo root so `pnpm --filter` resolves the `cortex-mcp` package.
+For a global setup, point the command at an absolute path to the built server instead.
+:::
+
+## Connect over HTTP
+
+If you're running the [Streamable-HTTP transport](/mcp/overview#transports) (`pnpm start:mcp:http`),
+connect by URL:
+
+```bash
+claude mcp add --transport http cortex http://localhost:PORT
+```
+
+## Verify the connection
+
+::::steps
+
+##### List MCP servers
+Run `/mcp` inside Claude Code and confirm `cortex` appears as connected.
+
+##### Check identity
+Ask Claude to call `wallet_info`. It returns the server's Sui wallet, network, and
+whether it's on the live or mock path.
+
+##### Try memory
+Ask Claude to `memory_remember` a fact, then `memory_recall` it back.
+
+::::
+
+## What you can do
+
+- "Remember that the staging deploy uses the `eu-west` region." → `memory_remember`
+- "What do you know about our deploy setup?" → `memory_recall`
+- "Ingest this doc and extract the key facts." → `memory_ingest`
+- "Consolidate memory but don't apply it yet." → `dream_run` (commit-only)
+
+See the full [Tool Reference](/mcp/tools).
+
+Trouble connecting? See [Troubleshooting](/mcp/troubleshooting).

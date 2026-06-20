@@ -1,0 +1,50 @@
+---
+title: Memory vs RAG
+description: Why a memory system is not a retrieval pipeline, and where the two differ.
+---
+
+# Memory vs RAG
+
+Cortex is often mistaken for a RAG (retrieval-augmented generation) stack because both
+"fetch relevant context." They solve different problems. RAG retrieves chunks; Cortex
+**remembers**.
+
+## The core difference
+
+A RAG pipeline indexes documents and returns the closest chunks to a query. It is
+stateless about *you*: it has no notion of what is true now, what was corrected, or what
+should be forgotten. Cortex maintains **durable, evolving state**: structured memories
+with provenance, confidence, and a version history that consolidation keeps clean.
+
+| | RAG pipeline | **Cortex memory** |
+| --- | --- | --- |
+| Unit | Document chunk | Structured [`Memory`](/concepts/memory-model) |
+| State | Stateless index | Durable, versioned namespace |
+| Truth | All chunks equal | Verified-first, confidence-scored |
+| Corrections | New doc competes with old | Consolidation makes the update current truth |
+| Forgetting | Re-index everything | Tombstone; recall stops surfacing it |
+| Evolution | Static until re-indexed | [Elastic brain](/concepts/elastic-brain) folds & fades over time |
+| Ownership | Wherever the vector DB lives | Sovereign, encrypted, user-controlled |
+
+## What this means in practice
+
+:::note[Corrections, not contradictions]
+In a vector store, an updated fact just becomes another nearby chunk, and the old one is
+still there, still retrievable, still competing. In Cortex, consolidation resolves the
+two so the correction becomes the **current** fact.
+:::
+
+- **Recall is verified-first.** Trusted memories surface ahead of unconfirmed ones, rather than ranking purely on similarity.
+- **Memory has provenance.** Every memory traces back to its source, so you can see *why* something is known.
+- **Memory decays gracefully.** Weak, unused signals fade; durable ones get promoted, so your graph stays useful instead of bloating.
+
+## They're not mutually exclusive
+
+Cortex still does retrieval; recall is how memories reach a prompt. The difference is
+*what gets retrieved*: not arbitrary chunks, but durable, consolidated, owned memory. You
+can think of Cortex as RAG with a memory model underneath it.
+
+## Keep reading
+
+- The artifacts that make this possible: [The Memory Model](/concepts/memory-model).
+- How memory self-maintains: [The Elastic Brain](/concepts/elastic-brain).

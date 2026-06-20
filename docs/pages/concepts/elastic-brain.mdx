@@ -1,0 +1,75 @@
+---
+title: The Elastic Brain
+description: How Cortex consolidates memory by folding duplicates, fading weak signals, and promoting durable facts.
+---
+
+# The Elastic Brain
+
+The elastic brain is Cortex's memory hygiene system. Memory that only ever grows becomes
+noise. Cortex runs **consolidation sweeps** that keep your graph learning from use
+instead of bloating forever.
+
+## The problem it solves
+
+Naïve memory accumulates everything: duplicates pile up, stale facts linger next to their
+corrections, and weak one-off signals drown out durable knowledge. Recall gets slower and
+less trustworthy over time.
+
+The elastic brain treats memory like a living system. It consolidates during a "sleep"
+sweep, the same way biological memory does.
+
+## What a sweep does
+
+::::steps
+
+##### Fold duplicates
+Memories that say the same thing are merged, so one durable fact replaces many near-copies.
+
+##### Verify and promote
+Confirmed memories are stamped as verified and promoted, so they surface first on recall.
+
+##### Fade weak signals
+Unused, low-confidence memories ease down over time instead of competing with what matters.
+
+##### Prune noise
+Memory that no longer earns its place is pruned, keeping the namespace lean and fast.
+
+::::
+
+Each sweep emits a [`MemoryDiff`](/concepts/memory-model) describing exactly what changed
+(merges, verifications, prunes, and pattern matches), which is then applied to advance
+the namespace. Nothing is hidden; the diff is inspectable.
+
+## Tiers, activation, and decay
+
+Memories carry a notion of strength. Frequently useful memories stay active and get
+promoted to durable tiers; rarely touched ones decay. This means the graph reflects how
+you actually use it, not just what you happened to put in.
+
+:::tip[Learns from use]
+The more you recall and correct, the sharper the graph gets. Consolidation turns usage
+signals into structure.
+:::
+
+## Inspect it, don't trust a black box
+
+Because consolidation runs through an explicit diff, the elastic brain is **auditable**:
+
+- The diff shows every merge, verification, and prune.
+- The [timeline](/concepts/memory-model#derived-views) records each new manifest version.
+- You can run consolidation, review the committed diff, and apply it only when you want.
+
+This is the difference between memory that quietly mutates and memory you can reason
+about.
+
+## Where it runs
+
+| Surface | How to trigger consolidation |
+| --- | --- |
+| App | The dream / consolidation flow in the [Cortex App](/app/overview) |
+| Demo | `pnpm demo` runs a full consolidate-and-apply cycle |
+| MCP | `dream_run` commits a diff, then applies only when `apply=true` (see [Tools](/mcp/tools)) |
+
+## Keep reading
+
+Consolidation is also what powers synthesis. See [Dreams](/concepts/dreams).

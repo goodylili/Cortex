@@ -1,0 +1,89 @@
+---
+title: Encryption
+description: How Cortex encrypts every durable blob client-side, using Seal threshold encryption or wallet-derived AES-GCM.
+---
+
+import { Tabs, Tab } from 'vocs'
+
+# Encryption
+
+Durable session and memory blobs are **always encrypted client-side** before they reach
+Walrus. Cortex never writes plaintext to durable storage. Which scheme it uses is a
+runtime switch driven by configuration.
+
+:::danger[Encrypt before storage, always]
+Encryption happens on the client, before the blob leaves. Walrus only ever sees
+ciphertext. There is no "unencrypted" durable path.
+:::
+
+## Two schemes
+
+<Tabs stateKey="encryption-scheme">
+<Tab title="Seal (threshold)">
+
+**Seal threshold encryption** is used when `NEXT_PUBLIC_SEAL_SERVER_IDS`
+(comma-separated key-server object ids) is set.
+
+- Blobs are encrypted under the user's **owner identity**.
+- Decryption is gated **on-chain** by the `seal_approve` Move entry points.
+- `NEXT_PUBLIC_SEAL_THRESHOLD` controls how many key servers must return a share to decrypt.
+- New Seal blobs carry a one-byte **`0x02`** format tag.
+
+This is the stronger, sovereign path: access is enforced by the chain, and no single key
+server can decrypt alone (unless threshold is 1).
+
+</Tab>
+<Tab title="AES-GCM (fallback)">
+
+**Wallet-derived AES-GCM** is the fallback when no Seal key servers are configured.
+
+- The key is derived deterministically from a **wallet signature**.
+- New blobs carry a **`0x01`** tag.
+- Blobs written before tagging existed carry no tag and are always read as AES, so the
+  fallback stays backward-compatible.
+
+This keeps Cortex fully functional without standing up Seal key servers, while still
+encrypting every durable blob.
+
+</Tab>
+</Tabs>
+
+## The format tag
+
+Every new durable blob starts with a one-byte tag so Cortex always knows how to read it:
+
+| Tag | Scheme |
+| --- | --- |
+| `0x02` | Seal threshold encryption |
+| `0x01` | Wallet-derived AES-GCM |
+| *(none)* | Legacy blob, read as AES |
+
+This makes the two schemes interoperable on read: you can migrate from AES to Seal
+without rewriting history.
+
+## Configuring Seal key servers
+
+Get testnet key-server object ids from Mysten's published Seal testnet servers (see the
+`@mysten/seal` README) or from `getAllowlistedKeyServers("testnet")`.
+
+The same switch exists **server-side** for the core/MCP runtime via `seal.serverIds` /
+`seal.threshold` in `config.yaml` (or the `SEAL_SERVER_IDS` / `SEAL_THRESHOLD`
+environment variables).
+
+```yaml
+seal:
+  policyPackage: "0x…"  # Move package id for the allowlist policy
+  policyObject: "0x…"   # the namespace's allowlist object id
+  serverIds: ["0xabc…", "0xdef…"]
+  threshold: 1          # >= 1 and <= serverIds.length
+```
+
+:::note[Choosing a threshold]
+`threshold: 1` means any single server can return a share: lowest latency, lowest
+redundancy. Raise it for stronger guarantees, up to the number of servers you list.
+:::
+
+## Keep reading
+
+- Where encrypted blobs are stored: [Infrastructure](/infrastructure/overview).
+- How encrypted memory is shared without exposing your graph: [Sharing & Permissions](/concepts/sharing).

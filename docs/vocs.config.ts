@@ -3,7 +3,7 @@ import { defineConfig } from 'vocs/config'
 export default defineConfig({
   title: 'Cortex Docs',
   description:
-    'Documentation for the Cortex app, durable memory platform, MCP server, and user-controlled infrastructure.',
+    'Cortex is the sovereign memory layer built on Sui, Walrus, and Seal. Keep durable encrypted memory, share it selectively, and turn it into prompts, loops, multi-agent workflows, and dreams.',
   accentColor: 'light-dark(black, white)',
   colorScheme: 'light dark',
   rootDir: '.',
@@ -13,212 +13,70 @@ export default defineConfig({
     light: '/cortex-mark.svg',
   },
   topNav: [
-    {
-      text: 'Docs',
-      link: '/',
-      match: '/',
-    },
+    { text: 'Docs', link: '/', match: '/' },
+    { text: 'Launch App', link: 'https://github.com/goodylili/Cortex' },
   ],
   sidebar: [
     {
       text: 'Overview',
       items: [
-        {
-          text: 'Docs Home',
-          link: '/',
-        },
+        { text: 'Introduction', link: '/' },
+        { text: 'Why Cortex', link: '/why-cortex' },
+      ],
+    },
+    {
+      text: 'Getting Started',
+      items: [
+        { text: 'Installation', link: '/getting-started/installation' },
+        { text: 'Quickstart', link: '/getting-started/quickstart' },
+        { text: 'Configuration', link: '/getting-started/configuration' },
+      ],
+    },
+    {
+      text: 'Core Concepts',
+      items: [
+        { text: 'How Cortex Works', link: '/concepts/how-cortex-works' },
+        { text: 'The Memory Model', link: '/concepts/memory-model' },
+        { text: 'Store · Coordinate · Dream', link: '/concepts/store-coordinate-dream' },
+        { text: 'Memory vs RAG', link: '/concepts/memory-vs-rag' },
+        { text: 'The Elastic Brain', link: '/concepts/elastic-brain' },
+        { text: 'Dreams', link: '/concepts/dreams' },
+        { text: 'Encryption', link: '/concepts/encryption' },
+        { text: 'Sharing & Permissions', link: '/concepts/sharing' },
       ],
     },
     {
       text: 'Cortex App',
+      items: [{ text: 'Overview', link: '/app/overview' }],
+    },
+    {
+      text: 'Agentic Loops',
       items: [
-        {
-          text: 'Overview',
-          link: '/dashboard',
-        },
+        { text: 'Overview', link: '/loops/overview' },
+        { text: 'The Loop Spec', link: '/loops/loop-spec' },
       ],
     },
     {
-      text: 'Developer Platform',
+      text: 'MCP Server',
       items: [
-        {
-          text: 'Getting Started',
-          items: [
-            {
-              text: 'Overview',
-              link: '/platform/getting-started/overview',
-            },
-            {
-              text: 'Quickstart',
-              link: '/platform/getting-started/quickstart',
-            },
-            {
-              text: 'Install with AI',
-              link: '/platform/getting-started/install-with-ai',
-            },
-          ],
-        },
-        {
-          text: 'Concepts',
-          items: [
-            {
-              text: 'How Cortex Works',
-              link: '/platform/concepts/how-supermemory-works',
-            },
-            {
-              text: 'Graph Memory',
-              link: '/platform/concepts/graph-memory',
-            },
-            {
-              text: 'Content Types',
-              link: '/platform/concepts/content-types',
-            },
-            {
-              text: 'Recall and Search',
-              link: '/platform/concepts/superrag',
-            },
-            {
-              text: 'Memory vs RAG',
-              link: '/platform/concepts/memory-vs-rag',
-            },
-            {
-              text: 'Container Tags',
-              link: '/platform/concepts/container-tags',
-            },
-            {
-              text: 'Sharing and Permissions',
-              link: '/platform/concepts/multi-tenancy-filtering',
-            },
-            {
-              text: 'User Profiles',
-              link: '/platform/concepts/user-profiles',
-            },
-            {
-              text: 'Customization',
-              link: '/platform/concepts/customization',
-            },
-            {
-              text: 'Authentication',
-              link: '/platform/concepts/authentication',
-            },
-          ],
-        },
-        {
-          text: 'Using Cortex',
-          items: [
-            {
-              text: 'Add Context',
-              link: '/platform/using-supermemory/add-context',
-            },
-            {
-              text: 'Search Memories and Docs',
-              link: '/platform/using-supermemory/search-memories-and-docs',
-            },
-            {
-              text: 'User Profiles',
-              link: '/platform/using-supermemory/user-profiles',
-            },
-            {
-              text: 'Manage Content',
-              items: [
-                {
-                  text: 'Overview',
-                  link: '/platform/using-supermemory/manage-content',
-                },
-                {
-                  text: 'Organize Content',
-                  link: '/platform/using-supermemory/manage-content/organize-content',
-                },
-                {
-                  text: 'Archive and Delete',
-                  link: '/platform/using-supermemory/manage-content/archive-and-delete',
-                },
-              ],
-            },
-          ],
-        },
-        {
-          text: 'Use Cases',
-          items: [
-            {
-              text: 'Overview',
-              link: '/platform/use-cases',
-            },
-          ],
-        },
-        {
-          text: 'MCP Connection',
-          items: [
-            {
-              text: 'Overview',
-              link: '/platform/mcp-connection/overview',
-            },
-            {
-              text: 'Connectors',
-              items: [
-                {
-                  text: 'Overview',
-                  link: '/platform/mcp-connection/connectors',
-                },
-                {
-                  text: 'Claude Code',
-                  link: '/platform/mcp-connection/connectors/claude-code',
-                },
-                {
-                  text: 'Cursor',
-                  link: '/platform/mcp-connection/connectors/cursor',
-                },
-              ],
-            },
-            {
-              text: 'Troubleshooting',
-              link: '/platform/mcp-connection/troubleshooting',
-            },
-            {
-              text: 'Managing Resources',
-              link: '/platform/mcp-connection/managing-resources',
-            },
-          ],
-        },
-      ],
-    },
-    {
-      text: 'Cortex MCP',
-      items: [
-        {
-          text: 'Overview',
-          link: '/mcp/overview',
-        },
+        { text: 'Overview', link: '/mcp/overview' },
+        { text: 'Tool Reference', link: '/mcp/tools' },
         {
           text: 'Connectors',
-          link: '/mcp/connectors',
+          items: [
+            { text: 'Claude Code', link: '/mcp/connectors/claude-code' },
+            { text: 'Cursor', link: '/mcp/connectors/cursor' },
+          ],
         },
-        {
-          text: 'Troubleshooting',
-          link: '/mcp/troubleshooting',
-        },
-        {
-          text: 'Managing Resources',
-          link: '/mcp/managing-resources',
-        },
+        { text: 'Troubleshooting', link: '/mcp/troubleshooting' },
       ],
     },
     {
       text: 'Infrastructure',
-      items: [
-        {
-          text: 'Overview',
-          link: '/smfs',
-        },
-      ],
+      items: [{ text: 'Sui · Walrus · Seal · MemWal', link: '/infrastructure/overview' }],
     },
   ],
-  socials: [
-    {
-      icon: 'github',
-      link: 'https://github.com/goodylili/Cortex',
-    },
-  ],
+  socials: [{ icon: 'github', link: 'https://github.com/goodylili/Cortex' }],
   editLink: {
     link: 'https://github.com/goodylili/Cortex/edit/main/docs/pages/:path',
     text: 'Edit this page on GitHub',
