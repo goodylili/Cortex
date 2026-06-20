@@ -121,8 +121,7 @@ img,pre{max-width:100%}
 @media(min-width:1024px){.composer-dock{padding-left:64px;padding-right:64px}}
 @media(max-width:880px){.composer-dock{left:0;padding:12px 18px 16px}}
 .capture-bar{flex-wrap:nowrap}
-.capture-bar.studio-bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
-.capture-bar.studio-bar::-webkit-scrollbar{display:none}
+.capture-bar.studio-bar{flex-wrap:nowrap}
 .cap-tool{white-space:nowrap;flex-shrink:0}
 .model-chip span,.web-chip{white-space:nowrap}
 /* segmented controls: mode + importance */
@@ -656,7 +655,10 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 @media(max-width:900px){.studio{grid-template-columns:1fr;gap:26px}.studio-right{position:static}}
 
 /* studio v2  -  composer-centric, AI-generated */
-.st2{margin-top:28px;display:flex;flex-direction:column;gap:18px;padding-bottom:96px}
+.st2{margin-top:28px;display:flex;flex-direction:column;gap:18px;padding-bottom:24px}
+/* The studio composer lives inside the animated .view (whose transform would trap a
+   position:fixed child), so render it in normal flow below the result instead. */
+.st2 .composer-dock{position:static;order:2;z-index:auto;background:transparent;padding:0}
 .composer-dock .st2-composer{max-width:var(--composer-max);margin:0 auto}
 .st2-composer{border:1px solid var(--line2);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow-lg)}
 .st2-task{width:100%;border:none;outline:none;background:transparent;resize:none;font-family:var(--sans);font-size:15.5px;line-height:1.6;color:var(--ink);padding:18px 18px 8px;min-height:88px}
