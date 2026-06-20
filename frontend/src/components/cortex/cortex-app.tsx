@@ -20,6 +20,12 @@ import {
 import { passkeySupported, passkeyEnrolled } from "@/lib/llm/byok-vault";
 import { LLM_MODELS, type Modality, type Provider } from "@/lib/llm/models";
 import {
+  avatarGradient,
+  initialsOf,
+  modelProvider,
+  providerGlyph,
+} from "@/lib/cortex/avatar";
+import {
   compilePrompt,
   DEFAULT_MODALITY,
   DEFAULT_STYLE,
@@ -2214,15 +2220,29 @@ export function CortexApp({
                 aria-expanded={profileOpen}
                 aria-label="Account"
               >
-                <span className="avatar">
-                  {(walletState?.label?.[0] ?? "G").toUpperCase()}
+                <span
+                  className="avatar"
+                  style={{
+                    background: avatarGradient(
+                      sess?.addr ?? walletState?.label ?? "you",
+                    ),
+                  }}
+                >
+                  {initialsOf(walletState?.label ?? "Guest")}
                 </span>
               </button>
               {profileOpen && (
                 <div className="tb-menu" role="menu">
                   <div className="tb-menu-head">
-                    <span className="avatar">
-                      {(walletState?.label?.[0] ?? "G").toUpperCase()}
+                    <span
+                      className="avatar"
+                      style={{
+                        background: avatarGradient(
+                          sess?.addr ?? walletState?.label ?? "you",
+                        ),
+                      }}
+                    >
+                      {initialsOf(walletState?.label ?? "Guest")}
                     </span>
                     <div style={{ minWidth: 0 }}>
                       <div className="nm">{walletState?.label ?? "Guest"}</div>
@@ -2302,24 +2322,6 @@ export function CortexApp({
                       )}
                     </svg>
                     <span>{eff === "dark" ? "Light mode" : "Dark mode"}</span>
-                  </button>
-                  <button
-                    className="tb-menu-item"
-                    onClick={() => {
-                      const n = !dev;
-                      setDev(n);
-                      try {
-                        localStorage.setItem("cortex-dev", n ? "1" : "");
-                      } catch {}
-                    }}
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M8 3H7a2 2 0 0 0-2 2v3a2 2 0 0 1-2 2 2 2 0 0 1 2 2v3a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 1 2 2v3a2 2 0 0 0 2 2 2 2 0 0 0-2 2v3a2 2 0 0 1-2 2h-1" />
-                    </svg>
-                    <span style={{ flex: 1, textAlign: "left" }}>
-                      Developer
-                    </span>
-                    <span className="dev-switch" />
                   </button>
                   <button
                     className="tb-menu-item"
@@ -2652,11 +2654,28 @@ export function CortexApp({
                         </div>
                       </div>
                       <div className="cmsg-a">
-                        <span className="cmsg-av" aria-hidden="true">
-                          <svg viewBox="0 0 24 24">
-                            <path d="M13 2 4 14h6l-1 8 9-12h-6z" />
-                          </svg>
-                        </span>
+                        {(() => {
+                          // A BYOK / non-Gemini model answers under its own
+                          // avatar; the free Gemini assistant keeps the Cortex mark.
+                          const prov = modelProvider(m.model, s.customModels);
+                          if (prov && prov !== "google")
+                            return (
+                              <span
+                                className="cmsg-av"
+                                title={m.model}
+                                style={{ background: avatarGradient(m.model) }}
+                              >
+                                {providerGlyph(prov)}
+                              </span>
+                            );
+                          return (
+                            <span className="cmsg-av" aria-hidden="true">
+                              <svg viewBox="0 0 24 24">
+                                <path d="M13 2 4 14h6l-1 8 9-12h-6z" />
+                              </svg>
+                            </span>
+                          );
+                        })()}
                         <div className="cmsg-card">
                           {m.media ? (
                             <MediaBlock media={m.media} />
