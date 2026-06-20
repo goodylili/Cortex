@@ -145,7 +145,7 @@ body.mode-ask .remember-only{display:none!important}
 .model-chip .mdot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
 .model-chip .mchev{color:var(--faint);font-size:11px}
 .capture{position:relative}
-.model-pop{position:absolute;right:0;left:auto;bottom:calc(100% + 10px);width:min(420px,calc(100vw - 56px));background:var(--surface);border:1px solid var(--line2);border-radius:var(--r);box-shadow:var(--shadow-lg);z-index:40;overflow:hidden}
+.model-pop{position:absolute;right:0;left:auto;bottom:calc(100% + 10px);width:min(420px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line2);border-radius:var(--r);box-shadow:var(--shadow-lg);z-index:40;overflow:hidden}
 .mp-up{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;background:linear-gradient(135deg,var(--accent-soft),var(--surface))}
 .mp-up-t{font-family:var(--serif);font-size:16px;font-weight:600}
 .mp-up-s{font-size:12.5px;color:var(--muted);margin-top:2px}
@@ -422,6 +422,9 @@ body.mode-ask .remember-only{display:none!important}
 .dream-none{font-size:13.5px;color:var(--muted);padding:4px 2px}
 .pill-btn{font-size:13.5px;padding:8px 16px;border-radius:var(--r);border:1px solid var(--line2);color:var(--ink);transition:all .15s}
 .pill-btn:hover{background:var(--surface2)}
+.int-pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;padding:6px 12px;border-radius:999px;border:1px solid var(--line2);background:var(--surface2);color:var(--muted)}
+.int-pill.worm{color:var(--accent-ink);border-color:var(--accent-soft)}
+.int-pill.worm::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent)}
 .pill-btn.keep{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .pill-btn.keep:hover{opacity:.9}
 .pill-btn.danger{color:#c0392b;border-color:rgba(192,57,43,.35)}
@@ -1615,6 +1618,16 @@ body.dev .dev-switch::after{transform:translateX(14px)}
   .share-backdrop{padding:24px 12px}
   .set-tiers{overflow-x:auto}
   .set-th,.set-tr{min-width:340px}
+}
+
+/* Phone (<=480px): collapse the remaining multi-column grids to one column
+   and trim card padding so nothing clips or scrolls sideways. */
+@media(max-width:560px){
+  .lp-adv-grid{grid-template-columns:1fr}
+}
+@media(max-width:480px){
+  .brain-stats{grid-template-columns:1fr}
+  .int2-card{padding:16px}
 }
 
 /* ============================================================

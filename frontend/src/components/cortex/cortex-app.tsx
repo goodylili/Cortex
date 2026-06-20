@@ -137,7 +137,6 @@ const MemoryMap = dynamic(
 type View =
   | "home"
   | "memories"
-  | "reflect"
   | "brain"
   | "agents"
   | "studio"
@@ -485,7 +484,6 @@ export function CortexApp({
         [
           "home",
           "memories",
-          "reflect",
           "brain",
           "agents",
           "studio",

@@ -1,7 +1,8 @@
 // Dreams (V1)  -  the offline pass that surfaces insights you didn't ask for:
-// connections, summaries and emerging patterns across your memories. Uses the
-// Anthropic API when ANTHROPIC_API_KEY is set; otherwise a deterministic
-// fallback so reflection always returns something.
+// connections, summaries and emerging patterns across your memories. Runs on the
+// default (Gemini) model so reflection stays on the free tier; falls back to a
+// deterministic summary when no provider key is set, so it always returns
+// something.
 
 import type { Memory } from "@/lib/cortex/logic";
 import { DEFAULT_MODEL } from "@/lib/llm/models";
