@@ -3093,11 +3093,8 @@ export function CortexApp({
                             const custom = !isBuiltInAgent(a.id);
                             return (
                               <div className="pr-member" key={a.id}>
-                                <span
-                                  className="pr-av"
-                                  style={{ background: a.accent, color: "#fff" }}
-                                >
-                                  {a.name.slice(0, 2).toUpperCase()}
+                                <span className="pr-av">
+                                  <GenAvatar seed={a.id} size={34} radius={8} />
                                   <span className={"pr-presence " + st} />
                                 </span>
                                 <div className="pr-member-m">
@@ -3180,7 +3177,13 @@ export function CortexApp({
                           <span className="pr-grp-l">Direct</span>
                         </div>
                         <div className="pr-member">
-                          <span className="pr-av human">{youInitials}</span>
+                          <span className="pr-av human">
+                            <GenAvatar
+                              seed={sess?.addr ?? walletState?.label ?? "you"}
+                              size={34}
+                              radius={8}
+                            />
+                          </span>
                           <div className="pr-member-m">
                             <div className="pr-member-n">You</div>
                             <div className="pr-member-r">director</div>
@@ -3284,7 +3287,13 @@ export function CortexApp({
                         <>
                           <div className="pr-day">Today</div>
                           <div className="pr-msg">
-                            <span className="pr-av human">{youInitials}</span>
+                            <span className="pr-av human">
+                            <GenAvatar
+                              seed={sess?.addr ?? walletState?.label ?? "you"}
+                              size={34}
+                              radius={8}
+                            />
+                          </span>
                             <div className="pr-msg-body">
                               <div className="pr-msg-head">
                                 <b>You</b>
@@ -3309,7 +3318,11 @@ export function CortexApp({
                             return (
                               <div className="pr-msg" key={o.id}>
                                 <span className="pr-av">
-                                  {(oa?.name ?? "??").slice(0, 2).toUpperCase()}
+                                  <GenAvatar
+                                    seed={oa?.id ?? "agent"}
+                                    size={34}
+                                    radius={8}
+                                  />
                                 </span>
                                 <div className="pr-msg-body">
                                   <div className="pr-msg-head">
@@ -3351,9 +3364,11 @@ export function CortexApp({
 
                           <div className="pr-msg">
                             <span className="pr-av">
-                              {(byId(room.assignedTo)?.name ?? "??")
-                                .slice(0, 2)
-                                .toUpperCase()}
+                              <GenAvatar
+                                seed={room.assignedTo}
+                                size={34}
+                                radius={8}
+                              />
                             </span>
                             <div className="pr-msg-body">
                               <div className="pr-msg-head">
@@ -3943,7 +3958,11 @@ export function CortexApp({
                           return (
                             <div className="pr-tmsg" key={o.id}>
                               <span className="pr-av">
-                                {(oa?.name ?? "??").slice(0, 2).toUpperCase()}
+                                <GenAvatar
+                                  seed={oa?.id ?? "agent"}
+                                  size={34}
+                                  radius={8}
+                                />
                               </span>
                               <div className="pr-msg-body">
                                 <div className="pr-msg-head">
@@ -6547,11 +6566,8 @@ export function CortexApp({
             </div>
             <div className="am-body">
               <div className="ag-preview">
-                <span
-                  className="pr-av"
-                  style={{ background: agAccent, color: "#fff" }}
-                >
-                  {(agName || "New").slice(0, 2).toUpperCase()}
+                <span className="pr-av">
+                  <GenAvatar seed={agName || "new-agent"} size={34} radius={8} />
                 </span>
                 <div className="ag-preview-m">
                   <div className="ag-preview-n">{agName || "New agent"}</div>

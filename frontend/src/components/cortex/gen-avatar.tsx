@@ -28,9 +28,11 @@ function gradient(h: number): string {
 export function GenAvatar({
   seed,
   size = 34,
+  radius = "50%",
 }: {
   seed: string;
   size?: number;
+  radius?: number | string;
 }) {
   const h = hash(seed || "cortex");
   // Light foreground over a saturated gradient; flip to dark when the base hue
@@ -51,7 +53,7 @@ export function GenAvatar({
       style={{
         width: size,
         height: size,
-        borderRadius: "50%",
+        borderRadius: radius,
         background: gradient(h),
         display: "inline-block",
         flex: "none",
