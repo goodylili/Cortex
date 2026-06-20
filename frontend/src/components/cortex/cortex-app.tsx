@@ -1408,12 +1408,31 @@ export function CortexApp({
     setStudioLoading(true);
     const key = studioKey;
     try {
+      // Ground in durable MemWal memory when signed in (the local store may be
+      // empty for a fresh session); fall back to the locally selected memories.
+      let mems = studioMems;
+      if (wallet && mems.length === 0) {
+        try {
+          const rec = await wallet.recall(studioTask.trim() || studioStyle);
+          mems = rec.map(
+            (r) =>
+              ({
+                id: r.blobId,
+                text: r.text,
+                tags: [],
+                ts: 0,
+                createdAt: 0,
+                source: "memwal",
+              }) as Memory,
+          );
+        } catch {}
+      }
       const res = await fetch("/api/studio", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           task: studioTask,
-          memories: studioMems,
+          memories: mems,
           style: studioStyle,
           type: studioType,
           modality: studioModality,
@@ -1424,12 +1443,11 @@ export function CortexApp({
       const data = await res.json();
       setStudioResult({ key, text: data.prompt, ai: !!data.ai });
       flash(
-        data.ai
-          ? "Generated with AI"
-          : "Generated locally  -  set ANTHROPIC_API_KEY for AI",
+        data.ai ? "Generated with AI" : "Generated locally",
+        data.ai ? "success" : "info",
       );
     } catch {
-      flash("Generation failed");
+      flash("Generation failed", "error");
     } finally {
       setStudioLoading(false);
     }
