@@ -21,6 +21,7 @@ import { passkeySupported, passkeyEnrolled } from "@/lib/llm/byok-vault";
 import { LLM_MODELS, type Modality, type Provider } from "@/lib/llm/models";
 import { modelProvider } from "@/lib/cortex/avatar";
 import { GenAvatar } from "./gen-avatar";
+import { Logo } from "@/components/logo";
 
 // Documentation site, surfaced as a floating widget on every page.
 const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL || "https://docs.usecortexai.com";
@@ -2683,6 +2684,12 @@ export function CortexApp({
                             </span>
                           )}
                         </div>
+                        <span className="cmsg-uav">
+                          <GenAvatar
+                            seed={sess?.addr ?? walletState?.label ?? "you"}
+                            size={28}
+                          />
+                        </span>
                       </div>
                       <div className="cmsg-a">
                         {(() => {
@@ -2697,9 +2704,7 @@ export function CortexApp({
                             );
                           return (
                             <span className="cmsg-av" aria-hidden="true">
-                              <svg viewBox="0 0 24 24">
-                                <path d="M13 2 4 14h6l-1 8 9-12h-6z" />
-                              </svg>
+                              <Logo variant="current" className="cmsg-logo" />
                             </span>
                           );
                         })()}

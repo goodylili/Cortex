@@ -82,8 +82,10 @@ img,pre{max-width:100%}
 .home-chat{display:flex;flex-direction:column;gap:30px;padding-top:6px}
 /* shared rich chat message: user bubble + assistant card with avatar */
 .cmsg{display:flex;flex-direction:column;gap:18px}
-.cmsg-q{display:flex;justify-content:flex-end}
+.cmsg-q{display:flex;justify-content:flex-end;align-items:flex-start;gap:9px}
 .cmsg-q .bubble-q{align-self:auto}
+.cmsg-uav{flex:none;margin-top:2px}
+.cmsg-logo{width:18px;height:18px}
 .cmsg-a{display:flex;gap:14px;align-items:flex-start}
 .cmsg-av{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:var(--paper);margin-top:2px}
 .cmsg-av svg{width:17px;height:17px;fill:currentColor;stroke:none}
