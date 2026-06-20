@@ -19,12 +19,11 @@ import {
 } from "@/lib/llm/byok";
 import { passkeySupported, passkeyEnrolled } from "@/lib/llm/byok-vault";
 import { LLM_MODELS, type Modality, type Provider } from "@/lib/llm/models";
-import {
-  avatarGradient,
-  initialsOf,
-  modelProvider,
-  providerGlyph,
-} from "@/lib/cortex/avatar";
+import { modelProvider } from "@/lib/cortex/avatar";
+import { GenAvatar } from "./gen-avatar";
+
+// Documentation site, surfaced as a floating widget on every page.
+const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL || "https://docs.usecortexai.com";
 import {
   compilePrompt,
   DEFAULT_MODALITY,
@@ -408,7 +407,10 @@ export function CortexApp({
   const [shareSel, setShareSel] = useState<Set<string>>(new Set());
   const [sharedRefreshing, setSharedRefreshing] = useState(false);
   const [revokingShareId, setRevokingShareId] = useState<string | null>(null);
-  const [toast, setToast] = useState("");
+  const [toasts, setToasts] = useState<
+    { id: number; body: string; kind: "info" | "success" | "error"; view: View }[]
+  >([]);
+  const toastSeq = useRef(0);
   const [chatRailOpen, setChatRailOpen] = useState(true);
   const [query, setQuery] = useState("");
   const [kbFilter, setKbFilter] = useState<
@@ -660,9 +662,13 @@ export function CortexApp({
       setProfileSaved(false);
     }
   }, [settingsOpen]);
-  function flash(m: string) {
-    setToast(m);
-    setTimeout(() => setToast(""), 2600);
+  function flash(m: string, kind: "info" | "success" | "error" = "info") {
+    const id = ++toastSeq.current;
+    setToasts((t) => [...t, { id, body: m, kind, view }].slice(-4));
+    setTimeout(
+      () => setToasts((t) => t.filter((x) => x.id !== id)),
+      4200,
+    );
   }
   useEffect(() => {
     if (view !== "agents") return;
@@ -2220,30 +2226,14 @@ export function CortexApp({
                 aria-expanded={profileOpen}
                 aria-label="Account"
               >
-                <span
-                  className="avatar"
-                  style={{
-                    background: avatarGradient(
-                      sess?.addr ?? walletState?.label ?? "you",
-                    ),
-                  }}
-                >
-                  {initialsOf(walletState?.label ?? "Guest")}
-                </span>
+                <GenAvatar seed={sess?.addr ?? walletState?.label ?? "you"} />
               </button>
               {profileOpen && (
                 <div className="tb-menu" role="menu">
                   <div className="tb-menu-head">
-                    <span
-                      className="avatar"
-                      style={{
-                        background: avatarGradient(
-                          sess?.addr ?? walletState?.label ?? "you",
-                        ),
-                      }}
-                    >
-                      {initialsOf(walletState?.label ?? "Guest")}
-                    </span>
+                    <GenAvatar
+                      seed={sess?.addr ?? walletState?.label ?? "you"}
+                    />
                     <div style={{ minWidth: 0 }}>
                       <div className="nm">{walletState?.label ?? "Guest"}</div>
                       {sess && claimedName ? (
@@ -2660,12 +2650,8 @@ export function CortexApp({
                           const prov = modelProvider(m.model, s.customModels);
                           if (prov && prov !== "google")
                             return (
-                              <span
-                                className="cmsg-av"
-                                title={m.model}
-                                style={{ background: avatarGradient(m.model) }}
-                              >
-                                {providerGlyph(prov)}
+                              <span className="cmsg-av plain" title={m.model}>
+                                <GenAvatar seed={m.model} size={34} />
                               </span>
                             );
                           return (
@@ -6051,6 +6037,22 @@ export function CortexApp({
           </div>
         )}
 
+        {/* DOCS WIDGET  -  floating, visible on every page. */}
+        <a
+          className="docs-fab"
+          href={DOCS_URL}
+          target="_blank"
+          rel="noreferrer"
+          title="Documentation"
+          aria-label="Documentation"
+        >
+          <svg viewBox="0 0 24 24">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+          <span>Docs</span>
+        </a>
+
         {/* HOME COMPOSER  -  the chat box lives only on home (agents + studio have
             their own); memory, knowledge and brain are browse-only. */}
         {view === "home" && (
@@ -7115,9 +7117,23 @@ export function CortexApp({
         </div>
       </aside>
 
-      <div className={"toast" + (toast ? " show" : "")}>
-        <span className="td" />
-        <span>{toast}</span>
+      <div className="toasts">
+        {toasts.map((t) => {
+          const meta = NAV.find(([v]) => v === t.view);
+          return (
+            <div className={"ntf ntf-" + t.kind} key={t.id} role="status">
+              <span className="ntf-ic">
+                <svg viewBox="0 0 24 24">
+                  {meta?.[2] ?? <path d="M13 2 4 14h6l-1 8 9-12h-6z" />}
+                </svg>
+              </span>
+              <div className="ntf-body">
+                <div className="ntf-title">{meta?.[1] ?? "Cortex"}</div>
+                <div className="ntf-msg">{t.body}</div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
