@@ -1,6 +1,6 @@
 # Cortex
 
-Cortex is a local-first persistent memory layer and multi-agent operating system for AI.
+Cortex is a sovereign persistent memory layer and multi-agent operating system for AI, built on the Sui stack (Sui, Walrus, Seal, and MemWal).
 
 It is built around one idea: AI should not lose the user's context every time the session, tool, or model changes. Cortex ingests notes, files, and other sources, extracts durable memories from them, stores artifacts on user-controlled infrastructure, recalls the right context later, and improves over time through consolidation and correction.
 
@@ -41,9 +41,9 @@ The central artifact types live in [`src/core/models.ts`](file:///Users/goodylil
 - `MemoryDiff`: a structured consolidation result that can merge, verify, prune, or pattern-match memories
 - `NamespaceManifest`: the per-namespace pointer record for versions and artifacts
 
-### Local-First by Default
+### Built on the Sui Stack
 
-With no live credentials configured, Cortex runs in mock mode. That makes the repo usable for development and product work without requiring Sui, Walrus, Seal, or MemWal credentials up front.
+Cortex is built on the Sui stack for identity, storage, and encryption. For development, with no live credentials configured, the runtime falls back to mock mode. That makes the repo usable for development and product work without requiring Sui, Walrus, Seal, or MemWal credentials up front.
 
 When the live path is configured, Cortex uses:
 
@@ -52,6 +52,10 @@ When the live path is configured, Cortex uses:
 - `Seal` for encryption and access gating
 - `MemWal` for persistent memory namespaces and recall
 
+### Mainnet Deployment
+
+The `cortex` Move package is published to mainnet. The canonical record of the package id, shared registries, and capability objects lives in [`backend/sui/contract/cortex/DEPLOYMENT.md`](backend/sui/contract/cortex/DEPLOYMENT.md) (full receipt in `published.json`, toolchain pins in `Published.toml`). Package id: `0x643fbc9d6182493e533a85a49a584a1c08471e2d28e6de842eb183c8d2ed9438`.
+
 ### Encryption (Seal vs AES)
 
 Durable session and memory blobs are always encrypted client-side before they reach Walrus; which scheme is used is a runtime switch driven by configuration:
@@ -59,7 +63,7 @@ Durable session and memory blobs are always encrypted client-side before they re
 - **Seal threshold encryption** is used when `NEXT_PUBLIC_SEAL_SERVER_IDS` (comma-separated key-server object ids) is set. Blobs are encrypted under the user's owner identity, with decryption gated on-chain by the `seal_approve` Move entry points; `NEXT_PUBLIC_SEAL_THRESHOLD` controls how many key servers must return a share to decrypt. New Seal blobs carry a one-byte `0x02` format tag.
 - **Wallet-derived AES-GCM** is the fallback when no Seal key servers are configured. The key is derived deterministically from a wallet signature, and new blobs carry a `0x01` tag. Blobs written before tagging existed carry no tag and are always read as AES, so the fallback stays backward-compatible.
 
-Get testnet key-server object ids from Mysten's published Seal testnet servers (see the `@mysten/seal` README) or from `getAllowlistedKeyServers("testnet")`. The same switch exists server-side for the core/MCP runtime via `seal.serverIds`/`seal.threshold` in `config.yaml` (or `SEAL_SERVER_IDS`/`SEAL_THRESHOLD`).
+Get testnet key-server object ids from Mysten's published Seal testnet servers (see the `@mysten/seal` README) or from `getAllowlistedKeyServers("testnet")`. The same switch exists server-side for the core/MCP runtime via `SEAL_SERVER_IDS`/`SEAL_THRESHOLD` in the MCP's `.env` (see `backend/mcp/.env.example`).
 
 ### Multi-Agent State
 
@@ -71,7 +75,7 @@ The repo also contains the foundations for durable agent workflows and loop-base
 src/
   app/                 Next.js app routes and UI
   components/          UI components for the Cortex app
-  core/                local-first Cortex facade, config, sync, CLI, watcher
+  core/                the Cortex facade, config, sync, CLI, watcher
   lib/cortex/          browser/client-side Cortex flows, Walrus/Seal integration
   lib/llm/             model registry and completion helpers
   types/               local type declarations
@@ -176,33 +180,24 @@ If you leave these unset, the frontend remains usable in local mock mode.
 
 ### Core / MCP Runtime Config
 
-Copy [`config/config.example.yaml`](file:///Users/goodylili/GolandProjects/cortex/config/config.example.yaml) to `config/config.yaml`:
+The MCP server reads its config from an `.env` file. Copy the template and fill it in:
 
 ```bash
-cp config/config.example.yaml config/config.yaml
+cp backend/mcp/.env.example backend/mcp/.env
 ```
 
-This file is for the core runtime and MCP server. It controls:
+`backend/mcp/.env` is gitignored (safe for secrets) and is loaded on startup; point elsewhere with `CORTEX_ENV_FILE`. It controls:
 
-- namespace
-- Sui RPC/network
-- Walrus publisher and aggregator
-- Seal policy package and object
-- MemWal URL and API key
-- watched folder paths
-- model defaults
+- namespace (`CORTEX_NAMESPACE`)
+- Sui RPC/network (`CORTEX_SUI_RPC`, `CORTEX_SUI_NETWORK`)
+- Walrus publisher and aggregator (`CORTEX_WALRUS_PUBLISHER`, `CORTEX_WALRUS_AGGREGATOR`, `CORTEX_WALRUS_EPOCHS`)
+- cortex package id and on-chain access model (`CORTEX_PACKAGE_ID`, `CORTEX_ACCESS_REGISTRY`, `CORTEX_EXECUTOR_CAP`)
+- the MCP delegate wallet (`CORTEX_DELEGATE_KEY`), which must hold the `ExecutorCap`
+- MemWal URL and API key (`CORTEX_MEMWAL_URL`, `MEMWAL_API_KEY`)
+- Seal servers and threshold (`SEAL_SERVER_IDS`, `SEAL_THRESHOLD`)
+- model provider and keys (`CORTEX_MODEL_PROVIDER`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`)
 
-Some secrets and runtime-specific values can also be overridden with environment variables, including:
-
-- `CORTEX_DELEGATE_KEY`
-- `MEMWAL_API_KEY`
-- `ANTHROPIC_API_KEY`
-- `CORTEX_WEBHOOK_URL`
-- `CORTEX_WORKSPACE_ID`
-- `CORTEX_ACCESS_REGISTRY`
-- `CORTEX_EXECUTOR_CAP`
-- `SEAL_SERVER_IDS`
-- `SEAL_THRESHOLD`
+The deployed package and object ids to put here are listed in [`backend/sui/contract/cortex/DEPLOYMENT.md`](backend/sui/contract/cortex/DEPLOYMENT.md). The core CLI also accepts an optional `config/config.yaml` (see `config/config.example.yaml`) as an alternative to env vars.
 
 ## Modes
 
