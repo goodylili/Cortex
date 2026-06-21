@@ -60,6 +60,7 @@ import {
   saveSettingValue,
   TIMELINE_KEY,
   DOCUMENTS_KEY,
+  MEMORIES_KEY,
   PROFILE_KEY,
   ONBOARDED_KEY,
   type SessionMeta,
@@ -139,6 +140,12 @@ export interface CortexWallet {
   loadTimeline: () => Promise<unknown | null>;
   saveDocuments: (documents: unknown) => Promise<void>;
   loadDocuments: () => Promise<unknown | null>;
+  // The Memories view backs up + restores from Sui exactly like chats/timeline:
+  // the full memory list is one Walrus blob pointed to by the account's
+  // MEMORIES_KEY setting. (MemWal stays the recall engine; this is the durable,
+  // enumerable copy the view reads.)
+  saveMemories: (memories: unknown) => Promise<void>;
+  loadMemories: () => Promise<unknown | null>;
   saveProfile: (profile: unknown) => Promise<void>;
   loadProfile: () => Promise<unknown | null>;
   loadHandle: () => Promise<string | null>;
@@ -549,6 +556,23 @@ export function useCortexWallet(): CortexWalletState {
         if (!contractsEnabled()) return null;
         const accountId = await getAccountId(address);
         return accountId ? loadState(signer, accountId, DOCUMENTS_KEY) : null;
+      },
+      saveMemories: async (memories: unknown) => {
+        if (!contractsEnabled()) return;
+        const accountId = await ensureAccount({
+          signer,
+          memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? ZERO_ID,
+          displayName: "Cortex",
+          handle: `cortex_${address.slice(2, 10)}`,
+        });
+        await trackWalrusWrite(
+          saveState(signer, accountId, MEMORIES_KEY, memories),
+        );
+      },
+      loadMemories: async () => {
+        if (!contractsEnabled()) return null;
+        const accountId = await getAccountId(address);
+        return accountId ? loadState(signer, accountId, MEMORIES_KEY) : null;
       },
       saveProfile: async (profile: unknown) => {
         if (!contractsEnabled()) return;

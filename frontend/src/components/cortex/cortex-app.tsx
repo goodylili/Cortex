@@ -763,12 +763,32 @@ export function CortexApp({
           s.setAgents(a.roster as Parameters<typeof s.setAgents>[0]);
       })
       .catch(() => {});
-    // Pull the user's full memory set from MemWal so the Memories view and the
-    // brain render their stored memories on sign-in (not just chat recall).
+    // Restore the full memory set from Sui on sign-in, exactly like chats: read the
+    // durable Walrus blob the account points to. Any memory created locally but not
+    // yet in the blob (added within the last debounce window) is kept so a quick
+    // reload never drops it. Only when there is no blob yet (first run, pre-backup)
+    // do we seed from MemWal/on-chain, which the debounced save then writes to Sui.
     void w
-      .allMemories()
-      .then((mems) => s.loadMemoriesFromRecall(mems))
-      .catch(() => {});
+      .loadMemories()
+      .then((mems) => {
+        if (Array.isArray(mems)) {
+          const inBlob = new Set((mems as Memory[]).map((m) => m.id));
+          const localOnly = useCortex
+            .getState()
+            .memories.filter((m) => !inBlob.has(m.id));
+          s.setMemories([...localOnly, ...(mems as Memory[])]);
+          return;
+        }
+        return w
+          .allMemories()
+          .then((recalled) => s.loadMemoriesFromRecall(recalled));
+      })
+      .catch(() => {
+        void w
+          .allMemories()
+          .then((recalled) => s.loadMemoriesFromRecall(recalled))
+          .catch(() => {});
+      });
     void w
       .loadLoops()
       .then((loops) => {
@@ -832,6 +852,11 @@ export function CortexApp({
         );
       if (s.loops.length)
         writes.push(w.saveLoops(s.loops).catch(fail("loops")));
+      // Back the full memory list up to Sui (one blob + pointer), same as chats and
+      // timeline. Guarded on length so the initial empty mount never overwrites the
+      // durable blob before sign-in hydration has restored it.
+      if (s.memories.length)
+        writes.push(w.saveMemories(s.memories).catch(fail("memories")));
       if (!writes.length) return;
       setSaveState("saving");
       void Promise.allSettled(writes).then((results) => {
@@ -851,6 +876,7 @@ export function CortexApp({
     s.agentMessages,
     s.agents,
     s.loops,
+    s.memories,
   ]);
   useEffect(() => {
     const w = walletState?.wallet;

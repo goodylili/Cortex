@@ -428,6 +428,8 @@ interface State {
   setShares: (shares: ShareSummary[]) => void;
   // hydrate the store's memories from a MemWal recall on sign-in (display + brain)
   loadMemoriesFromRecall: (recalled: RecalledMemory[]) => void;
+  // replace the store's memories with the durable set restored from Sui on sign-in
+  setMemories: (memories: Memory[]) => void;
   // profile + onboarding
   saveProfile: (profile: UserProfile) => void;
   setOnboarded: (flag: boolean) => void;
@@ -2101,6 +2103,11 @@ export const useCortex = create<State>((set, get) => ({
         );
       if (!fresh.length) return {};
       const memories = [...fresh, ...s.memories];
+      persist({ memories, events: s.events, cost: s.cost, config: s.config });
+      return { memories };
+    }),
+  setMemories: (memories) =>
+    set((s) => {
       persist({ memories, events: s.events, cost: s.cost, config: s.config });
       return { memories };
     }),

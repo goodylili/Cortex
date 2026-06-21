@@ -27,6 +27,7 @@ const SEAL_TAG = 0x02;
 
 export const TIMELINE_KEY = "events:current";
 export const DOCUMENTS_KEY = "docs:current";
+export const MEMORIES_KEY = "memories:current";
 export const SESSIONS_KEY = "sessions:index";
 export const PROFILE_KEY = "profile:current";
 // A plain on-chain flag (no Walrus blob, so it can't fail on a blob write) that
