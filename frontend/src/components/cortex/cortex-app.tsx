@@ -665,10 +665,23 @@ export function CortexApp({
           s.saveProfile(p as Parameters<typeof s.saveProfile>[0]);
       })
       .catch(() => {});
+    // The claimed handle is durable on the account, but the GraphQL read can lag a
+    // fresh claim; show the locally-cached handle immediately and let the on-chain
+    // read confirm/override it so the menu never falls back to "Claim username"
+    // for a user who already has one.
+    try {
+      const cached = localStorage.getItem(`cortex.handle.${w.address}`);
+      if (cached) setClaimedName(cached);
+    } catch {}
     void w
       .loadHandle()
       .then((h) => {
-        if (h) setClaimedName(h);
+        if (h) {
+          setClaimedName(h);
+          try {
+            localStorage.setItem(`cortex.handle.${w.address}`, h);
+          } catch {}
+        }
       })
       .catch(() => {});
     void w
@@ -1227,10 +1240,13 @@ export function CortexApp({
     setClaimErr("");
     try {
       const result = await w.claimUsername(name);
-      // The claimed handle is now durable on the account (account::set_handle),
-      // which replaces (gives up) any previous handle; no browser copy. It is read
-      // back via loadHandle() on next sign-in.
+      // The claimed handle is durable on the account (account::set_handle), which
+      // replaces any previous handle. Cache it locally too so the menu/greeting
+      // reflect it immediately on reload even before the on-chain read catches up.
       setClaimedName(result.name);
+      try {
+        localStorage.setItem(`cortex.handle.${w.address}`, result.name);
+      } catch {}
       setChangingName(false);
       setUsername("");
       flash(`Username set to ${result.name}.`, "success", result.digest);
@@ -1730,6 +1746,10 @@ export function CortexApp({
     () =>
       kbItems.filter(
         (it) =>
+          // Knowledge lists files only. Note/text sources are memories, not files,
+          // and belong in Memories  -  keep just the Walrus-backed files (and shared
+          // knowledge), never plain note groups.
+          (it.walrus || it.shared) &&
           (kbFilter === "all" || it.key === kbFilter) &&
           (it.title + " " + it.desc)
             .toLowerCase()
@@ -2826,7 +2846,11 @@ export function CortexApp({
                       seed={sess?.addr ?? walletState?.label ?? "you"}
                     />
                     <div style={{ minWidth: 0 }}>
-                      <div className="nm">{walletState?.label ?? "Guest"}</div>
+                      <div className="nm">
+                        {claimedName
+                          ? `@${claimedName.split(/[.@]/)[0]}`
+                          : (walletState?.label ?? "Guest")}
+                      </div>
                       {sess && claimedName ? (
                         <a
                           className="you-handle"
@@ -2837,7 +2861,7 @@ export function CortexApp({
                           }}
                         >
                           <span className="dot" />
-                          {claimedName}
+                          {walletState?.label ?? claimedName}
                         </a>
                       ) : sess ? (
                         <a
