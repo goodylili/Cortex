@@ -2,264 +2,128 @@
 
 Cortex is a sovereign persistent memory layer and multi-agent operating system for AI, built on the Sui stack (Sui, Walrus, Seal, and MemWal).
 
-It is built around one idea: AI should not lose the user's context every time the session, tool, or model changes. Cortex ingests notes, files, and other sources, extracts durable memories from them, stores artifacts on user-controlled infrastructure, recalls the right context later, and improves over time through consolidation and correction.
+It exists for one reason: AI should not lose your context every time the session, tool, or model changes. Cortex ingests notes, files, and other sources, extracts durable memories, stores them on infrastructure you control, recalls the right context later, and improves over time through consolidation and correction. The durable copy of your world lives on the Sui stack, not in a browser or a vendor database.
 
-At the product level, Cortex aims to be the shared brain behind agents and tools:
+## Monorepo Layout
 
-- memory and artifacts persist beyond a single chat
-- corrections become current truth instead of competing facts
-- context can move across interfaces and agents
-- state can be durable, inspectable, and permissioned
-
-## What This Repo Contains
-
-This repository currently includes three main surfaces:
-
-- a `Next.js` app for the main Cortex product experience
-- a local core runtime that exposes the Cortex facade and CLI flows
-- an `MCP` server that lets external agents and hosts access the same memory plane
-
-In code, the main facade is the `Cortex` class in [`src/core/cortex.ts`](file:///Users/goodylili/GolandProjects/cortex/src/core/cortex.ts), which handles:
-
-- ingesting sources into memory
-- recalling memories from a namespace
-- running consolidation and applying diffs
-- producing derived views like tags, digest, timeline, and connections
-- verifying storage fetchability on the live path
-
-## Core Concepts
-
-### Memory, Not Just Chat History
-
-Cortex is not meant to be a chatbot wrapper or a prompt library. It is a memory system with structured artifacts and durable state.
-
-The central artifact types live in [`src/core/models.ts`](file:///Users/goodylili/GolandProjects/cortex/src/core/models.ts):
-
-- `Source`: a raw input such as a note, document, image, audio file, video, URL, or structured payload
-- `Memory`: a durable extracted memory with text, tags, confidence, provenance, and timestamps
-- `Extraction`: the result of processing a source into memories
-- `MemoryDiff`: a structured consolidation result that can merge, verify, prune, or pattern-match memories
-- `NamespaceManifest`: the per-namespace pointer record for versions and artifacts
-
-### Built on the Sui Stack
-
-Cortex is built on the Sui stack for identity, storage, and encryption. For development, with no live credentials configured, the runtime falls back to mock mode. That makes the repo usable for development and product work without requiring Sui, Walrus, Seal, or MemWal credentials up front.
-
-When the live path is configured, Cortex uses:
-
-- `Sui` for identity and coordination
-- `Walrus` for durable artifact storage
-- `Seal` for encryption and access gating
-- `MemWal` for persistent memory namespaces and recall
-
-### Mainnet Deployment
-
-The `cortex` Move package is published to mainnet. The canonical record of the package id, shared registries, and capability objects lives in [`backend/sui/contract/cortex/DEPLOYMENT.md`](backend/sui/contract/cortex/DEPLOYMENT.md) (full receipt in `published.json`, toolchain pins in `Published.toml`). Package id: `0x643fbc9d6182493e533a85a49a584a1c08471e2d28e6de842eb183c8d2ed9438`.
-
-### Encryption (Seal vs AES)
-
-Durable session and memory blobs are always encrypted client-side before they reach Walrus; which scheme is used is a runtime switch driven by configuration:
-
-- **Seal threshold encryption** is used when `NEXT_PUBLIC_SEAL_SERVER_IDS` (comma-separated key-server object ids) is set. Blobs are encrypted under the user's owner identity, with decryption gated on-chain by the `seal_approve` Move entry points; `NEXT_PUBLIC_SEAL_THRESHOLD` controls how many key servers must return a share to decrypt. New Seal blobs carry a one-byte `0x02` format tag.
-- **Wallet-derived AES-GCM** is the fallback when no Seal key servers are configured. The key is derived deterministically from a wallet signature, and new blobs carry a `0x01` tag. Blobs written before tagging existed carry no tag and are always read as AES, so the fallback stays backward-compatible.
-
-Get testnet key-server object ids from Mysten's published Seal testnet servers (see the `@mysten/seal` README) or from `getAllowlistedKeyServers("testnet")`. The same switch exists server-side for the core/MCP runtime via `SEAL_SERVER_IDS`/`SEAL_THRESHOLD` in the MCP's `.env` (see `backend/mcp/.env.example`).
-
-### Multi-Agent State
-
-The repo also contains the foundations for durable agent workflows and loop-based execution, with a shared task board, message bus, memory-backed context, and MCP access.
-
-## Repository Structure
+This is a pnpm workspace with four packages plus the Move contracts.
 
 ```text
-src/
-  app/                 Next.js app routes and UI
-  components/          UI components for the Cortex app
-  core/                the Cortex facade, config, sync, CLI, watcher
-  lib/cortex/          browser/client-side Cortex flows, Walrus/Seal integration
-  lib/llm/             model registry and completion helpers
-  types/               local type declarations
-
-sui/
-  app/                 Sui/Walrus/Seal client wiring for the core runtime
-  contract/cortex/     Move contracts for Cortex
-  walrus/              MemWal and Walrus helpers
-
-mcp/
-  server.ts            MCP server exposing memory, agents, execution, and connectors
-
-config/
-  config.example.yaml  server/core runtime config template
+frontend/                  cortex-frontend: the Next.js app (the product)
+backend/
+  core/                    @cortex/core: the memory runtime, CLI, and demo pipeline
+    src/core/              the Cortex facade (cortex.ts), config, sync, models, artifacts
+    src/lib/cortex/        shared loop spec and helpers
+    sui/                   Sui/Walrus/Seal/MemWal client wiring for the runtime
+  mcp/                     cortex-mcp: the MCP server (stdio + Streamable HTTP)
+    server.ts             memory, agents, loops, execution, and connector tools
+  sui/
+    contract/cortex/       the Cortex Move package (deployed to mainnet)
+docs/                      cortex-docs: the documentation site (Vocs)
 ```
 
-## Getting Started
+The main facade is the `Cortex` class in `backend/core/src/core/cortex.ts`. The core artifact types (`Source`, `Memory`, `Extraction`, `MemoryDiff`, `NamespaceManifest`) live in `backend/core/src/core/models.ts`.
 
-### Requirements
+## Quick Start
 
-- `pnpm`
-- Node.js `20+` recommended
-
-Install dependencies:
+Requirements: Node.js 20+ and pnpm 9.
 
 ```bash
 pnpm install
 ```
 
-### Run the App
-
-Start the Next.js app:
+Run the app (http://localhost:3000):
 
 ```bash
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-If `.env.local` is empty, the app still runs, but stays on the local mock path for storage and memory.
-
-### Run the Demo Flow
-
-The core runtime includes a demo command that seeds sample sources, runs consolidation, applies the diff, and verifies artifact fetchability:
+Run the core demo pipeline (seeds sources, consolidates, applies a diff, verifies fetchability):
 
 ```bash
 pnpm demo
 ```
 
-This is the quickest way to exercise the Cortex pipeline outside the web UI.
-
-### Run the MCP Server
-
-Start the MCP server:
+Run the MCP server over stdio, or as a hosted HTTP endpoint at `/mcp`:
 
 ```bash
-pnpm mcp
+pnpm dev:mcp          # stdio, watch mode
+pnpm start:mcp:http   # Streamable HTTP on :8787
 ```
 
-The MCP server exposes:
+Run the docs site:
 
-- memory recall, remember, ingest, forget, verify, and dream operations
-- derived read views like tags, digest, connections, extraction, and timeline
-- agent/task collaboration primitives over shared state
-- outbound bridge tools such as fetch and notifications
+```bash
+pnpm dev:docs
+```
 
-## Available Scripts
+## Scripts
 
-- `pnpm dev`: start the Next.js development server
-- `pnpm build`: build the web app
-- `pnpm start`: run the production build
-- `pnpm lint`: run ESLint
-- `pnpm typecheck`: run the app TypeScript check
-- `pnpm server:typecheck`: run the server/core TypeScript check
-- `pnpm format`: format the repo with Prettier
-- `pnpm format:check`: check formatting without writing
-- `pnpm demo`: seed and run the core Cortex demo pipeline
-- `pnpm mcp`: launch the MCP server
+Run from the repo root.
+
+- `pnpm dev`: start the Next.js app
+- `pnpm dev:docs` / `pnpm dev:mcp`: start docs or the MCP server in watch mode
+- `pnpm build`: build the app
+- `pnpm build:docs`: build the docs site
+- `pnpm build:all`: build every package that defines a build script
+- `pnpm start` / `pnpm start:docs`: run a production build
+- `pnpm start:mcp` / `pnpm start:mcp:http`: run the MCP server (stdio or HTTP)
+- `pnpm demo`: run the core Cortex demo pipeline
+- `pnpm lint`: lint the frontend
+- `pnpm typecheck`: typecheck every package
+- `pnpm test`: run every package's tests
+- `pnpm format` / `pnpm format:check`: format with Prettier
 
 ## Configuration
 
-There are two main configuration surfaces.
+There are two configuration surfaces, and both default to a working mock mode when left unset.
 
-### Frontend App Config
-
-Copy [`.env.example`](file:///Users/goodylili/GolandProjects/cortex/.env.example) to `.env.local`:
+### Frontend
 
 ```bash
-cp .env.example .env.local
+cp frontend/.env.example frontend/.env.local
 ```
 
-This controls:
+Controls Privy authentication, the client-side Sui and Walrus endpoints, the deployed Cortex package and registry ids, Seal key servers and threshold, the MemWal relayer and contract ids, and model provider keys for the app's API routes. Values exist per network as `_MAINNET` and `_TESTNET` slots. Left unset, the app runs in local mock mode.
 
-- Privy authentication
-- client-side Sui and Walrus endpoints
-- deployed Cortex package and registry ids
-- Seal key server ids and threshold
-- MemWal relayer and contract ids
-- model provider API keys for the app's API routes
-
-If you leave these unset, the frontend remains usable in local mock mode.
-
-### Core / MCP Runtime Config
-
-The MCP server reads its config from an `.env` file. Copy the template and fill it in:
+### Core and MCP runtime
 
 ```bash
 cp backend/mcp/.env.example backend/mcp/.env
 ```
 
-`backend/mcp/.env` is gitignored (safe for secrets) and is loaded on startup; point elsewhere with `CORTEX_ENV_FILE`. It controls:
+`backend/mcp/.env` is gitignored, loaded on startup, and can be relocated with `CORTEX_ENV_FILE`. It sets the namespace, the Sui RPC and network, Walrus publisher and aggregator, the cortex package and access objects, the MCP delegate wallet (which must hold the `ExecutorCap`), MemWal relayer and keys, Seal servers and threshold, and the model provider and keys. The core CLI also accepts an optional `config/config.yaml`.
 
-- namespace (`CORTEX_NAMESPACE`)
-- Sui RPC/network (`CORTEX_SUI_RPC`, `CORTEX_SUI_NETWORK`)
-- Walrus publisher and aggregator (`CORTEX_WALRUS_PUBLISHER`, `CORTEX_WALRUS_AGGREGATOR`, `CORTEX_WALRUS_EPOCHS`)
-- cortex package id and on-chain access model (`CORTEX_PACKAGE_ID`, `CORTEX_ACCESS_REGISTRY`, `CORTEX_EXECUTOR_CAP`)
-- the MCP delegate wallet (`CORTEX_DELEGATE_KEY`), which must hold the `ExecutorCap`
-- MemWal relayer, account id, and delegate key (`MEMWAL_SERVER_URL`, `MEMWAL_ACCOUNT_ID`, `MEMWAL_PRIVATE_KEY`)
-- Seal servers and threshold (`SEAL_SERVER_IDS`, `SEAL_THRESHOLD`)
-- model provider and keys (`CORTEX_MODEL_PROVIDER`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`)
+The deployed ids to fill in are listed in `backend/sui/contract/cortex/DEPLOYMENT.md`.
 
-The deployed package and object ids to put here are listed in [`backend/sui/contract/cortex/DEPLOYMENT.md`](backend/sui/contract/cortex/DEPLOYMENT.md). The core CLI also accepts an optional `config/config.yaml` (see `config/config.example.yaml`) as an alternative to env vars.
+## How It Works
 
-## Modes
+1. You give Cortex a source: a note, document, file, or URL.
+2. Cortex stores the source and extracts durable memories from it.
+3. Memories live in a namespace and can be recalled later.
+4. Consolidation periodically merges, verifies, prunes, and pattern-matches memories into diffs.
+5. The resulting state becomes reusable context for prompts, agents, workspaces, and external tools.
 
-### Mock Mode
+This keeps memory persistent across sessions, portable across tools and models, inspectable rather than hidden, and separated between raw durable storage and active retrieval.
 
-Mock mode is the default when live config is incomplete.
+## Auth and Privacy
 
-Use it when you want to:
+The app is gated behind sign-in. Cortex stores nothing personal in the browser and has no offline sync, so the product does nothing until you sign in. Any action a signed-out visitor takes opens the (Privy) sign-in flow, and new users go through onboarding. On sign-out, everything the browser held for that user (profile, onboarding flag, key vault, MemWal credentials, session) is wiped; only device and UI preferences remain.
 
-- work on the product and UI
-- test the memory pipeline locally
-- iterate on prompts, extraction, and derived artifacts
-- develop without live blockchain and storage dependencies
+## The Sui Stack and Deployment
 
-### Live Mode
+When the live path is configured, Cortex uses Sui for identity and coordination, Walrus for durable artifact storage, Seal for encryption and on-chain access gating, and MemWal for persistent memory namespaces and recall. Without live credentials, the runtime falls back to mock mode so you can develop without those dependencies.
 
-Live mode is enabled once the required infrastructure config is present.
+Durable session and memory blobs are always encrypted client-side before reaching Walrus. Seal threshold encryption is used when key servers are configured (new blobs carry a `0x02` tag); a wallet-derived AES-GCM scheme is the fallback (tag `0x01`), with untagged legacy blobs read as AES.
 
-Use it when you want:
+The `cortex` Move package is published to mainnet. The canonical record of the package id, shared registries, and capability objects lives in `backend/sui/contract/cortex/DEPLOYMENT.md`.
 
-- durable storage on Walrus
-- coordinated identity and permissions on Sui
-- encrypted blobs through Seal
-- persistent MemWal-backed namespaces
+Mainnet package id: `0x643fbc9d6182493e533a85a49a584a1c08471e2d28e6de842eb183c8d2ed9438`
 
-## Architectural Summary
+## Multi-Agent State and Loops
 
-At a high level, Cortex works like this:
-
-1. The user gives Cortex a source such as a note, document, file, or URL.
-2. Cortex stores the source and extracts memories from it.
-3. Those memories are persisted in a namespace and can be recalled later.
-4. Cortex periodically consolidates memory into diffs, patterns, verifications, and prunes.
-5. The resulting state becomes reusable context for agents, prompts, workspaces, and external tools.
-
-This gives Cortex a few important properties:
-
-- persistence across sessions
-- portability across tools and models
-- inspectable state rather than opaque hidden memory
-- separation between raw durable storage and active retrieval behavior
-
-## Development Notes
-
-- The current web app still includes positioning and UX for prompt generation, but the deeper repo architecture is larger than that: Cortex is the memory and agent substrate underneath the product.
-- The repo contains both browser-side and server-side/live-path integrations for Walrus, Seal, Sui, and MemWal.
-- The Move contracts under `sui/contract/cortex` are part of the live coordination and access model.
+Cortex includes durable agent workflows: a shared task board, a message bus, memory-backed context, and self-correcting execution loops, all reachable over MCP. See `AGENTIC-LOOPS.md` for the loop runtime and design.
 
 ## Tech Stack
 
-- `Next.js`
-- `React`
-- `TypeScript`
-- `Tailwind CSS`
-- `Radix UI`
-- `Sui`
-- `Walrus`
-- `Seal`
-- `MemWal`
-- `MCP`
-
-## Status
-
-This repo is an active build toward a hackathon-ready and extensible Cortex foundation. Some surfaces are already wired end-to-end, while others are still evolving toward the broader product vision described in the planning docs.
-# Cortex
+Next.js, React, TypeScript, Tailwind CSS, Radix UI, Sui, Walrus, Seal, MemWal, and MCP.
