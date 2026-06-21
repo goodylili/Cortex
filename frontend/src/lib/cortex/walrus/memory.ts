@@ -82,6 +82,18 @@ export function loadMemoryCreds(userKey: string): MemoryCreds | null {
   }
 }
 
+// Drop every stored MemWal credential (all users on this device). Used on
+// sign-out so no account id / device id / delegate registration is left behind.
+export function clearMemoryCreds(): void {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(KEYSTORE_PREFIX)) localStorage.removeItem(k);
+    }
+  } catch {}
+  deviceKeyCache.clear();
+}
+
 export function saveMemoryCreds(userKey: string, creds: MemoryCreds): void {
   try {
     localStorage.setItem(

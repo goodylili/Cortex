@@ -138,6 +138,19 @@ export const lockVault = () => {
   sessionKek = null;
 };
 
+// Forget everything this device holds for BYOK: the encrypted key vault, the
+// device master key, and the in-memory unlock. Used on sign-out so the next
+// person on this browser inherits no keys or model list.
+export const clearVault = (): void => {
+  lockVault();
+  try {
+    localStorage.removeItem(VAULT_STORAGE_KEY);
+  } catch {}
+  try {
+    indexedDB.deleteDatabase(IDB_NAME);
+  } catch {}
+};
+
 export const unlockVault = async (): Promise<void> => {
   const vault = loadVault();
   sessionKek = vault.passkey ? await passkeyKek(vault.passkey) : await deviceKek();

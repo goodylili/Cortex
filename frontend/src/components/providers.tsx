@@ -29,7 +29,16 @@ export function Providers({ children }: { children: ReactNode }) {
           "telegram",
           "passkey",
         ],
-        appearance: { theme: "light" },
+        // Brand the sign-in modal to match the app: pure-white surface, black
+        // accent, the Cortex mark, and on-brand copy.
+        appearance: {
+          theme: "#FFFFFF",
+          accentColor: "#000000",
+          logo: "/cortex-mark.svg",
+          landingHeader: "Sign in to Cortex",
+          loginMessage: "Your sovereign memory layer, built on the Sui stack.",
+          showWalletLoginFirst: false,
+        },
         embeddedWallets: {
           ethereum: { createOnLogin: "off" },
           solana: { createOnLogin: "off" },

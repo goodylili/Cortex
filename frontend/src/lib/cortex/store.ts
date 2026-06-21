@@ -500,6 +500,14 @@ function loadOnboarded(): boolean {
   }
 }
 
+export function clearLocalProfile(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(PROFILE_KEY);
+    window.localStorage.removeItem(ONBOARDED_KEY);
+  } catch {}
+}
+
 function writeLocal(key: string, value: string) {
   if (typeof window === "undefined") return;
   try {

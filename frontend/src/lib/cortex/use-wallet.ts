@@ -147,7 +147,7 @@ export interface CortexWalletState {
   wallet: CortexWallet | null;
   error: string | null;
   login: () => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 type PrivyUser = ReturnType<typeof usePrivy>["user"];

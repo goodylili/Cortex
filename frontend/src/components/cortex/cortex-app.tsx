@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useCortex } from "@/lib/cortex/store";
+import { forgetLocalIdentity } from "@/lib/cortex/forget";
 import {
   ago,
   computeSavings,
@@ -691,6 +692,15 @@ export function CortexApp({
   const isSignedIn = walletState
     ? walletState.authenticated && !!walletState.address
     : !!session;
+  // Cortex keeps nothing personal in the browser and has no offline sync, so
+  // there is nothing to do until you sign in. Every create / ask / generate /
+  // ingest action runs through this gate: signed out, it opens the sign-in flow
+  // (new users then fall into onboarding) and the action is dropped.
+  function gate(): boolean {
+    if (isSignedIn) return true;
+    doSignIn();
+    return false;
+  }
   useEffect(() => {
     if (s.ready && isSignedIn && !s.onboarded) setOnboardOpen(true);
   }, [s.ready, isSignedIn, s.onboarded]);
@@ -1081,6 +1091,8 @@ export function CortexApp({
   };
 
   function submit() {
+    if (!input.trim()) return;
+    if (!gate()) return;
     if (s.mode === "ask") {
       if (!input.trim()) return;
       const q = input;
@@ -1123,6 +1135,7 @@ export function CortexApp({
   }
   function onFiles(files: FileList | null) {
     if (!files) return;
+    if (!gate()) return;
     [...files].forEach((f) => {
       s.attachDoc(f.name);
       if (wallet) void storeFileLive(f);
@@ -1456,6 +1469,7 @@ export function CortexApp({
   const studioFresh = studioResult?.key === studioKey ? studioResult : null;
   const studioOut = studioFresh?.text ?? studioPreview;
   async function generateStudio() {
+    if (!gate()) return;
     setStudioLoading(true);
     const key = studioKey;
     try {
@@ -1779,6 +1793,7 @@ export function CortexApp({
   async function sendRoomMessage() {
     const text = input.trim();
     if (!text) return;
+    if (!gate()) return;
     const st = useCortex.getState();
     const roster = st.agents;
     const mentioned = roster.find((a) =>
@@ -1833,6 +1848,7 @@ export function CortexApp({
   function createAgentFromForm() {
     const name = agName.trim();
     if (!name) return;
+    if (!gate()) return;
     const id = s.addAgent({
       name,
       role: agRole,
@@ -1950,9 +1966,15 @@ export function CortexApp({
     if (walletState) walletState.login();
     else startSession("Google");
   }
-  function doSignOut() {
-    if (walletState) walletState.logout();
+  async function doSignOut() {
+    forgetLocalIdentity();
+    if (walletState) await walletState.logout();
     else endSession();
+    // Hard reset so no signed-in state lingers in memory: the next visitor lands
+    // on the marketing site, signed out, with an empty browser.
+    try {
+      window.location.href = "/";
+    } catch {}
   }
   function seedProfileToMemory(profile: UserProfile) {
     const texts = s.seedProfileMemories(profile);
@@ -2348,7 +2370,10 @@ export function CortexApp({
             </button>
           </div>
           <div className="tb-right">
-            <button className="tb-add" onClick={() => setCaptureOpen(true)}>
+            <button
+              className="tb-add"
+              onClick={() => gate() && setCaptureOpen(true)}
+            >
               <svg viewBox="0 0 24 24">
                 <path d="M12 5v14M5 12h14" />
               </svg>
@@ -2652,6 +2677,7 @@ export function CortexApp({
                         <button
                           className="hc-synth"
                           onClick={() => {
+                            if (!gate()) return;
                             s.setMode("ask");
                             s.ask(
                               dreams[0]
@@ -2894,7 +2920,7 @@ export function CortexApp({
                                 title="Regenerate"
                                 aria-label="Regenerate"
                                 disabled={!m.q}
-                                onClick={() => m.q && s.ask(m.q)}
+                                onClick={() => m.q && gate() && s.ask(m.q)}
                               >
                                 <svg viewBox="0 0 24 24">
                                   <path d="M21 12a9 9 0 1 1-3-6.7M21 4v4h-4" />
@@ -2950,7 +2976,7 @@ export function CortexApp({
                 </div>
                 <button
                   className="pill-btn keep"
-                  onClick={() => setCaptureOpen(true)}
+                  onClick={() => gate() && setCaptureOpen(true)}
                 >
                   + Build memory
                 </button>
