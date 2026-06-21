@@ -40,8 +40,8 @@ export function SponsoredBanner() {
         textAlign: "center",
         fontSize: 14,
         fontWeight: 600,
-        color: "#fff",
-        background: "linear-gradient(90deg, #00a8ff 0%, #6c47ff 100%)",
+        color: "var(--paper, var(--canvas, #000))",
+        background: "var(--ink)",
         zIndex: 1000,
       }}
     >
@@ -51,7 +51,10 @@ export function SponsoredBanner() {
         href="https://faucet.suilearn.io"
         target="_blank"
         rel="noopener noreferrer"
-        style={{ color: "#fff", textDecoration: "underline" }}
+        style={{
+          color: "var(--paper, var(--canvas, #000))",
+          textDecoration: "underline",
+        }}
       >
         faucet.suilearn.io
       </a>
@@ -66,7 +69,7 @@ export function SponsoredBanner() {
           transform: "translateY(-50%)",
           background: "transparent",
           border: "none",
-          color: "#fff",
+          color: "var(--paper, var(--canvas, #000))",
           fontSize: 18,
           lineHeight: 1,
           cursor: "pointer",

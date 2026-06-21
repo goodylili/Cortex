@@ -180,14 +180,14 @@ export function Hero() {
               transition={{ duration: 0.6, delay: 0.4 }}
               className="relative w-full"
             >
-              <div className="aspect-video w-full overflow-hidden rounded-[var(--r)] border border-ink/20 shadow-2xl md:aspect-[16/9]">
+              <div className="w-full overflow-hidden rounded-[var(--r)] border border-ink/20 shadow-2xl">
                 <Image
                   src="/cortex-app-dark.png"
                   alt="Cortex app"
                   width={2000}
                   height={1293}
                   priority
-                  className="h-full w-full object-cover object-top [.theme-light_&]:hidden"
+                  className="block h-auto w-full [.theme-light_&]:hidden"
                 />
                 <Image
                   src="/cortex-app-light.png"
@@ -195,7 +195,7 @@ export function Hero() {
                   width={2000}
                   height={1293}
                   priority
-                  className="hidden h-full w-full object-cover object-top [.theme-light_&]:block"
+                  className="hidden h-auto w-full [.theme-light_&]:block"
                 />
               </div>
 
