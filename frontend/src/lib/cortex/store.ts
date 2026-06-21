@@ -668,7 +668,7 @@ export const useCortex = create<State>((set, get) => ({
   },
 
   ingestText: (text, source) => {
-    const parts = extract(text);
+    const parts = extract(text).filter(isMeaningfulMemory);
     const now = Date.now();
     set((s) => {
       const mems = parts.map((p) =>
@@ -718,7 +718,10 @@ export const useCortex = create<State>((set, get) => ({
     // the whole text as a single memory.
     const provided = (input.facts ?? []).map((f) => f.trim()).filter(Boolean);
     const extracted = provided.length ? provided : extract(input.text);
-    const facts = extracted.length ? extracted : [input.text.trim()];
+    const facts = (
+      extracted.length ? extracted : [input.text.trim()]
+    ).filter(isMeaningfulMemory);
+    if (!facts.length) return { docId, facts: [] };
     let createdFacts: string[] = [];
     set((s) => {
       const mems = facts.map((p) =>
