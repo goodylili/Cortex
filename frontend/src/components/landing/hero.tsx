@@ -182,12 +182,20 @@ export function Hero() {
             >
               <div className="aspect-video w-full overflow-hidden rounded-[var(--r)] border border-ink/20 shadow-2xl md:aspect-[16/9]">
                 <Image
-                  src="/cortex-app.png"
-                  alt="Cortex memory map"
-                  width={1714}
-                  height={1118}
+                  src="/cortex-app-dark.png"
+                  alt="Cortex app"
+                  width={2000}
+                  height={1293}
                   priority
-                  className="h-full w-full object-cover object-top"
+                  className="h-full w-full object-cover object-top [.theme-light_&]:hidden"
+                />
+                <Image
+                  src="/cortex-app-light.png"
+                  alt="Cortex app"
+                  width={2000}
+                  height={1293}
+                  priority
+                  className="hidden h-full w-full object-cover object-top [.theme-light_&]:block"
                 />
               </div>
 
