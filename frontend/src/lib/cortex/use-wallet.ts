@@ -93,7 +93,6 @@ import {
 import type { AgentDef, AgentTask, AgentMessage } from "@/lib/cortex/agents";
 import type { LoopRun } from "@/lib/cortex/loops";
 
-const WORKSPACE_KEY = "agents:workspace";
 import {
   allMemoriesLive,
   authorizeMemoryDelegate,

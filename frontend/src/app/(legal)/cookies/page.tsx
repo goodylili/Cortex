@@ -14,7 +14,8 @@ export default function CookiesPage() {
     >
       <LegalSection heading="Local storage">
         <p>
-          Cortex uses your browser's local storage to remember preferences such
+          Cortex uses your browser&apos;s local storage to remember preferences
+          such
           as theme and onboarding state. This data stays on your device.
         </p>
       </LegalSection>

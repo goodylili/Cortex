@@ -39,7 +39,7 @@ import {
 
 // Documentation site, surfaced as a floating widget on every page.
 const DOCS_URL =
-  process.env.NEXT_PUBLIC_DOCS_URL || "https://docs.usecortexai.com";
+  process.env.NEXT_PUBLIC_DOCS_URL || "https://docs.usecortexai.xyz/";
 
 // OpenAI's mark (used for ChatGPT + Codex); simple-icons dropped it for trademark.
 const OPENAI_PATH =
@@ -3532,9 +3532,6 @@ export function CortexApp({
                       room.observations.some((o) => o.agentId === a.id),
                   )
                 : [];
-              const youInitials = (walletState?.label ?? "You")
-                .slice(0, 2)
-                .toUpperCase();
               return (
                 <div className="pr-shell">
                   <aside className={"pr-rail" + (roomRailOpen ? " open" : "")}>
