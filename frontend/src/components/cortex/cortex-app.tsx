@@ -114,6 +114,7 @@ import {
   CORTEX_NETWORKS,
   networkAvailable,
   setPreferredNetwork,
+  authEnabled,
   contractsEnabled,
   sealEnabled,
 } from "@/lib/cortex/walrus/env";
@@ -1430,11 +1431,13 @@ export function CortexApp({
   })();
   // Files stored on Walrus (KbFile nodes synced from chain).
   const walrusFiles = live.filter((m) => m.blobId);
+  // Real memories only (KB files are not memories) for the memory counts.
+  const liveMemories = live.filter((m) => !m.blobId);
   // Overview stats (5-slide carousel) + the recent-memories carousel.
-  const added24 = live.filter(
+  const added24 = liveMemories.filter(
     (m) => now - (m.createdAt ?? m.ts) < 86_400_000,
   ).length;
-  const added7 = live.filter(
+  const added7 = liveMemories.filter(
     (m) => now - (m.createdAt ?? m.ts) < 7 * 86_400_000,
   ).length;
   const recentMems = [...live]
@@ -1877,20 +1880,6 @@ export function CortexApp({
       }
     : null;
 
-  // local zkLogin-style session: an ephemeral keypair generated in-browser.
-  // Live testnet zkLogin needs a Google OAuth client id, a salt service and a prover.
-  function startSession(via: string) {
-    const bytes = new Uint8Array(32);
-    window.crypto.getRandomValues(bytes);
-    const addr =
-      "0x" + [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
-    const sess = { addr, via };
-    setSession(sess);
-    try {
-      localStorage.setItem("cortex-session", JSON.stringify(sess));
-    } catch {}
-    flash("Signed in with a local ephemeral session.");
-  }
   function endSession() {
     setSession(null);
     try {
@@ -2307,9 +2296,11 @@ export function CortexApp({
 
   // Memories others shared with me sit alongside my own in the Memories view,
   // newest first, but never mingle with my own retention model (see the store).
-  const brainMemories = [...live, ...s.sharedMemories].sort(
-    (a, b) => b.ts - a.ts,
-  );
+  // The Memories view lists real memories only. KB files (blob-backed) belong to
+  // the Knowledge base and the brain map, not the memory list or memory counts.
+  const brainMemories = [...live, ...s.sharedMemories]
+    .filter((m) => !m.blobId)
+    .sort((a, b) => b.ts - a.ts);
   const q = query.trim().toLowerCase();
   const memList = brainMemories.filter((m) => {
     const hay = (m.text + " " + m.tags.join(" ")).toLowerCase();
@@ -2805,8 +2796,10 @@ export function CortexApp({
                     {isSignedIn ? (
                       <>
                         Cortex has processed{" "}
-                        {(added24 || live.length).toLocaleString()}{" "}
-                        {(added24 || live.length) === 1 ? "memory" : "memories"}{" "}
+                        {(added24 || liveMemories.length).toLocaleString()}{" "}
+                        {(added24 || liveMemories.length) === 1
+                          ? "memory"
+                          : "memories"}{" "}
                         since your last session. Ready to expand your neural
                         workspace?
                       </>
@@ -2819,7 +2812,7 @@ export function CortexApp({
                   </p>
                 </div>
 
-                {live.length > 0 && (
+                {liveMemories.length > 0 && (
                   <>
                     <div className="hc-duo">
                       <div className="hc-stat">
@@ -2831,7 +2824,7 @@ export function CortexApp({
                           Total memories
                         </div>
                         <div className="hc-big">
-                          {live.length.toLocaleString()}
+                          {liveMemories.length.toLocaleString()}
                         </div>
                         <div className="hc-subs">
                           <div className="hc-sub">
@@ -2860,7 +2853,7 @@ export function CortexApp({
                               ? "Cortex is looking across your memories for connections."
                               : `You've added ${added7} ${
                                   added7 === 1 ? "memory" : "memories"
-                                } this week across ${live.length.toLocaleString()} total. Synthesize them into a clearer picture.`}
+                                } this week across ${liveMemories.length.toLocaleString()} total. Synthesize them into a clearer picture.`}
                         </p>
                         <button
                           className="hc-synth"
