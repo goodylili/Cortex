@@ -1644,104 +1644,107 @@ export function CortexApp({
   // Knowledge base cards  -  Walrus blobs + document sources, unified + filterable
   // by the general search bar in the top navigation.
   const ext = (n: string) => (n.split(".").pop() || "").toLowerCase();
-  const kbItems = useMemo(() => [
-    ...walrusFiles.map((m) => {
-      const e = (m.mime || "").toLowerCase();
-      const badge = e.includes("pdf")
-        ? "PDF"
-        : e.includes("markdown") || e.includes("md")
-          ? "MARKDOWN"
-          : "WALRUS";
-      return {
-        id: m.id,
-        walrus: true,
-        shared: false,
-        sharedBy: null as string | null,
-        badge,
-        key: "walrus" as "walrus" | "pdf" | "markdown" | "other" | "shared",
-        title: m.text,
-        desc: `${m.mime || "file"} · sealed on Walrus`,
-        foot: m.blobId ? "Download" : "On Walrus",
-        date: ago(m.ts),
-        url: m.url ?? null,
-        blobId: m.blobId ?? null,
-        mime: m.mime ?? "",
-        name: null as string | null,
-        memIds: [m.id],
-        body: m.text,
-      };
-    }),
-    ...sources.map((src) => {
-      const e = ext(src.name);
-      const badge =
-        e === "pdf"
+  const kbItems = useMemo(
+    () => [
+      ...walrusFiles.map((m) => {
+        const e = (m.mime || "").toLowerCase();
+        const badge = e.includes("pdf")
           ? "PDF"
-          : e === "md" || e === "markdown"
+          : e.includes("markdown") || e.includes("md")
             ? "MARKDOWN"
-            : e
-              ? e.toUpperCase()
-              : "TEXT";
-      const key: "walrus" | "pdf" | "markdown" | "other" | "shared" =
-        e === "pdf"
-          ? "pdf"
-          : e === "md" || e === "markdown"
-            ? "markdown"
-            : "other";
-      return {
-        id: "src:" + src.name,
-        walrus: false,
-        shared: false,
-        sharedBy: null as string | null,
-        badge,
-        key,
-        title: src.name,
-        desc: src.mems[0]?.text || "",
-        foot: `${src.mems.length} ${
-          src.mems.length === 1 ? "memory" : "memories"
-        }`,
-        date: ago(Math.max(...src.mems.map((x) => x.ts))),
-        url: null as string | null,
-        blobId: null as string | null,
-        mime: "",
-        name: src.name as string | null,
-        memIds: src.mems.map((x) => x.id),
-        body: src.mems.map((x) => x.text).join("\n\n"),
-      };
-    }),
-    ...(() => {
-      const by: Record<string, Memory[]> = {};
-      s.sharedMemories.forEach((m) => {
-        (by[m.sharedFrom || m.sharedBy || "shared"] ||= []).push(m);
-      });
-      return Object.entries(by).map(([gid, mems]) => {
-        const owner = mems[0]?.sharedBy || "someone";
-        const lead = mems[0]?.text || "";
+            : "WALRUS";
         return {
-          id: "shared:" + gid,
+          id: m.id,
+          walrus: true,
+          shared: false,
+          sharedBy: null as string | null,
+          badge,
+          key: "walrus" as "walrus" | "pdf" | "markdown" | "other" | "shared",
+          title: m.text,
+          desc: `${m.mime || "file"} · sealed on Walrus`,
+          foot: m.blobId ? "Download" : "On Walrus",
+          date: ago(m.ts),
+          url: m.url ?? null,
+          blobId: m.blobId ?? null,
+          mime: m.mime ?? "",
+          name: null as string | null,
+          memIds: [m.id],
+          body: m.text,
+        };
+      }),
+      ...sources.map((src) => {
+        const e = ext(src.name);
+        const badge =
+          e === "pdf"
+            ? "PDF"
+            : e === "md" || e === "markdown"
+              ? "MARKDOWN"
+              : e
+                ? e.toUpperCase()
+                : "TEXT";
+        const key: "walrus" | "pdf" | "markdown" | "other" | "shared" =
+          e === "pdf"
+            ? "pdf"
+            : e === "md" || e === "markdown"
+              ? "markdown"
+              : "other";
+        return {
+          id: "src:" + src.name,
           walrus: false,
-          shared: true,
-          sharedBy: owner as string | null,
-          badge: "SHARED",
-          key: "shared" as "walrus" | "pdf" | "markdown" | "other" | "shared",
-          title:
-            mems.length === 1
-              ? lead.length > 60
-                ? lead.slice(0, 60) + "…"
-                : lead
-              : `${mems.length} memories from ${owner}`,
-          desc: lead,
-          foot: `${mems.length} ${mems.length === 1 ? "memory" : "memories"}`,
-          date: ago(Math.max(...mems.map((x) => x.ts))),
+          shared: false,
+          sharedBy: null as string | null,
+          badge,
+          key,
+          title: src.name,
+          desc: src.mems[0]?.text || "",
+          foot: `${src.mems.length} ${
+            src.mems.length === 1 ? "memory" : "memories"
+          }`,
+          date: ago(Math.max(...src.mems.map((x) => x.ts))),
           url: null as string | null,
           blobId: null as string | null,
           mime: "",
-          name: null as string | null,
-          memIds: mems.map((x) => x.id),
-          body: mems.map((x) => x.text).join("\n\n"),
+          name: src.name as string | null,
+          memIds: src.mems.map((x) => x.id),
+          body: src.mems.map((x) => x.text).join("\n\n"),
         };
-      });
-    })(),
-  ], [walrusFiles, sources, s.sharedMemories]);
+      }),
+      ...(() => {
+        const by: Record<string, Memory[]> = {};
+        s.sharedMemories.forEach((m) => {
+          (by[m.sharedFrom || m.sharedBy || "shared"] ||= []).push(m);
+        });
+        return Object.entries(by).map(([gid, mems]) => {
+          const owner = mems[0]?.sharedBy || "someone";
+          const lead = mems[0]?.text || "";
+          return {
+            id: "shared:" + gid,
+            walrus: false,
+            shared: true,
+            sharedBy: owner as string | null,
+            badge: "SHARED",
+            key: "shared" as "walrus" | "pdf" | "markdown" | "other" | "shared",
+            title:
+              mems.length === 1
+                ? lead.length > 60
+                  ? lead.slice(0, 60) + "…"
+                  : lead
+                : `${mems.length} memories from ${owner}`,
+            desc: lead,
+            foot: `${mems.length} ${mems.length === 1 ? "memory" : "memories"}`,
+            date: ago(Math.max(...mems.map((x) => x.ts))),
+            url: null as string | null,
+            blobId: null as string | null,
+            mime: "",
+            name: null as string | null,
+            memIds: mems.map((x) => x.id),
+            body: mems.map((x) => x.text).join("\n\n"),
+          };
+        });
+      })(),
+    ],
+    [walrusFiles, sources, s.sharedMemories],
+  );
   const kbFiltered = useMemo(
     () =>
       kbItems.filter(
@@ -2086,6 +2089,22 @@ export function CortexApp({
     navigator.clipboard?.writeText(text);
     flash(label);
   }
+  // Keep a prompt the user wrote in chat. Mirrors the composer's remember path:
+  // instant local write, on-chain Walrus copy catches up after.
+  function savePromptToMemory(text: string) {
+    const t = text.trim();
+    if (!t) return;
+    s.remember(t, s.importance);
+    if (wallet)
+      void wallet
+        .remember(t)
+        .catch((err) =>
+          flash(
+            `Saved locally; Walrus memory failed: ${(err as Error).message}`,
+          ),
+        );
+    flash("Prompt kept in memory.");
+  }
   const detailClient = MCP_CLIENTS.find((cl) => cl.key === intOpen);
   const openDetail = detailClient
     ? {
@@ -2375,18 +2394,22 @@ export function CortexApp({
   function seedProfileToMemory(profile: UserProfile) {
     const texts = s.seedProfileMemories(profile);
     if (wallet) {
-      let flagged = false;
-      texts.forEach(
-        (t) =>
-          void wallet.remember(t).catch((e) => {
-            if (flagged) return;
-            flagged = true;
+      // Seed one at a time, not in parallel: every wallet.remember signs from the
+      // same wallet, and concurrent transactions race for the same gas coin, so a
+      // parallel seed drops most of the profile memories on the floor.
+      void (async () => {
+        for (const t of texts) {
+          try {
+            await wallet.remember(t);
+          } catch (e) {
             flash(
               `Couldn't seed your profile into memory: ${(e as Error).message}`,
               "error",
             );
-          }),
-      );
+            break;
+          }
+        }
+      })();
     }
     return texts.length;
   }
@@ -3275,6 +3298,32 @@ export function CortexApp({
                           />
                         </span>
                       </div>
+                      {m.q && (
+                        <div className="cmsg-q-acts">
+                          <button
+                            className="cmsg-ic"
+                            title="Copy"
+                            aria-label="Copy your message"
+                            onClick={() => copyText(m.q, "Copied.")}
+                          >
+                            <svg viewBox="0 0 24 24">
+                              <rect x="9" y="9" width="11" height="11" rx="2" />
+                              <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                            </svg>
+                          </button>
+                          <button
+                            className="cmsg-ic"
+                            title="Add to memory"
+                            aria-label="Add your prompt to memory"
+                            onClick={() => savePromptToMemory(m.q)}
+                          >
+                            <svg viewBox="0 0 24 24">
+                              <path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                              <path d="M12 8v6M9 11h6" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
                       <div className="cmsg-a">
                         {(() => {
                           // A BYOK / non-Gemini model answers under its own
@@ -3922,6 +3971,36 @@ export function CortexApp({
                                     room.goal,
                                   rosterNames,
                                 )}
+                              </div>
+                              <div className="pr-msg-acts">
+                                <button
+                                  className="cmsg-ic"
+                                  title="Copy"
+                                  aria-label="Copy your message"
+                                  onClick={() => copyText(room.goal, "Copied.")}
+                                >
+                                  <svg viewBox="0 0 24 24">
+                                    <rect
+                                      x="9"
+                                      y="9"
+                                      width="11"
+                                      height="11"
+                                      rx="2"
+                                    />
+                                    <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                                  </svg>
+                                </button>
+                                <button
+                                  className="cmsg-ic"
+                                  title="Add to memory"
+                                  aria-label="Add your prompt to memory"
+                                  onClick={() => savePromptToMemory(room.goal)}
+                                >
+                                  <svg viewBox="0 0 24 24">
+                                    <path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                                    <path d="M12 8v6M9 11h6" />
+                                  </svg>
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -5034,6 +5113,32 @@ export function CortexApp({
                       />
                     </span>
                   </div>
+                  {studioTask.trim() && (
+                    <div className="cmsg-q-acts">
+                      <button
+                        className="cmsg-ic"
+                        title="Copy"
+                        aria-label="Copy your message"
+                        onClick={() => copyText(studioTask, "Copied.")}
+                      >
+                        <svg viewBox="0 0 24 24">
+                          <rect x="9" y="9" width="11" height="11" rx="2" />
+                          <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                        </svg>
+                      </button>
+                      <button
+                        className="cmsg-ic"
+                        title="Add to memory"
+                        aria-label="Add your prompt to memory"
+                        onClick={() => savePromptToMemory(studioTask)}
+                      >
+                        <svg viewBox="0 0 24 24">
+                          <path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                          <path d="M12 8v6M9 11h6" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                   <div className="cmsg-a">
                     {(() => {
                       // BYOK models answer under their own avatar; the free Gemini
@@ -5059,8 +5164,7 @@ export function CortexApp({
                       </div>
                       <div
                         className={
-                          "st2-bubble" +
-                          (studioLoading ? " loading" : "")
+                          "st2-bubble" + (studioLoading ? " loading" : "")
                         }
                       >
                         {renderStudioOutput(studioOut, studioType)}

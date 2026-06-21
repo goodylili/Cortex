@@ -258,6 +258,26 @@ pre {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* Per-message actions on the user's own bubble: copy + add to memory.
+   Right-aligned under the bubble; revealed on hover where the pointer can
+   hover, always visible on touch so phones keep the affordance. */
+.cmsg-q-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 4px;
+  padding-right: 37px;
+}
+@media (hover: hover) {
+  .cmsg-q-acts {
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+  .cmsg:hover .cmsg-q-acts,
+  .cmsg-q-acts:focus-within {
+    opacity: 1;
+  }
+}
 .cmsg-model {
   margin-left: auto;
   font-size: 12px;
@@ -8661,6 +8681,22 @@ body.dev .dev-switch::after {
   color: var(--ink);
   margin-top: 3px;
   word-wrap: break-word;
+}
+.pr-msg-acts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+@media (hover: hover) {
+  .pr-msg-acts {
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+  .pr-msg:hover .pr-msg-acts,
+  .pr-msg-acts:focus-within {
+    opacity: 1;
+  }
 }
 .pr-mention {
   color: #4c9aff;
