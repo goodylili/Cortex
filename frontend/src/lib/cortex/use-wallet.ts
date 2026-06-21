@@ -422,14 +422,26 @@ export function useCortexWallet(): CortexWalletState {
       },
       remember: async (text: string) => {
         await ensureMemory(userKey, signer);
+        // MemWal is the primary durable write; run it first and on its own so the
+        // composer's "kept" confirmation reflects a real persist.
+        const result = await trackWalrusWrite(
+          rememberLive(userKey, NAMESPACE, text),
+        );
+        // Then record the memory on chain (cortex::memory) so it survives a refresh
+        // and feeds the AI, independent of MemWal. This MUST run AFTER the MemWal
+        // write, not concurrently: both sign from the same wallet, and two in-flight
+        // transactions race for the same gas coin, so the parallel version silently
+        // lost (the backup never landed on Sui). Failures are logged, never swallowed,
+        // and never undo the successful MemWal write.
         if (CORTEX_ENV.memoryModuleEnabled) {
-          void ensureCortexAccount()
-            .then((accountId) =>
-              recordMemoryOnChain(signer, accountId, text, "note", []),
-            )
-            .catch(() => {});
+          try {
+            const accountId = await ensureCortexAccount();
+            await recordMemoryOnChain(signer, accountId, text, "note", []);
+          } catch (err) {
+            console.error("cortex::memory backup failed:", err);
+          }
         }
-        return trackWalrusWrite(rememberLive(userKey, NAMESPACE, text));
+        return result;
       },
       recall: async (query: string) => {
         await ensureMemory(userKey, signer);

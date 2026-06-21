@@ -106,15 +106,17 @@ export async function recordMemoryOnChain(
   const resource = toHex(contentHash);
   const identity = deriveIdentity(accountId, resource);
 
-  // The memory module's code (and its seal_approve) lives at the upgraded package
-  // id; calls and the Seal policy must target that. Type tags keep the original id
-  // (handled in listMemoriesOnChain's event filter).
+  // The memory module's code lives at the UPGRADED package id, so move-call targets
+  // (and the seal_approve target) use callPkg. But @mysten/seal requires the FIRST
+  // version of the package for encrypt/SessionKey (it rejects any other as "not the
+  // first version"); the key server still resolves seal_approve from any version in
+  // the lineage. So Seal is scoped to the original packageId, calls go to callPkg.
   const callPkg = CORTEX_ENV.memoryPackageId;
 
   const work = (async () => {
     const { encryptedObject } = await getSealClient().encrypt({
       threshold: CORTEX_ENV.seal.threshold,
-      packageId: callPkg,
+      packageId: CORTEX_ENV.packageId,
       id: toHex(identity),
       data: bytes,
     });
@@ -227,9 +229,11 @@ export async function listMemoriesOnChain(
   pending.sort((a, b) => b.ts - a.ts);
 
   const suiClient = getSuiClient();
+  // Seal requires the first-version package id (see recordMemoryOnChain); the
+  // seal_approve move call below still targets callPkg where the module lives.
   const sessionKey = await SessionKey.create({
     address: signer.toSuiAddress(),
-    packageId: callPkg,
+    packageId: CORTEX_ENV.packageId,
     ttlMin: SESSION_TTL_MIN,
     signer,
     suiClient,
