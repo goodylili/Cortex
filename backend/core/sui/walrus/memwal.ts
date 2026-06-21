@@ -125,7 +125,11 @@ class LiveMemWal implements MemWalClient {
   }
   async recall(ns: string, query: string, opts?: { limit?: number }) {
     const c = await this.client();
-    const r = await c.recall(query, opts?.limit ?? 10, ns);
+    // The relayer rejects an empty query ("Query cannot be empty"), so a blank
+    // query (recall everything / no specific question) becomes a broad " " search,
+    // mirroring restore().
+    const q = query.trim() ? query : " ";
+    const r = await c.recall(q, opts?.limit ?? 10, ns);
     return ((r?.results ?? []) as any[]).map((m) => this.toMemory(ns, m));
   }
   async restore(ns: string) {
