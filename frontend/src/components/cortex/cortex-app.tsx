@@ -2115,7 +2115,13 @@ export function CortexApp({
   async function runStep(taskId: string) {
     setRunningTaskId(taskId);
     try {
-      await s.runAgentStep(taskId);
+      // Smart memory for agents: recall the user's durable MemWal memories relevant
+      // to this task's goal so the agent reasons over real context, not just the
+      // locally-cached store. Degrades to the store's heuristic retrieve on failure.
+      const task = s.tasks.find((t) => t.id === taskId);
+      const recalled =
+        wallet && task ? await wallet.recall(task.goal).catch(() => []) : [];
+      await s.runAgentStep(taskId, recalled);
     } finally {
       setRunningTaskId(null);
     }

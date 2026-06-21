@@ -396,7 +396,10 @@ interface State {
   setSessions: (sessions: SessionMeta[]) => void;
   // multi-agent collaboration
   createTask: (goal: string, assignTo: string) => string;
-  runAgentStep: (taskId: string) => Promise<void>;
+  runAgentStep: (
+    taskId: string,
+    recalled?: RecalledMemory[],
+  ) => Promise<void>;
   handoffTask: (taskId: string, toAgentId: string) => void;
   completeTask: (taskId: string) => void;
   saveObservationAsMemory: (taskId: string, obsId: string) => string | null;
@@ -1528,7 +1531,7 @@ export const useCortex = create<State>((set, get) => ({
     });
     return task.id;
   },
-  runAgentStep: async (taskId) => {
+  runAgentStep: async (taskId, recalled) => {
     const state = get();
     const task = state.tasks.find((t) => t.id === taskId);
     if (!task) return;
@@ -1537,8 +1540,33 @@ export const useCortex = create<State>((set, get) => ({
     const now = Date.now();
     const cfg = state.config;
     const live = state.live().filter((m) => isRetrievable(m, now, cfg));
-    const cites = retrieve(task.goal, live).slice(0, STEP_MEMORY_LIMIT);
+    // Smart memory: prefer the durable MemWal recall (passed in from the wallet,
+    // semantically matched to the goal); fall back to the local heuristic retrieve
+    // so the agent still has context when signed out.
+    const cites =
+      recalled && recalled.length
+        ? recalled.slice(0, STEP_MEMORY_LIMIT).map((r) => ({
+            id: r.blobId,
+            text: r.text,
+            tags: [] as string[],
+            ts: now,
+          }))
+        : retrieve(task.goal, live).slice(0, STEP_MEMORY_LIMIT);
     const memoryRefs = cites.map((c) => c.id);
+    // Carry the room thread for this task (oldest first), so the agent sees the
+    // user's @mentions, handoffs and prior results - the conversation, not just
+    // its own observations.
+    const thread = state.agentMessages
+      .filter((m) => m.taskId === taskId)
+      .slice()
+      .reverse()
+      .map((m) => ({
+        from:
+          m.from === "user"
+            ? "You"
+            : (findAgent(state.agents, m.from)?.name ?? m.from),
+        text: m.content,
+      }));
     set((s) => {
       const tasks = s.tasks.map((t) =>
         t.id === taskId ? taskSetStatus(t, "in_progress", now) : t,
@@ -1568,6 +1596,7 @@ export const useCortex = create<State>((set, get) => ({
             label: c.tags[0] || "note",
             when: ago(c.ts),
           })),
+          thread,
           model: get().model.name,
         }),
       });

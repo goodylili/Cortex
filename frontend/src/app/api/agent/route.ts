@@ -15,12 +15,18 @@ interface StepMemory {
   when?: string;
 }
 
+interface ThreadMessage {
+  from: string;
+  text: string;
+}
+
 interface Body {
   agentId: string;
   system?: string;
   goal: string;
   observations: string[];
   memories: StepMemory[];
+  thread?: ThreadMessage[];
   model?: string;
 }
 
@@ -48,6 +54,14 @@ function formatObservations(observations: string[]): string {
   return observations.map((o, i) => `(${i + 1}) ${o}`).join("\n");
 }
 
+const MAX_THREAD = 12;
+
+function formatThread(thread: ThreadMessage[]): string {
+  const recent = thread.filter((m) => m.text).slice(-MAX_THREAD);
+  if (!recent.length) return "(no messages yet)";
+  return recent.map((m) => `${m.from}: ${m.text}`).join("\n");
+}
+
 function fallbackObservation(goal: string): string {
   return `No model key is configured, so I can't reason on this step. The goal stands: ${goal}. Handoff suggestion: configure a provider key, then re-run this agent.`;
 }
@@ -66,6 +80,7 @@ export async function POST(req: Request) {
     goal,
     observations = [],
     memories = [],
+    thread = [],
     model,
   } = body;
   const agent = agentById(agentId);
@@ -83,6 +98,9 @@ export async function POST(req: Request) {
   const chosen = modelByName(model);
   const user = [
     `Goal: ${goal}`,
+    "",
+    "Conversation in this task room (most recent last):",
+    formatThread(thread),
     "",
     "Shared memories:",
     formatMemories(memories),
