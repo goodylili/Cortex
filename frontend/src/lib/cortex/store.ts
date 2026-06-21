@@ -421,6 +421,8 @@ interface State {
   // memory sharing (cortex::sharing)
   setSharedMemories: (memories: Memory[]) => void;
   setShares: (shares: ShareSummary[]) => void;
+  // hydrate the store's memories from a MemWal recall on sign-in (display + brain)
+  loadMemoriesFromRecall: (recalled: RecalledMemory[]) => void;
   // profile + onboarding
   saveProfile: (profile: UserProfile) => void;
   setOnboarded: (flag: boolean) => void;
@@ -2024,6 +2026,37 @@ export const useCortex = create<State>((set, get) => ({
     }),
   setSharedMemories: (sharedMemories) => set({ sharedMemories }),
   setShares: (shares) => set({ shares }),
+  loadMemoriesFromRecall: (recalled) =>
+    set((s) => {
+      const now = Date.now();
+      const have = new Set(s.memories.map((m) => m.id));
+      // Skip internal markers (tombstones, verify stamps) the relayer stores as
+      // rows, and anything already in the store.
+      const fresh = recalled
+        .filter(
+          (r) =>
+            r.text.trim() && !r.text.startsWith("__") && !have.has(r.blobId),
+        )
+        .map((r) =>
+          newMemory(
+            {
+              id: r.blobId,
+              text: r.text,
+              tags: autoTags(r.text),
+              ts: now,
+              createdAt: now,
+              source: "memwal",
+              blobId: r.blobId,
+            },
+            "normal",
+            "stated",
+          ),
+        );
+      if (!fresh.length) return {};
+      const memories = [...fresh, ...s.memories];
+      persist({ memories, events: s.events, cost: s.cost, config: s.config });
+      return { memories };
+    }),
   // Profile + onboarded are durable on the Sui stack (a Walrus blob pointed to by
   // the account's PROFILE_KEY setting), hydrated on sign-in. Keep them in memory
   // only here; nothing personal is written to the browser.

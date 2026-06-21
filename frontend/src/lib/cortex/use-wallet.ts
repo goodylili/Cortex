@@ -61,6 +61,8 @@ import {
   loadTasks,
   saveBus,
   loadBus,
+  saveRoster,
+  loadRoster,
 } from "@/lib/cortex/walrus/agents";
 import {
   getWorkspaceId,
@@ -74,11 +76,12 @@ import {
   saveWorkspaceLoops,
   loadWorkspaceLoops,
 } from "@/lib/cortex/walrus/workspace";
-import type { AgentTask, AgentMessage } from "@/lib/cortex/agents";
+import type { AgentDef, AgentTask, AgentMessage } from "@/lib/cortex/agents";
 import type { LoopRun } from "@cortex/core/loops";
 
 const WORKSPACE_KEY = "agents:workspace";
 import {
+  allMemoriesLive,
   authorizeMemoryDelegate,
   ensureMemory,
   listMemoryDelegates,
@@ -103,6 +106,7 @@ export interface CortexWallet {
   listFiles: () => Promise<KbFileInfo[]>;
   remember: (text: string) => Promise<{ blobId: string } | null>;
   recall: (query: string) => Promise<RecalledMemory[]>;
+  allMemories: () => Promise<RecalledMemory[]>;
   saveSession: (meta: SessionMeta, chat: unknown) => Promise<SessionMeta[]>;
   listSessions: () => Promise<SessionMeta[]>;
   loadSession: (blobId: string) => Promise<unknown | null>;
@@ -113,10 +117,15 @@ export interface CortexWallet {
   saveProfile: (profile: unknown) => Promise<void>;
   loadProfile: () => Promise<unknown | null>;
   loadHandle: () => Promise<string | null>;
-  saveAgents: (tasks: AgentTask[], messages: AgentMessage[]) => Promise<void>;
+  saveAgents: (
+    tasks: AgentTask[],
+    messages: AgentMessage[],
+    roster: AgentDef[],
+  ) => Promise<void>;
   loadAgents: () => Promise<{
     tasks: AgentTask[] | null;
     messages: AgentMessage[] | null;
+    roster: AgentDef[] | null;
   } | null>;
   grantAdmin: (delegate: string) => Promise<void>;
   revokeAdmin: (delegate: string) => Promise<void>;
@@ -298,6 +307,10 @@ export function useCortexWallet(): CortexWalletState {
         await ensureMemory(userKey, signer);
         return recallLive(userKey, NAMESPACE, query);
       },
+      allMemories: async () => {
+        await ensureMemory(userKey, signer);
+        return allMemoriesLive(userKey, NAMESPACE);
+      },
       saveSession: async (meta: SessionMeta, chat: unknown) => {
         if (!contractsEnabled()) return [];
         const accountId = await ensureAccount({
@@ -366,7 +379,11 @@ export function useCortexWallet(): CortexWalletState {
       // With Seal configured, the agent task board + bus live in the shared
       // Workspace object (owner + an authorized MCP can read/write). Without Seal,
       // they fall back to the owner-only per-account encrypted blobs.
-      saveAgents: async (tasks: AgentTask[], messages: AgentMessage[]) => {
+      saveAgents: async (
+        tasks: AgentTask[],
+        messages: AgentMessage[],
+        roster: AgentDef[],
+      ) => {
         if (!contractsEnabled()) return;
         const accountId = await ensureAccount({
           signer,
@@ -374,37 +391,41 @@ export function useCortexWallet(): CortexWalletState {
           displayName: "Cortex",
           handle: `cortex_${address.slice(2, 10)}`,
         });
-        if (sealEnabled()) {
-          const workspaceId = await ensureWorkspaceId(accountId);
-          await Promise.all([
-            saveWorkspaceTasks(signer, workspaceId, tasks),
-            saveWorkspaceBus(signer, workspaceId, messages),
-          ]);
-          return;
-        }
-        await Promise.all([
-          saveTasks(signer, accountId, tasks),
-          saveBus(signer, accountId, messages),
-        ]);
+        // The roster is the user's own, so it lives on the Account; the task board
+        // and bus live on the shared Workspace when Seal is configured.
+        const board = sealEnabled()
+          ? (async () => {
+              const workspaceId = await ensureWorkspaceId(accountId);
+              await Promise.all([
+                saveWorkspaceTasks(signer, workspaceId, tasks),
+                saveWorkspaceBus(signer, workspaceId, messages),
+              ]);
+            })()
+          : Promise.all([
+              saveTasks(signer, accountId, tasks),
+              saveBus(signer, accountId, messages),
+            ]);
+        await Promise.all([board, saveRoster(signer, accountId, roster)]);
       },
       loadAgents: async () => {
         if (!contractsEnabled()) return null;
         const accountId = await getAccountId(address);
         if (!accountId) return null;
+        const roster = await loadRoster(signer, accountId);
         if (sealEnabled()) {
           const workspaceId = await getWorkspaceId(accountId);
-          if (!workspaceId) return null;
+          if (!workspaceId) return { tasks: null, messages: null, roster };
           const [tasks, messages] = await Promise.all([
             loadWorkspaceTasks(signer, workspaceId),
             loadWorkspaceBus(signer, workspaceId),
           ]);
-          return { tasks, messages };
+          return { tasks, messages, roster };
         }
         const [tasks, messages] = await Promise.all([
           loadTasks(signer, accountId),
           loadBus(signer, accountId),
         ]);
-        return { tasks, messages };
+        return { tasks, messages, roster };
       },
       // Loops are durable only when Seal + the Workspace are configured (they share
       // the same shared, owner-or-delegate board so the MCP can run them too).

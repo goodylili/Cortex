@@ -259,6 +259,24 @@ export async function recallLive(
   }));
 }
 
+// Fetch every stored memory for display (Memories view + brain). Unlike recall,
+// this applies NO distance filter (we want the whole set, not a relevance slice)
+// and uses a broad " " query, which the relayer accepts where empty is rejected.
+export async function allMemoriesLive(
+  userKey: string,
+  namespace: string,
+  limit = 500,
+): Promise<RecalledMemory[]> {
+  const memwal = getMemoryClient(userKey, namespace);
+  if (!memwal) return [];
+  const { results } = await memwal.recall({ query: " ", limit });
+  return results.map((r) => ({
+    blobId: r.blob_id,
+    text: r.text,
+    distance: r.distance,
+  }));
+}
+
 // One-time provisioning: derive this device's delegate key in memory, create the
 // MemWal account on chain (signed by the Privy wallet), authorize the device's
 // public key, and persist the creds (account id + device id + registered public

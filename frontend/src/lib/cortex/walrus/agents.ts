@@ -9,10 +9,27 @@
 
 import { loadState, saveState } from "./sessions";
 import type { PrivySuiSigner } from "./signer";
-import type { AgentMessage, AgentTask } from "../agents";
+import type { AgentDef, AgentMessage, AgentTask } from "../agents";
 
 export const TASKS_KEY = "agents:tasks";
 export const BUS_KEY = "agents:bus";
+export const ROSTER_KEY = "agents:roster";
+
+export async function saveRoster(
+  signer: PrivySuiSigner,
+  accountId: string,
+  agents: AgentDef[],
+): Promise<void> {
+  await saveState(signer, accountId, ROSTER_KEY, agents);
+}
+
+export async function loadRoster(
+  signer: PrivySuiSigner,
+  accountId: string,
+): Promise<AgentDef[] | null> {
+  const loaded = await loadState(signer, accountId, ROSTER_KEY);
+  return Array.isArray(loaded) ? (loaded as AgentDef[]) : null;
+}
 
 export async function saveTasks(
   signer: PrivySuiSigner,

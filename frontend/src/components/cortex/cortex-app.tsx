@@ -467,6 +467,8 @@ export function CortexApp({
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimErr, setClaimErr] = useState("");
   const [claimedName, setClaimedName] = useState("");
+  // You hold exactly one username; changing it replaces (gives up) the old one.
+  const [changingName, setChangingName] = useState(false);
   // Whether identity (handle + profile + onboarded) has been read back from the
   // Sui stack yet. Until then we hold the onboarding modal so it never flashes
   // for a returning user mid-hydration.
@@ -495,6 +497,10 @@ export function CortexApp({
   const ta = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const mediaUploads = useRef<Set<string>>(new Set());
+  // Sessions whose chat has already been pulled from Walrus this load, so opening
+  // one again doesn't refetch. Only the most-recent session is hydrated at
+  // sign-in; the rest load lazily the first time they're opened.
+  const loadedSessions = useRef<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -571,6 +577,7 @@ export function CortexApp({
         if (sessions.length) s.setSessions(sessions);
         const active = sessions[0];
         if (active?.blobId && !s.chat.length) {
+          loadedSessions.current.add(active.id);
           return w.loadSession(active.blobId).then((chat) => {
             if (Array.isArray(chat) && chat.length) {
               s.setChat(chat as Parameters<typeof s.setChat>[0]);
@@ -621,7 +628,15 @@ export function CortexApp({
           s.setAgentMessages(
             a.messages as Parameters<typeof s.setAgentMessages>[0],
           );
+        if (a?.roster?.length)
+          s.setAgents(a.roster as Parameters<typeof s.setAgents>[0]);
       })
+      .catch(() => {});
+    // Pull the user's full memory set from MemWal so the Memories view and the
+    // brain render their stored memories on sign-in (not just chat recall).
+    void w
+      .allMemories()
+      .then((mems) => s.loadMemoriesFromRecall(mems))
       .catch(() => {});
     void w
       .loadLoops()
@@ -658,8 +673,8 @@ export function CortexApp({
       }
       if (s.events.length) void w.saveTimeline(s.events).catch(() => {});
       if (s.documents.length) void w.saveDocuments(s.documents).catch(() => {});
-      if (s.tasks.length || s.agentMessages.length)
-        void w.saveAgents(s.tasks, s.agentMessages).catch(() => {});
+      if (s.tasks.length || s.agentMessages.length || s.agents.length)
+        void w.saveAgents(s.tasks, s.agentMessages, s.agents).catch(() => {});
       if (s.loops.length) void w.saveLoops(s.loops).catch(() => {});
     }, 6000);
     return () => clearTimeout(t);
@@ -671,6 +686,7 @@ export function CortexApp({
     s.documents,
     s.tasks,
     s.agentMessages,
+    s.agents,
     s.loops,
   ]);
   useEffect(() => {
@@ -1044,10 +1060,13 @@ export function CortexApp({
     setClaimErr("");
     try {
       const result = await w.claimUsername(name);
-      // The claimed handle is now durable on the account (account::set_handle);
-      // no browser copy. It is read back via loadHandle() on next sign-in.
+      // The claimed handle is now durable on the account (account::set_handle),
+      // which replaces (gives up) any previous handle; no browser copy. It is read
+      // back via loadHandle() on next sign-in.
       setClaimedName(result.name);
-      flash(`Claimed ${result.name}.`, "success", result.digest);
+      setChangingName(false);
+      setUsername("");
+      flash(`Username set to ${result.name}.`, "success", result.digest);
     } catch (err) {
       setClaimErr(err instanceof Error ? err.message : String(err));
     } finally {
@@ -1161,6 +1180,24 @@ export function CortexApp({
         .then((rec) => s.ask(query, rec))
         .catch(() => s.ask(query));
     else s.ask(query);
+  }
+  // Open a past chat. Its messages live in a Walrus blob (pointer in the session
+  // index); only the most-recent one is hydrated at sign-in, so pull this one
+  // from chain the first time it's opened instead of showing an empty thread.
+  function openSession(se: { id: string; blobId?: string }) {
+    s.switchSession(se.id);
+    s.setMode("ask");
+    setView("home");
+    if (se.blobId && wallet && !loadedSessions.current.has(se.id)) {
+      loadedSessions.current.add(se.id);
+      void wallet
+        .loadSession(se.blobId)
+        .then((chat) => {
+          if (Array.isArray(chat) && chat.length)
+            s.setChat(chat as Parameters<typeof s.setChat>[0]);
+        })
+        .catch(() => loadedSessions.current.delete(se.id));
+    }
   }
   function submit() {
     if (!input.trim()) return;
@@ -2056,10 +2093,10 @@ export function CortexApp({
     );
   }
   function skipOnboarding(profile: UserProfile) {
-    if (profileAnsweredCount(profile) > 0) {
-      s.saveProfile(profile);
-      if (wallet) void wallet.saveProfile(profile).catch(() => {});
-    }
+    if (profileAnsweredCount(profile) > 0) s.saveProfile(profile);
+    // Persist that onboarding happened, even on skip with an empty profile, so it
+    // never re-prompts on later sign-ins. Returning users edit from Settings.
+    if (wallet) void wallet.saveProfile(profile).catch(() => {});
     s.setOnboarded(true);
     setOnboardOpen(false);
   }
@@ -2640,11 +2677,7 @@ export function CortexApp({
                 <button
                   key={se.id}
                   className={"cr-item" + (se.id === s.activeId ? " on" : "")}
-                  onClick={() => {
-                    s.switchSession(se.id);
-                    s.setMode("ask");
-                    setView("home");
-                  }}
+                  onClick={() => openSession(se)}
                 >
                   <span className="cr-node" aria-hidden="true" />
                   <span className="cr-item-t">{se.title || "New chat"}</span>
@@ -5067,16 +5100,27 @@ export function CortexApp({
                           cortex.sui and points it at your wallet, so others can
                           share with you by name.
                         </div>
-                        {claimedName ? (
-                          <div className="ssub" style={{ marginTop: 10 }}>
-                            You hold{" "}
-                            <span
-                              style={{ fontFamily: "var(--mono)" }}
+                        {claimedName && !changingName ? (
+                          <>
+                            <div className="ssub" style={{ marginTop: 10 }}>
+                              You hold{" "}
+                              <span style={{ fontFamily: "var(--mono)" }}>
+                                {claimedName}
+                              </span>{" "}
+                               -  it points to your wallet.
+                            </div>
+                            <button
+                              className="pill-btn"
+                              style={{ marginTop: 10 }}
+                              onClick={() => {
+                                setUsername("");
+                                setClaimErr("");
+                                setChangingName(true);
+                              }}
                             >
-                              {claimedName}
-                            </span>{" "}
-                             -  it points to your wallet.
-                          </div>
+                              Change username
+                            </button>
+                          </>
                         ) : (
                           <>
                             <div
@@ -5100,12 +5144,28 @@ export function CortexApp({
                                 disabled={claimBusy || !username.trim()}
                                 onClick={() => void claimUsername()}
                               >
-                                {claimBusy ? "Claiming…" : "Claim"}
+                                {claimBusy
+                                  ? changingName
+                                    ? "Changing…"
+                                    : "Claiming…"
+                                  : changingName
+                                    ? "Change"
+                                    : "Claim"}
                               </button>
+                              {changingName && (
+                                <button
+                                  className="pill-btn"
+                                  disabled={claimBusy}
+                                  onClick={() => setChangingName(false)}
+                                >
+                                  Cancel
+                                </button>
+                              )}
                             </div>
                             <div className="ssub" style={{ marginTop: 8 }}>
-                              Not claimed yet  -  pick a handle to get a
-                              name.cortex.sui address.
+                              {changingName
+                                ? `Changing gives up ${claimedName} and points the new handle at your wallet. You hold one username at a time.`
+                                : "Not claimed yet  -  pick a handle to get a name.cortex.sui address."}
                             </div>
                           </>
                         )}
