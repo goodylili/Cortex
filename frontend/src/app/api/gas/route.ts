@@ -46,6 +46,10 @@ const SUI_MIN = TOKEN_DECIMALS / BigInt(10); // 0.1 SUI
 const SUI_TOPUP = TOKEN_DECIMALS / BigInt(2); // 0.5 SUI
 const WAL_MIN = TOKEN_DECIMALS / BigInt(10); // 0.1 WAL
 const WAL_TOPUP = TOKEN_DECIMALS / BigInt(2); // 0.5 WAL
+// Headroom the executor keeps for its own transaction gas on top of the amount it
+// transfers, so a top-up is only attempted when the sponsor can also pay for the
+// transfer itself rather than reverting in gas selection.
+const SPONSOR_GAS_BUFFER = TOKEN_DECIMALS / BigInt(20); // 0.05 SUI
 
 const COOLDOWN_MS = 30_000;
 
@@ -140,26 +144,44 @@ export async function POST(req: Request) {
       });
     }
 
-    // Only fund WAL if the executor actually holds enough; a SUI-only executor
-    // still unblocks the on-chain pointers, and the missing WAL surfaces as a
-    // visible Walrus write error rather than a failed funding request.
+    // Confirm the executor can actually cover each leg before building the transfer.
+    // Sending more than it holds reverts in gas selection and surfaces only as a
+    // confusing downstream write failure, so only fund the legs it can afford. WAL is
+    // optional: a SUI-only executor still unblocks the on-chain pointers, and missing
+    // WAL surfaces as a visible Walrus write error rather than a failed funding request.
+    const sponsorSui = await suiBalanceOf(client, sponsor, SUI_COIN_TYPE);
     const sponsorWal = needWal
       ? await suiBalanceOf(client, sponsor, walType)
       : BigInt(0);
-    const fundWal = needWal && sponsorWal >= WAL_TOPUP;
+    const fundSui = needSui && sponsorSui >= SUI_TOPUP + SPONSOR_GAS_BUFFER;
+    const fundWal =
+      needWal && sponsorWal >= WAL_TOPUP && sponsorSui >= SPONSOR_GAS_BUFFER;
 
-    if (!needSui && !fundWal) {
-      return Response.json({
-        funded: false,
-        suiBalance: userSui.toString(),
-        walBalance: userWal.toString(),
-      });
+    // Fail loudly when the executor can't fund what this wallet needs. Without SUI the
+    // wallet can't pay gas for any write, so missing SUI is a hard stop that WAL alone
+    // won't fix; likewise when nothing fundable remains. A 503 + reason lets the client
+    // warn the user and signals the operator to refill the executor, instead of the old
+    // behaviour of silently returning "not funded" or letting the transfer revert.
+    if ((needSui && !fundSui) || (!fundSui && !fundWal)) {
+      return Response.json(
+        {
+          funded: false,
+          reason: "sponsor_exhausted",
+          error:
+            "Gas station is low on funds; refill the executor wallet before retrying.",
+          sponsorSui: sponsorSui.toString(),
+          sponsorWal: sponsorWal.toString(),
+          suiBalance: userSui.toString(),
+          walBalance: userWal.toString(),
+        },
+        { status: SERVICE_UNAVAILABLE },
+      );
     }
 
     const digest = await enqueue(async () => {
       const tx = new Transaction();
       tx.setSender(sponsor);
-      if (needSui) {
+      if (fundSui) {
         tx.transferObjects([coinWithBalance({ balance: SUI_TOPUP })], address);
       }
       if (fundWal) {
@@ -189,6 +211,7 @@ export async function POST(req: Request) {
 
     return Response.json({
       funded: true,
+      walShort: needWal && !fundWal,
       suiBalance: suiAfter.toString(),
       walBalance: walAfter.toString(),
       digest,

@@ -344,18 +344,20 @@ const dataUrlToFile = async (url: string, name: string): Promise<File> => {
 const ensureGas = async (
   address: string,
   network: "testnet" | "mainnet",
-): Promise<boolean> => {
+): Promise<{ funded: boolean; reason?: string }> => {
   try {
     const res = await fetch("/api/gas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ address, network }),
     });
-    if (!res.ok) return false;
-    const data = (await res.json()) as { funded?: boolean };
-    return data.funded === true;
+    const data = (await res.json().catch(() => ({}))) as {
+      funded?: boolean;
+      reason?: string;
+    };
+    return { funded: data.funded === true, reason: data.reason };
   } catch {
-    return false;
+    return { funded: false, reason: "unreachable" };
   }
 };
 const renderMessageText = (
@@ -636,8 +638,13 @@ export function CortexApp({
     // 6s debounce on the sync effect gives the top-up time to land.
     if (!fundedAddresses.current.has(w.address)) {
       fundedAddresses.current.add(w.address);
-      void ensureGas(w.address, CORTEX_ENV.network).then((funded) => {
+      void ensureGas(w.address, CORTEX_ENV.network).then(({ funded, reason }) => {
         if (funded) flash("Wallet ready", "success");
+        else if (reason === "sponsor_exhausted")
+          flash(
+            "Gas station is out of funds; your saves may fail until the executor wallet is refilled.",
+            "error",
+          );
       });
     }
     void w
@@ -1051,6 +1058,7 @@ export function CortexApp({
       });
       const data = (await res.json()) as {
         funded?: boolean;
+        walShort?: boolean;
         digest?: string;
         error?: string;
       };
@@ -1063,8 +1071,10 @@ export function CortexApp({
         );
       } else if (data.funded) {
         flash(
-          "Sent testnet SUI and WAL to your wallet.",
-          "success",
+          data.walShort
+            ? "Sent testnet SUI; the gas station is low on WAL, so storage writes may fail."
+            : "Sent testnet SUI and WAL to your wallet.",
+          data.walShort ? "error" : "success",
           data.digest,
         );
         await refreshBalances();
