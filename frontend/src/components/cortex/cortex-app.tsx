@@ -70,6 +70,18 @@ const STUDIO_PRODUCT_LOGOS: Record<string, string> = {
   ElevenLabs: siElevenlabs.path,
 };
 
+// Custom stroked glyphs for tools whose official marks are not in simple-icons
+// (trademark). These are distinct in-house emblems, not the brands' real logos;
+// swap in official SVGs if licensed. Rendered with stroke=currentColor.
+const STUDIO_PRODUCT_GLYPHS: Record<string, string> = {
+  Midjourney: "M3 19h18l-2 2H5zM12 3v14M12 3l6 14M12 6l-5 11",
+  Runway: "M8 5l11 7-11 7z",
+  Pika: "M12 2l2.2 6.4L21 10l-6.8 2.1L12 19l-2.2-6.9L3 10l6.8-1.6z",
+  Ideogram: "M5 5h14v14H5zM9.5 9.5h5v5h-5z",
+  Leonardo: "M12 3l8 6-8 12-8-12zM4 9h16",
+  Udio: "M5 10v4M9.5 7v10M14 9v6M18.5 11v2",
+};
+
 // Provider brand mark for model rows (xAI/Grok falls back to the X mark).
 const PROVIDER_LOGO_PATHS: Record<Provider, string> = {
   anthropic: siClaude.path,
@@ -4636,6 +4648,18 @@ export function CortexApp({
                                   aria-hidden="true"
                                 >
                                   <path d={STUDIO_PRODUCT_LOGOS[p.name]} />
+                                </svg>
+                              ) : STUDIO_PRODUCT_GLYPHS[p.name] ? (
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth={1.7}
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <path d={STUDIO_PRODUCT_GLYPHS[p.name]} />
                                 </svg>
                               ) : (
                                 p.name[0]
