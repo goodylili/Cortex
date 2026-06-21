@@ -403,6 +403,10 @@ export function CortexApp({
   const [agRenameId, setAgRenameId] = useState<string | null>(null);
   const [agRenameVal, setAgRenameVal] = useState("");
   const [agMode, setAgMode] = useState<"task" | "ask" | "remember">("ask");
+  // @-mention autocomplete in the agents composer: the current "@token" being
+  // typed (null when closed) and the highlighted match.
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
   const [autoTaskId, setAutoTaskId] = useState<string | null>(null);
   const [loopBusy, setLoopBusy] = useState(false);
@@ -447,6 +451,9 @@ export function CortexApp({
   const [studioMenu, setStudioMenu] = useState(false);
   const [intOpen, setIntOpen] = useState<string | null>(null);
   const [mcpAuthBusy, setMcpAuthBusy] = useState(false);
+  const [mcpConnections, setMcpConnections] = useState<
+    { id: string; client: string; createdAt: number }[]
+  >([]);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [workspaceBusy, setWorkspaceBusy] = useState(false);
   const [delegates, setDelegates] = useState<
@@ -587,15 +594,21 @@ export function CortexApp({
       })
       .catch(() => {});
     // Identity (handle + profile + onboarded) lives on the Sui stack, not the
-    // browser. Hydrate it on sign-in; a returning user with a stored profile is
-    // already onboarded, a new one falls into onboarding once this resolves.
+    // browser. Hydrate it on sign-in; a returning user is already onboarded, a new
+    // one falls into onboarding once this resolves. Onboarded is a plain on-chain
+    // flag (not the profile blob) so it survives a failed blob write and never
+    // re-prompts.
     void w
       .loadProfile()
       .then((p) => {
-        if (p && typeof p === "object") {
+        if (p && typeof p === "object")
           s.saveProfile(p as Parameters<typeof s.saveProfile>[0]);
-          s.setOnboarded(true);
-        }
+      })
+      .catch(() => {});
+    void w
+      .isOnboardedOnChain()
+      .then((done) => {
+        if (done) s.setOnboarded(true);
       })
       .catch(() => {})
       .finally(() => setIdentityHydrated(true));
@@ -653,6 +666,11 @@ export function CortexApp({
     void w
       .listMyShares()
       .then((shares) => s.setShares(shares))
+      .catch(() => {});
+    // Apps the user has connected over OAuth (Claude, other MCP clients).
+    void w
+      .listConnections()
+      .then(setMcpConnections)
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletState?.wallet]);
@@ -847,11 +865,29 @@ export function CortexApp({
     setMcpAuthBusy(true);
     try {
       const digest = await w.revokeMcpAccess();
-      flash("Revoked MCP access.", "success", digest);
+      flash(
+        "Disconnected. The MCP no longer has access to your memory.",
+        "success",
+        digest,
+      );
     } catch (err) {
       flash(err instanceof Error ? err.message : String(err), "error");
     } finally {
       setMcpAuthBusy(false);
+    }
+  }
+
+  // Disconnect one connected app (Claude / other MCP client) and drop it from the
+  // list. The underlying delegate stays until the user revokes MCP access above.
+  async function removeMcpConnection(id: string) {
+    const w = walletState?.wallet;
+    if (!w) return;
+    try {
+      await w.revokeConnection(id);
+      setMcpConnections((cs) => cs.filter((c) => c.id !== id));
+      flash("Disconnected.", "success");
+    } catch (err) {
+      flash(err instanceof Error ? err.message : String(err), "error");
     }
   }
 
@@ -1886,6 +1922,38 @@ export function CortexApp({
       setAutoTaskId(null);
     }
   }
+  // The agents matching the "@token" currently being typed (empty when closed).
+  const mentionMatches =
+    mentionQuery === null
+      ? []
+      : s.agents.filter((a) =>
+          a.name.toLowerCase().startsWith(mentionQuery.toLowerCase()),
+        );
+  // Recompute the open "@token" from the text before the caret; null closes it.
+  function syncMention(el: HTMLTextAreaElement) {
+    const caret = el.selectionStart ?? el.value.length;
+    const token = /(?:^|\s)@(\w*)$/.exec(el.value.slice(0, caret));
+    setMentionQuery(token ? (token[1] ?? "") : null);
+    setMentionIndex(0);
+  }
+  // Replace the partial "@token" at the caret with the picked agent's handle.
+  function pickMention(name: string) {
+    const el = ta.current;
+    if (!el) return;
+    const caret = el.selectionStart ?? el.value.length;
+    const before = el.value.slice(0, caret);
+    const at = before.lastIndexOf("@");
+    if (at < 0) return;
+    const next = `${before.slice(0, at)}@${name} ${el.value.slice(caret)}`;
+    setInput(next);
+    setMentionQuery(null);
+    const pos = at + name.length + 2;
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(pos, pos);
+      grow(el);
+    });
+  }
   async function sendRoomMessage() {
     const text = input.trim();
     if (!text) return;
@@ -2082,7 +2150,10 @@ export function CortexApp({
   }
   function completeOnboarding(profile: UserProfile) {
     s.saveProfile(profile);
-    if (wallet) void wallet.saveProfile(profile).catch(() => {});
+    if (wallet) {
+      void wallet.saveProfile(profile).catch(() => {});
+      void wallet.markOnboarded().catch(() => {});
+    }
     const n = seedProfileToMemory(profile);
     s.setOnboarded(true);
     setOnboardOpen(false);
@@ -2094,9 +2165,13 @@ export function CortexApp({
   }
   function skipOnboarding(profile: UserProfile) {
     if (profileAnsweredCount(profile) > 0) s.saveProfile(profile);
-    // Persist that onboarding happened, even on skip with an empty profile, so it
-    // never re-prompts on later sign-ins. Returning users edit from Settings.
-    if (wallet) void wallet.saveProfile(profile).catch(() => {});
+    // Record onboarding as a durable on-chain flag, even on skip, so it never
+    // re-prompts on later sign-ins. Returning users edit from Settings.
+    if (wallet) {
+      if (profileAnsweredCount(profile) > 0)
+        void wallet.saveProfile(profile).catch(() => {});
+      void wallet.markOnboarded().catch(() => {});
+    }
     s.setOnboarded(true);
     setOnboardOpen(false);
   }
@@ -3873,6 +3948,31 @@ export function CortexApp({
                     )}
 
                     <div className="pr-composer">
+                      {mentionQuery !== null && mentionMatches.length > 0 && (
+                        <div
+                          className="mention-pop"
+                          onMouseDown={(e) => e.preventDefault()}
+                        >
+                          {mentionMatches.map((a, i) => (
+                            <button
+                              key={a.id}
+                              className={
+                                "mention-row" + (i === mentionIndex ? " on" : "")
+                              }
+                              onMouseEnter={() => setMentionIndex(i)}
+                              onClick={() => pickMention(a.name)}
+                            >
+                              <GenAvatar seed={a.id} size={28} radius={8} />
+                              <span className="mention-meta">
+                                <span className="mention-name">{a.name}</span>
+                                <span className="mention-role">
+                                  {roleLabel(a.role)}
+                                </span>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <div className="capture pr-capture" ref={composerRef}>
                         <div className="ask-docs">
                           {s.docs.map((d, i) => (
@@ -3907,8 +4007,40 @@ export function CortexApp({
                           onChange={(e) => {
                             setInput(e.target.value);
                             grow(e.target);
+                            syncMention(e.target);
                           }}
+                          onBlur={() =>
+                            window.setTimeout(() => setMentionQuery(null), 120)
+                          }
                           onKeyDown={(e) => {
+                            const open =
+                              mentionQuery !== null && mentionMatches.length > 0;
+                            if (open && e.key === "ArrowDown") {
+                              e.preventDefault();
+                              setMentionIndex(
+                                (i) => (i + 1) % mentionMatches.length,
+                              );
+                              return;
+                            }
+                            if (open && e.key === "ArrowUp") {
+                              e.preventDefault();
+                              setMentionIndex(
+                                (i) =>
+                                  (i - 1 + mentionMatches.length) %
+                                  mentionMatches.length,
+                              );
+                              return;
+                            }
+                            if (open && (e.key === "Enter" || e.key === "Tab")) {
+                              e.preventDefault();
+                              pickMention(mentionMatches[mentionIndex]!.name);
+                              return;
+                            }
+                            if (open && e.key === "Escape") {
+                              e.preventDefault();
+                              setMentionQuery(null);
+                              return;
+                            }
                             if (e.key === "Enter" && !e.shiftKey) {
                               e.preventDefault();
                               void sendRoomMessage();
@@ -5499,6 +5631,32 @@ export function CortexApp({
                       {!walletState?.wallet
                         ? "Sign in to authorize your MCP."
                         : "Set NEXT_PUBLIC_CORTEX_MCP_ADDRESS and deploy the contracts to enable."}
+                    </div>
+                  )}
+                  <div className="conn-head">Connected apps</div>
+                  {mcpConnections.length ? (
+                    <div className="conn-list">
+                      {mcpConnections.map((c) => (
+                        <div className="conn-row" key={c.id}>
+                          <span className="conn-meta">
+                            <span className="conn-name">{c.client}</span>
+                            <span className="conn-when">
+                              Connected {ago(c.createdAt)}
+                            </span>
+                          </span>
+                          <button
+                            className="pill-btn conn-remove"
+                            onClick={() => void removeMcpConnection(c.id)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="ssub conn-empty">
+                      No apps connected yet. Add Cortex as a custom connector in
+                      Claude to connect.
                     </div>
                   )}
                 </div>

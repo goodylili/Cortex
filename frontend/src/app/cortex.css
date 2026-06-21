@@ -1564,7 +1564,7 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .am-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:18px 24px 24px}
 .am-cancel{font-size:14px;color:var(--muted);padding:12px 16px;border-radius:var(--r);transition:color .12s,background .12s}
 .am-cancel:hover{background:var(--surface2);color:var(--ink)}
-.am-save{padding:13px 20px;border-radius:var(--r);background:var(--accent);color:var(--accent-ink,#fff);font-size:14.5px;font-weight:600;transition:opacity .15s}
+.am-save{padding:13px 20px;border-radius:var(--r);background:var(--accent);color:var(--paper);font-size:14.5px;font-weight:600;transition:opacity .15s}
 .am-save:hover{opacity:.9}
 .am-save:disabled{opacity:.5;cursor:default}
 .ag-preview{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface2)}
@@ -1661,7 +1661,7 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .ob-back:hover{background:var(--surface2);color:var(--ink)}
 .ob-skip{font-size:14px;color:var(--muted);padding:12px 16px;border-radius:999px;transition:color .12s,background .12s}
 .ob-skip:hover{background:var(--surface2);color:var(--ink)}
-.ob-next{display:inline-flex;align-items:center;gap:9px;font-size:15px;font-weight:600;padding:13px 22px;border-radius:999px;background:var(--accent);color:var(--accent-ink,#fff);transition:opacity .15s,transform .08s}
+.ob-next{display:inline-flex;align-items:center;gap:9px;font-size:15px;font-weight:600;padding:13px 22px;border-radius:999px;background:var(--accent);color:var(--paper);transition:opacity .15s,transform .08s}
 .ob-next:hover{opacity:.9}
 .ob-next:active{transform:scale(.97)}
 .ob-next svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -1700,3 +1700,22 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .media-tag{font-size:12px;color:var(--muted)}
 .media-error{border:1px solid var(--line2);background:var(--surface2);padding:14px 16px}
 .media-error-t{font-size:13.5px;color:var(--ink)}
+
+/* @-mention autocomplete in the agents composer */
+.pr-composer{position:relative}
+.mention-pop{position:absolute;left:22px;right:22px;bottom:calc(100% - 6px);z-index:40;max-height:240px;overflow-y:auto;background:var(--surface);border:1px solid var(--line2);border-radius:12px;box-shadow:var(--shadow-lg);padding:6px}
+.mention-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px 10px;border-radius:var(--r);color:var(--ink);transition:background .12s}
+.mention-row:hover,.mention-row.on{background:var(--surface2)}
+.mention-meta{display:flex;flex-direction:column;min-width:0}
+.mention-name{font-size:14px;font-weight:500;color:var(--ink)}
+.mention-role{font-size:12px;color:var(--muted)}
+
+/* Connected apps (OAuth clients) in the Authorize MCP card */
+.conn-head{margin-top:18px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.conn-list{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.conn-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;border:1px solid var(--line2);border-radius:12px;background:var(--surface)}
+.conn-meta{display:flex;flex-direction:column;min-width:0}
+.conn-name{font-size:14px;font-weight:500;color:var(--ink)}
+.conn-when{font-size:12px;color:var(--muted)}
+.conn-remove{flex:none}
+.conn-empty{margin-top:10px}

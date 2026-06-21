@@ -51,9 +51,12 @@ import {
   loadSession as walrusLoadSession,
   saveState,
   loadState,
+  saveSettingValue,
+  loadSettingValue,
   TIMELINE_KEY,
   DOCUMENTS_KEY,
   PROFILE_KEY,
+  ONBOARDED_KEY,
   type SessionMeta,
 } from "@/lib/cortex/walrus/sessions";
 import {
@@ -64,6 +67,12 @@ import {
   saveRoster,
   loadRoster,
 } from "@/lib/cortex/walrus/agents";
+import {
+  listConnectionsFor,
+  removeConnection,
+  saveConnection,
+  type ConnectionRecord,
+} from "@/lib/cortex/walrus/connections";
 import {
   getWorkspaceId,
   grantWorkspaceDelegate,
@@ -117,6 +126,8 @@ export interface CortexWallet {
   saveProfile: (profile: unknown) => Promise<void>;
   loadProfile: () => Promise<unknown | null>;
   loadHandle: () => Promise<string | null>;
+  markOnboarded: () => Promise<void>;
+  isOnboardedOnChain: () => Promise<boolean>;
   saveAgents: (
     tasks: AgentTask[],
     messages: AgentMessage[],
@@ -133,6 +144,16 @@ export interface CortexWallet {
   setupWorkspace: () => Promise<{ id: string; digest?: string }>;
   authorizeMcpAccess: () => Promise<string | undefined>;
   revokeMcpAccess: () => Promise<string | undefined>;
+  // managed OAuth: consent grant for a connecting MCP client (e.g. Claude),
+  // and the dashboard's connected-apps list + per-connection revoke.
+  connectMcp: (codeChallenge: string) => Promise<{
+    address: string;
+    namespace: string;
+    memwalAccountId: string;
+    signature: string;
+  }>;
+  listConnections: () => Promise<ConnectionRecord[]>;
+  revokeConnection: (id: string) => Promise<void>;
   listDelegates: () => Promise<{ publicKey: string; isThisDevice: boolean }[]>;
   revokeDelegate: (publicKey: string) => Promise<boolean>;
   saveLoops: (loops: LoopRun[]) => Promise<void>;
@@ -271,6 +292,66 @@ export function useCortexWallet(): CortexWalletState {
         displayName: "Cortex",
         handle: `cortex_${address.slice(2, 10)}`,
       });
+    // Grant the MCP delegate everything it needs (admin over the account, the
+    // workspace board, and the MemWal delegate). Shared by the one-click
+    // authorize button and the OAuth consent flow. Returns the admin grant digest.
+    const grantMcpAccess = async (
+      accountId: string,
+    ): Promise<string | undefined> => {
+      let digest: string | undefined;
+      const grants: Promise<unknown>[] = [];
+      if (CORTEX_ENV.mcpAddress) {
+        grants.push(
+          accountGrantAdmin({
+            signer,
+            accountId,
+            delegate: CORTEX_ENV.mcpAddress,
+          }).then((r) => {
+            digest = r.digest;
+          }),
+        );
+      }
+      if (sealEnabled() && CORTEX_ENV.mcpAddress) {
+        const workspaceId = await ensureWorkspaceId(accountId);
+        grants.push(
+          grantWorkspaceDelegate(signer, workspaceId, CORTEX_ENV.mcpAddress),
+        );
+      }
+      if (CORTEX_ENV.mcpMemwalPubkey) {
+        grants.push(
+          authorizeMemoryDelegate({
+            userKey,
+            signer,
+            delegatePublicKey: CORTEX_ENV.mcpMemwalPubkey,
+          }),
+        );
+      }
+      await Promise.all(grants);
+      return digest;
+    };
+    const revokeMcpGrants = async (
+      accountId: string,
+    ): Promise<string | undefined> => {
+      if (!CORTEX_ENV.mcpAddress) return undefined;
+      let digest: string | undefined;
+      const revocations: Promise<unknown>[] = [
+        accountRevokeAdmin({
+          signer,
+          accountId,
+          delegate: CORTEX_ENV.mcpAddress,
+        }).then((r) => {
+          digest = r.digest;
+        }),
+      ];
+      if (sealEnabled()) {
+        const workspaceId = await ensureWorkspaceId(accountId);
+        revocations.push(
+          revokeWorkspaceDelegate(signer, workspaceId, CORTEX_ENV.mcpAddress),
+        );
+      }
+      await Promise.all(revocations);
+      return digest;
+    };
     return {
       address,
       storeFile: async (file: File) => {
@@ -375,6 +456,20 @@ export function useCortexWallet(): CortexWalletState {
       loadHandle: async () => {
         if (!contractsEnabled()) return null;
         return getClaimedHandle(address);
+      },
+      // Record onboarding as a plain on-chain account flag (no Walrus blob, so it
+      // does not depend on a blob write succeeding), read back on every sign-in so
+      // first-run never re-prompts a returning user.
+      markOnboarded: async () => {
+        if (!contractsEnabled()) return;
+        const accountId = await ensureCortexAccount();
+        await saveSettingValue(signer, accountId, ONBOARDED_KEY, "1");
+      },
+      isOnboardedOnChain: async () => {
+        if (!contractsEnabled()) return false;
+        const accountId = await getAccountId(address);
+        if (!accountId) return false;
+        return (await loadSettingValue(accountId, ONBOARDED_KEY)) === "1";
       },
       // With Seal configured, the agent task board + bus live in the shared
       // Workspace object (owner + an authorized MCP can read/write). Without Seal,
@@ -488,69 +583,45 @@ export function useCortexWallet(): CortexWalletState {
       },
       authorizeMcpAccess: async () => {
         if (!contractsEnabled()) return undefined;
-        const accountId = await ensureAccount({
-          signer,
-          memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? ZERO_ID,
-          displayName: "Cortex",
-          handle: `cortex_${address.slice(2, 10)}`,
-        });
-        let digest: string | undefined;
-        const grants: Promise<unknown>[] = [];
-        if (CORTEX_ENV.mcpAddress) {
-          grants.push(
-            accountGrantAdmin({
-              signer,
-              accountId,
-              delegate: CORTEX_ENV.mcpAddress,
-            }).then((r) => {
-              digest = r.digest;
-            }),
-          );
-        }
-        if (sealEnabled() && CORTEX_ENV.mcpAddress) {
-          const workspaceId = await ensureWorkspaceId(accountId);
-          grants.push(
-            grantWorkspaceDelegate(signer, workspaceId, CORTEX_ENV.mcpAddress),
-          );
-        }
-        if (CORTEX_ENV.mcpMemwalPubkey) {
-          grants.push(
-            authorizeMemoryDelegate({
-              userKey,
-              signer,
-              delegatePublicKey: CORTEX_ENV.mcpMemwalPubkey,
-            }),
-          );
-        }
-        await Promise.all(grants);
-        return digest;
+        return grantMcpAccess(await ensureCortexAccount());
       },
       revokeMcpAccess: async () => {
         if (!contractsEnabled() || !CORTEX_ENV.mcpAddress) return undefined;
-        const accountId = await ensureAccount({
-          signer,
-          memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? ZERO_ID,
-          displayName: "Cortex",
-          handle: `cortex_${address.slice(2, 10)}`,
+        return revokeMcpGrants(await ensureCortexAccount());
+      },
+      // OAuth consent: provision memory, grant the MCP delegate, record the
+      // connection, and sign the challenge so the MCP can mint the auth code. The
+      // signature is the proof of address ownership the MCP verifies.
+      connectMcp: async (codeChallenge: string) => {
+        await ensureMemory(userKey, signer);
+        const accountId = await ensureCortexAccount();
+        await grantMcpAccess(accountId);
+        await saveConnection(signer, accountId, {
+          id: crypto.randomUUID(),
+          client: "Claude",
+          createdAt: Date.now(),
         });
-        let digest: string | undefined;
-        const revocations: Promise<unknown>[] = [
-          accountRevokeAdmin({
-            signer,
-            accountId,
-            delegate: CORTEX_ENV.mcpAddress,
-          }).then((r) => {
-            digest = r.digest;
-          }),
-        ];
-        if (sealEnabled()) {
-          const workspaceId = await ensureWorkspaceId(accountId);
-          revocations.push(
-            revokeWorkspaceDelegate(signer, workspaceId, CORTEX_ENV.mcpAddress),
-          );
-        }
-        await Promise.all(revocations);
-        return digest;
+        const message = new TextEncoder().encode(
+          `Authorize Cortex MCP for Claude\nchallenge:${codeChallenge}`,
+        );
+        const { signature } = await signer.signPersonalMessage(message);
+        return {
+          address,
+          namespace: NAMESPACE,
+          memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? "",
+          signature,
+        };
+      },
+      listConnections: async () => {
+        if (!contractsEnabled()) return [];
+        const accountId = await getAccountId(address);
+        return accountId ? listConnectionsFor(accountId) : [];
+      },
+      revokeConnection: async (id: string) => {
+        if (!contractsEnabled()) return;
+        const accountId = await ensureCortexAccount();
+        await removeConnection(signer, accountId, id);
+        await revokeMcpGrants(accountId);
       },
       listDelegates: async () => {
         if (!contractsEnabled()) return [];

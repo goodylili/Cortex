@@ -340,6 +340,7 @@ interface State {
     text: string;
     origin?: string;
     url?: string;
+    facts?: string[];
   }) => { docId: string; facts: string[] };
   syncFiles: (
     files: {
@@ -708,7 +709,11 @@ export const useCortex = create<State>((set, get) => ({
   ingestSource: (input) => {
     const docId = uid("doc");
     const now = Date.now();
-    const extracted = extract(input.text);
+    // Prefer clean LLM-extracted facts (subject-anchored, consolidated) when the
+    // caller supplies them; otherwise fall back to the heuristic splitter, then to
+    // the whole text as a single memory.
+    const provided = (input.facts ?? []).map((f) => f.trim()).filter(Boolean);
+    const extracted = provided.length ? provided : extract(input.text);
     const facts = extracted.length ? extracted : [input.text.trim()];
     let createdFacts: string[] = [];
     set((s) => {

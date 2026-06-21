@@ -33,13 +33,39 @@ export function CaptureModal({
   const kept = (n: number) =>
     `${n} ${n === 1 ? "memory" : "memories"}${wallet ? " · on Walrus" : ""}`;
 
+  // Distill a source into a few clean, subject-anchored facts via the model,
+  // anchored on the user's name so memories read in the third person. Returns
+  // undefined when the model is unavailable, so ingestSource falls back to the
+  // heuristic splitter.
+  async function extractFacts(
+    title: string,
+    body: string,
+  ): Promise<string[] | undefined> {
+    try {
+      const res = await fetch("/api/extract", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: body, title, subject: s.profile.name }),
+      });
+      const d = await res.json();
+      return d.ok && Array.isArray(d.facts) && d.facts.length
+        ? (d.facts as string[])
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   async function addNote() {
     const t = text.trim();
     if (!t) return;
+    setBusy(true);
     const title = t.split("\n")[0]!.slice(0, 60) || "Note";
-    const { facts } = s.ingestSource({ kind: "note", title, text: t });
-    pushLive(facts);
-    flash(`Kept ${kept(facts.length)}.`);
+    const facts = await extractFacts(title, t);
+    const out = s.ingestSource({ kind: "note", title, text: t, facts });
+    pushLive(out.facts);
+    setBusy(false);
+    flash(`Kept ${kept(out.facts.length)}.`);
     onClose();
   }
 
@@ -58,15 +84,17 @@ export function CaptureModal({
         flash(d.error || "Couldn't read that link.");
         return;
       }
-      const { facts } = s.ingestSource({
+      const facts = await extractFacts(d.title || u, d.text);
+      const out = s.ingestSource({
         kind: "url",
         title: d.title || u,
         origin: d.url || u,
         text: d.text,
         url: d.url,
+        facts,
       });
-      pushLive(facts);
-      flash(`Saved “${d.title || u}” · ${kept(facts.length)}.`);
+      pushLive(out.facts);
+      flash(`Saved “${d.title || u}” · ${kept(out.facts.length)}.`);
       onClose();
     } catch {
       flash("Couldn't read that link.");
@@ -87,14 +115,16 @@ export function CaptureModal({
           flash(`${f.name}: nothing to extract.`);
           continue;
         }
-        const { facts } = s.ingestSource({
+        const facts = await extractFacts(f.name, content);
+        const out = s.ingestSource({
           kind: "file",
           title: f.name,
           origin: f.name,
           text: content,
+          facts,
         });
-        pushLive(facts);
-        total += facts.length;
+        pushLive(out.facts);
+        total += out.facts.length;
       } catch (err) {
         flash((err as Error).message);
       }

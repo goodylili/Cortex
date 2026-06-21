@@ -28,6 +28,9 @@ export const TIMELINE_KEY = "events:current";
 export const DOCUMENTS_KEY = "docs:current";
 export const SESSIONS_KEY = "sessions:index";
 export const PROFILE_KEY = "profile:current";
+// A plain on-chain flag (no Walrus blob, so it can't fail on a blob write) that
+// records the user finished first-run onboarding, read back on every sign-in.
+export const ONBOARDED_KEY = "onboarded:v1";
 
 export interface SessionMeta {
   id: string;
