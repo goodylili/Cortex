@@ -142,9 +142,17 @@ export async function revokeAdmin(opts: {
   return { digest: digestOf(exec) };
 }
 
+// One account per owner, resolved once per session. Several flows (saveProfile,
+// markOnboarded, the background sync) call ensureAccount around the same time;
+// register() aborts EAlreadyRegistered on a second call, and GraphQL lags tx
+// finality, so without this they'd double-register and abort. Cache the id and
+// single-flight concurrent calls so registration happens exactly once.
+const accountIdCache = new Map<string, string>();
+const accountInflight = new Map<string, Promise<string>>();
+
 // Discover the caller's Account, registering one on chain if absent. Returns the
 // on-chain Account object id.
-export async function ensureAccount(opts: {
+export function ensureAccount(opts: {
   signer: PrivySuiSigner;
   memwalAccountId: string;
   displayName: string;
@@ -152,23 +160,36 @@ export async function ensureAccount(opts: {
   bio?: string;
 }): Promise<string> {
   const owner = opts.signer.toSuiAddress();
-  const existing = await getAccountId(owner);
-  if (existing) return existing;
+  const cached = accountIdCache.get(owner);
+  if (cached) return Promise.resolve(cached);
+  const pending = accountInflight.get(owner);
+  if (pending) return pending;
 
-  await registerAccount({
-    signer: opts.signer,
-    memwalAccountId: opts.memwalAccountId,
-    displayName: opts.displayName,
-    handle: opts.handle,
-    bio: opts.bio ?? "",
-  });
+  const run = (async () => {
+    const existing = await getAccountId(owner);
+    if (existing) return existing;
+    await registerAccount({
+      signer: opts.signer,
+      memwalAccountId: opts.memwalAccountId,
+      displayName: opts.displayName,
+      handle: opts.handle,
+      bio: opts.bio ?? "",
+    });
+    for (let i = 0; i < REGISTER_LOOKUP_RETRIES; i++) {
+      await delay(REGISTER_LOOKUP_DELAY_MS);
+      const id = await getAccountId(owner);
+      if (id) return id;
+    }
+    throw new Error(
+      "Registered the account on chain but it has not been indexed yet; try again in a moment",
+    );
+  })()
+    .then((id) => {
+      accountIdCache.set(owner, id);
+      return id;
+    })
+    .finally(() => accountInflight.delete(owner));
 
-  for (let i = 0; i < REGISTER_LOOKUP_RETRIES; i++) {
-    await delay(REGISTER_LOOKUP_DELAY_MS);
-    const id = await getAccountId(owner);
-    if (id) return id;
-  }
-  throw new Error(
-    "Registered the account on chain but it has not been indexed yet; try again in a moment",
-  );
+  accountInflight.set(owner, run);
+  return run;
 }

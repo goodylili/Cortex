@@ -43,7 +43,12 @@ import {
   CORTEX_ENV,
   sealEnabled,
 } from "@/lib/cortex/walrus/env";
-import { storeFile, type StoredFile } from "@/lib/cortex/walrus/files";
+import {
+  storeFile,
+  fetchBlob,
+  fetchSealedFile,
+  type StoredFile,
+} from "@/lib/cortex/walrus/files";
 import { listKbFiles, type KbFileInfo } from "@/lib/cortex/walrus/kb";
 import {
   saveSession as walrusSaveSession,
@@ -52,7 +57,6 @@ import {
   saveState,
   loadState,
   saveSettingValue,
-  loadSettingValue,
   TIMELINE_KEY,
   DOCUMENTS_KEY,
   PROFILE_KEY,
@@ -114,6 +118,11 @@ export interface CortexWallet {
   address: string;
   storeFile: (file: File) => Promise<StoredFile>;
   listFiles: () => Promise<KbFileInfo[]>;
+  fetchFile: (file: {
+    blobId: string;
+    kbFileId: string;
+    name: string;
+  }) => Promise<Uint8Array>;
   remember: (text: string) => Promise<{ blobId: string } | null>;
   recall: (query: string) => Promise<RecalledMemory[]>;
   allMemories: () => Promise<RecalledMemory[]>;
@@ -381,6 +390,23 @@ export function useCortexWallet(): CortexWalletState {
         });
       },
       listFiles: () => listKbFiles(address),
+      // Fetch a KbFile's bytes for download: Seal-decrypt under the user's key when
+      // Seal is configured (the aggregator only holds ciphertext), else the raw
+      // blob. Returns the original file bytes.
+      fetchFile: async (file) => {
+        if (sealEnabled()) {
+          const accountId = await getAccountId(address);
+          if (!accountId) throw new Error("No account for this file.");
+          return fetchSealedFile({
+            signer,
+            blobId: file.blobId,
+            kbFileId: file.kbFileId,
+            accountId,
+            name: file.name,
+          });
+        }
+        return fetchBlob(file.blobId);
+      },
       remember: async (text: string) => {
         await ensureMemory(userKey, signer);
         return rememberLive(userKey, NAMESPACE, text);
@@ -471,9 +497,10 @@ export function useCortexWallet(): CortexWalletState {
       },
       isOnboardedOnChain: async () => {
         if (!contractsEnabled()) return false;
-        const accountId = await getAccountId(address);
-        if (!accountId) return false;
-        return (await loadSettingValue(accountId, ONBOARDED_KEY)) === "1";
+        // Having an on-chain Account is the durable "this user is set up" signal:
+        // onboarding (and any first durable write) registers it, so a returning
+        // user is never re-prompted.
+        return (await getAccountId(address)) !== null;
       },
       // With Seal configured, the agent task board + bus live in the shared
       // Workspace object (owner + an authorized MCP can read/write). Without Seal,

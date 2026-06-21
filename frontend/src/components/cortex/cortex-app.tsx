@@ -1480,9 +1480,11 @@ export function CortexApp({
         key: "walrus" as "walrus" | "pdf" | "markdown" | "other" | "shared",
         title: m.text,
         desc: `${m.mime || "file"} · sealed on Walrus`,
-        foot: m.url ? "Download" : "On Walrus",
+        foot: m.blobId ? "Download" : "On Walrus",
         date: ago(m.ts),
         url: m.url ?? null,
+        blobId: m.blobId ?? null,
+        mime: m.mime ?? "",
         name: null as string | null,
         memIds: [m.id],
         body: m.text,
@@ -1518,6 +1520,8 @@ export function CortexApp({
         }`,
         date: ago(Math.max(...src.mems.map((x) => x.ts))),
         url: null as string | null,
+        blobId: null as string | null,
+        mime: "",
         name: src.name as string | null,
         memIds: src.mems.map((x) => x.id),
         body: src.mems.map((x) => x.text).join("\n\n"),
@@ -1548,6 +1552,8 @@ export function CortexApp({
           foot: `${mems.length} ${mems.length === 1 ? "memory" : "memories"}`,
           date: ago(Math.max(...mems.map((x) => x.ts))),
           url: null as string | null,
+          blobId: null as string | null,
+          mime: "",
           name: null as string | null,
           memIds: mems.map((x) => x.id),
           body: mems.map((x) => x.text).join("\n\n"),
@@ -1560,32 +1566,49 @@ export function CortexApp({
       (kbFilter === "all" || it.key === kbFilter) &&
       (it.title + " " + it.desc).toLowerCase().includes(query.toLowerCase()),
   );
-  const downloadKb = (it: {
-    url: string | null;
-    title: string;
-    body: string;
-  }) => {
+  // Trigger a browser download from in-memory bytes (a same-origin object URL,
+  // unlike the cross-origin aggregator URL which the browser just opens).
+  function downloadBytes(data: Uint8Array | string, name: string, type: string) {
+    const part: BlobPart = typeof data === "string" ? data : new Uint8Array(data);
+    const url = URL.createObjectURL(new Blob([part], { type }));
     const a = document.createElement("a");
-    if (it.url) {
-      a.href = it.url;
-      a.download = it.title || "download";
-      a.target = "_blank";
-      a.rel = "noopener";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      return;
-    }
-    const url = URL.createObjectURL(
-      new Blob([it.body || it.title], { type: "text/plain" }),
-    );
     a.href = url;
-    a.download = (it.title || "memory") + ".txt";
+    a.download = name;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-  };
+  }
+  async function downloadKb(it: {
+    id: string;
+    blobId: string | null;
+    mime: string;
+    title: string;
+    body: string;
+  }) {
+    // A KbFile: fetch + Seal-decrypt the real bytes (the aggregator only holds
+    // ciphertext, and a cross-origin link just opens), then download as the file.
+    if (it.blobId && wallet) {
+      try {
+        flash("Preparing download…");
+        const bytes = await wallet.fetchFile({
+          blobId: it.blobId,
+          kbFileId: it.id.replace(/^kb_/, ""),
+          name: it.title,
+        });
+        downloadBytes(
+          bytes,
+          it.title || "download",
+          it.mime || "application/octet-stream",
+        );
+      } catch (err) {
+        flash(`Couldn't download: ${(err as Error).message}`, "error");
+      }
+      return;
+    }
+    // A text-backed memory/source: download its text.
+    downloadBytes(it.body || it.title, (it.title || "memory") + ".txt", "text/plain");
+  }
   // studio
   const studioSelected =
     studioSel ??
@@ -4980,36 +5003,20 @@ export function CortexApp({
               {kbFiltered.map((it) => (
                 <div className="kb2-card" key={it.id}>
                   <div className="kb2-top">
-                    <div className="kb2-badges">
-                      <span
-                        className={
-                          "kb2-badge" +
-                          (it.walrus ? " walrus" : "") +
-                          (it.shared ? " shared" : "")
-                        }
-                      >
-                        {it.walrus && (
-                          <svg
-                            viewBox="0 0 24 24"
-                            style={{
-                              width: 12,
-                              height: 12,
-                              marginRight: 5,
-                              verticalAlign: "-1px",
-                              stroke: "currentColor",
-                              fill: "none",
-                              strokeWidth: 1.8,
-                            }}
-                          >
-                            <path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1.5A3.5 3.5 0 0 1 18 18z" />
-                          </svg>
-                        )}
-                        {it.shared
-                          ? `Shared${it.sharedBy ? ` · ${it.sharedBy}` : ""}`
-                          : it.badge}
-                      </span>
-                      <span className="kb2-dot ok" />
-                    </div>
+                    {/* Everything lives on Walrus, so the generic WALRUS chip is
+                        noise; only show a meaningful type (PDF/MARKDOWN) or a
+                        Shared provenance badge. */}
+                    {(it.shared || it.badge !== "WALRUS") && (
+                      <div className="kb2-badges">
+                        <span
+                          className={"kb2-badge" + (it.shared ? " shared" : "")}
+                        >
+                          {it.shared
+                            ? `Shared${it.sharedBy ? ` · ${it.sharedBy}` : ""}`
+                            : it.badge}
+                        </span>
+                      </div>
+                    )}
                     <div className="kb2-menu-wrap">
                       <button
                         className="kb2-menu"
