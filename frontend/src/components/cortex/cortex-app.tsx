@@ -1147,22 +1147,30 @@ export function CortexApp({
     }
   };
 
+  // Single grounded-ask entry point: pull the user's durable MemWal memories in
+  // first so every surface (composer, synthesize, regenerate) answers fluidly
+  // over real memory, not the empty in-app store. Falls back to a plain ask if
+  // recall fails or there is no live wallet.
+  function askGrounded(q: string) {
+    const query = q.trim();
+    if (!query) return;
+    if (!gate()) return;
+    s.setMode("ask");
+    if (wallet)
+      wallet
+        .recall(query)
+        .then((rec) => s.ask(query, rec))
+        .catch(() => s.ask(query));
+    else s.ask(query);
+  }
   function submit() {
     if (!input.trim()) return;
     if (!gate()) return;
     if (s.mode === "ask") {
-      if (!input.trim()) return;
       const q = input;
       setInput("");
       grow(ta.current);
-      // Recall from durable MemWal when signed in, so answers are grounded in
-      // (and cite) the user's stored memories; fall back to local retrieve.
-      if (wallet)
-        wallet
-          .recall(q)
-          .then((rec) => s.ask(q, rec))
-          .catch(() => s.ask(q));
-      else s.ask(q);
+      askGrounded(q);
     } else {
       if (!input.trim()) return;
       const text = input;
@@ -2751,15 +2759,13 @@ export function CortexApp({
                         </p>
                         <button
                           className="hc-synth"
-                          onClick={() => {
-                            if (!gate()) return;
-                            s.setMode("ask");
-                            s.ask(
+                          onClick={() =>
+                            askGrounded(
                               dreams[0]
                                 ? `Synthesise what I know about this: ${dreams[0].title}. ${dreams[0].body}`
                                 : "Synthesise the most important things I've stored recently into a clear summary.",
-                            );
-                          }}
+                            )
+                          }
                         >
                           Synthesize Now
                         </button>
@@ -2995,7 +3001,7 @@ export function CortexApp({
                                 title="Regenerate"
                                 aria-label="Regenerate"
                                 disabled={!m.q}
-                                onClick={() => m.q && gate() && s.ask(m.q)}
+                                onClick={() => m.q && askGrounded(m.q)}
                               >
                                 <svg viewBox="0 0 24 24">
                                   <path d="M21 12a9 9 0 1 1-3-6.7M21 4v4h-4" />
