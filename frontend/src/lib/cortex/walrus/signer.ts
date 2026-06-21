@@ -16,6 +16,22 @@ import { getSuiClient } from "./clients";
 
 const ED25519_PUBLIC_KEY_LENGTH = 32;
 
+// All on-chain writes share one Privy wallet, so they share one gas coin. Two
+// transactions built concurrently resolve the same coin version and the second
+// lands stale ("object ... unavailable for consumption" / equivocation). Run
+// every wallet transaction through this queue and wait for it to settle before
+// releasing, so the next build reads fresh object versions. A failed tx still
+// frees the queue for the next one.
+let txQueue: Promise<unknown> = Promise.resolve();
+function enqueueTx<T>(task: () => Promise<T>): Promise<T> {
+  const run = txQueue.then(task, task);
+  txQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 export function digestOf(result: SuiClientTypes.TransactionResult): string {
   return result.$kind === "Transaction"
     ? result.Transaction.digest
@@ -86,6 +102,24 @@ export class PrivySuiSigner extends Signer {
     const out = new Uint8Array(raw.length);
     out.set(raw);
     return out;
+  }
+
+  // Serialize wallet writes (see enqueueTx) and wait for each to settle so the
+  // next transaction builds against fresh object versions. Both our own calls and
+  // the Walrus SDK's internal steps (create storage, register, certify) go through
+  // here, so this is the single chokepoint that prevents gas-coin equivocation.
+  override signAndExecuteTransaction(
+    input: Parameters<Signer["signAndExecuteTransaction"]>[0],
+  ): ReturnType<Signer["signAndExecuteTransaction"]> {
+    return enqueueTx(async () => {
+      const result = await super.signAndExecuteTransaction(input);
+      try {
+        await input.client.core.waitForTransaction({ digest: digestOf(result) });
+      } catch {
+        /* settlement wait is best-effort; the queue still advances */
+      }
+      return result;
+    });
   }
 }
 
