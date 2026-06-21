@@ -24,7 +24,7 @@ interface FeatureItem {
 const HEADLINE = "Everything You Need to Remember";
 
 const DOCS_URL =
-  process.env.NEXT_PUBLIC_DOCS_URL || "https://docs.usecortexai.com";
+  process.env.NEXT_PUBLIC_DOCS_URL || "https://docs.usecortexai.xyz/";
 
 const FEATURES: FeatureItem[] = [
   {

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 const HEADLINE = "Own your memory stack, not just another AI workspace";
 
 const DOCS_URL =
-  process.env.NEXT_PUBLIC_DOCS_URL || "https://docs.usecortexai.com";
+  process.env.NEXT_PUBLIC_DOCS_URL || "https://docs.usecortexai.xyz/";
 
 export function CtaSection() {
   return (
