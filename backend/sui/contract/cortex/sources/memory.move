@@ -2,6 +2,7 @@ module cortex::memory;
 
 use std::string::String;
 use sui::{clock::Clock, event, vec_set::{Self, VecSet}};
+
 use cortex::{
     access::{Self, AccessRegistry, ExecutorCap},
     account::{Self, Account},
