@@ -8,7 +8,7 @@ import { complete } from "@/lib/llm/complete";
 import { DEFAULT_MODEL } from "@/lib/llm/models";
 
 const MAX_FACTS = 6;
-const MAX_TOKENS = 700;
+const MAX_TOKENS = 1200;
 const MAX_INPUT_CHARS = 12000;
 
 interface Body {
@@ -21,12 +21,15 @@ const system = (subject?: string): string =>
   "You distill a source into durable memory facts. " +
   "Return as few facts as faithfully capture the key points, ideally one to four; " +
   "merge related points into a single sentence rather than splitting every line. " +
-  "Each fact is one concise, self-contained, third-person sentence that stands on its own" +
+  "Each fact is a complete, self-contained, third-person sentence that carries enough " +
+  "context (what it is about and why it matters) to be understood on its own months later " +
+  "by someone who never saw the source. Never emit a sentence fragment, a trailing clause, " +
+  "or a partial thought, and never cut a sentence off mid-way" +
   (subject
-    ? `, written about ${subject} by name (never "I", "we", or "you")`
-    : ", with the subject named rather than referred to as 'I' or 'we'") +
+    ? `; write about ${subject} by name (never "I", "we", or "you")`
+    : "; name the subject rather than referring to 'I' or 'we'") +
   ". Decode any HTML entities, drop navigation, link lists, and boilerplate, and keep only substantive facts. " +
-  "Return ONLY a JSON array of strings and nothing else.";
+  "Return ONLY a JSON array of complete sentences and nothing else.";
 
 function parseFacts(raw: string): string[] {
   const cleaned = raw
