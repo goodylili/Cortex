@@ -1027,6 +1027,11 @@ export const useCortex = create<State>((set, get) => ({
       label: c.tags[0] || "note",
       when: ago(c.ts),
     }));
+    // Carry the prior turns (every chat msg except the empty one just pushed for
+    // this question) so follow-ups like "how did you know?" have the conversation.
+    const askHist = get()
+      .chat.slice(0, -1)
+      .map((m) => ({ q: m.q, a: m.a }));
     const selected = get().model;
     const custom = get().customModels.find((m) => m.label === selected.name);
     const byokKey = custom ? get().byokKeys[custom.id] : undefined;
@@ -1125,7 +1130,7 @@ export const useCortex = create<State>((set, get) => ({
         baseUrl: custom.baseUrl,
         apiKey: byokKey,
         system: askSystem(get().web),
-        user: askUser(q, askMems),
+        user: askUser(q, askMems, askHist),
         maxTokens: ASK_MAX_TOKENS,
       })
         .then((r) => stream(r.ok ? r.text : fallback))
@@ -1138,6 +1143,7 @@ export const useCortex = create<State>((set, get) => ({
       body: JSON.stringify({
         question: q,
         memories: askMems,
+        history: askHist,
         web: get().web,
         model: selected.name,
       }),

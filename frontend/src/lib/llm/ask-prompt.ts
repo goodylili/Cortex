@@ -6,7 +6,15 @@ export interface AskMemory {
   when?: string;
 }
 
+export interface AskTurn {
+  q: string;
+  a: string;
+}
+
 export const ASK_MAX_TOKENS = 700;
+// How many prior turns to carry so follow-ups ("how did you know?") resolve without
+// resending the whole thread.
+export const ASK_HISTORY_TURNS = 8;
 
 export const askSystem = (web?: boolean): string =>
   CORTEX_APP_CONTEXT +
@@ -33,8 +41,21 @@ const askContext = (memories: AskMemory[]): string =>
         .join("\n")
     : "(no memories matched this question)";
 
-export const askUser = (question: string, memories: AskMemory[]): string =>
-  `My memories:\n${askContext(memories)}\n\nQuestion: ${question}`;
+const askHistory = (history: AskTurn[]): string => {
+  const recent = history.filter((t) => t.q && t.a).slice(-ASK_HISTORY_TURNS);
+  if (!recent.length) return "";
+  const lines = recent
+    .map((t) => `User: ${t.q}\nCortex: ${t.a}`)
+    .join("\n\n");
+  return `Conversation so far (for context; the user may refer back to it):\n${lines}\n\n`;
+};
+
+export const askUser = (
+  question: string,
+  memories: AskMemory[],
+  history: AskTurn[] = [],
+): string =>
+  `${askHistory(history)}My memories:\n${askContext(memories)}\n\nQuestion: ${question}`;
 
 export const askFallback = (
   question: string,

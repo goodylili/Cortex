@@ -12,11 +12,13 @@ import {
   askSystem,
   askUser,
   type AskMemory,
+  type AskTurn,
 } from "@/lib/llm/ask-prompt";
 
 interface Body {
   question: string;
   memories: AskMemory[];
+  history?: AskTurn[];
   web?: boolean;
   model?: string;
 }
@@ -28,14 +30,14 @@ export async function POST(req: Request) {
   } catch {
     return Response.json({ error: "bad request" }, { status: 400 });
   }
-  const { question, memories = [], web, model } = body;
+  const { question, memories = [], history = [], web, model } = body;
   const fallback = askFallback(question, memories);
   const chosen = modelByName(model);
 
   const result = await complete({
     model: chosen,
     system: askSystem(web),
-    user: askUser(question, memories),
+    user: askUser(question, memories, history),
     maxTokens: ASK_MAX_TOKENS,
   });
   return result.ok
