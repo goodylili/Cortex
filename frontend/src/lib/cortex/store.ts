@@ -514,7 +514,7 @@ export const useCortex = create<State>((set, get) => ({
   loops: [],
   sharedMemories: [],
   shares: [],
-  mode: "remember",
+  mode: "ask",
   importance: "normal",
   model: MODELS.find((m) => m.name === DEFAULT_MODEL.name) ?? MODELS[1]!,
   web: false,

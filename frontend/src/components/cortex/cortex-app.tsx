@@ -402,10 +402,9 @@ export function CortexApp({
   const [agAccent, setAgAccent] = useState<string>(ACCENTS[0]!);
   const [agRenameId, setAgRenameId] = useState<string | null>(null);
   const [agRenameVal, setAgRenameVal] = useState("");
-  const [agMode, setAgMode] = useState<"task" | "ask" | "remember">("task");
+  const [agMode, setAgMode] = useState<"task" | "ask" | "remember">("ask");
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
   const [autoTaskId, setAutoTaskId] = useState<string | null>(null);
-  const autoStop = useRef(false);
   const [loopBusy, setLoopBusy] = useState(false);
   const [loopPreviewId, setLoopPreviewId] = useState<string | null>(null);
   const [loopAdvanced, setLoopAdvanced] = useState(false);
@@ -1837,20 +1836,15 @@ export function CortexApp({
       setRunningTaskId(null);
     }
   }
-  // Auto-run a task like a chat thread: keep stepping until the user stops it,
-  // the task is marked done, or a safety cap is reached.
-  const AUTO_STEP_CAP = 8;
+  // Run the assigned agent a single step. Agents used to auto-chain many steps,
+  // but their replies @mention each other, so the room looped on "what's the
+  // plan?" forever. One step per send keeps a task in the user's control; they
+  // can step it again from the thread if they want more.
   async function autoRunTask(taskId: string) {
     if (autoTaskId) return;
-    autoStop.current = false;
     setAutoTaskId(taskId);
     try {
-      for (let i = 0; i < AUTO_STEP_CAP; i++) {
-        if (autoStop.current) break;
-        await runStep(taskId);
-        const t = useCortex.getState().tasks.find((x) => x.id === taskId);
-        if (!t || t.status === "done") break;
-      }
+      await runStep(taskId);
     } finally {
       setAutoTaskId(null);
     }
