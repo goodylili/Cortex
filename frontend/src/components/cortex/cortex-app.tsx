@@ -479,7 +479,6 @@ export function CortexApp({
   // Whether identity (handle + profile + onboarded) has been read back from the
   // Sui stack yet. Until then we hold the onboarding modal so it never flashes
   // for a returning user mid-hydration.
-  const [identityHydrated, setIdentityHydrated] = useState(false);
   const [shareSel, setShareSel] = useState<Set<string>>(new Set());
   const [sharedRefreshing, setSharedRefreshing] = useState(false);
   const [revokingShareId, setRevokingShareId] = useState<string | null>(null);
@@ -571,13 +570,7 @@ export function CortexApp({
   // sign-in. Local cache stays instant; this fills in cross-device history.
   useEffect(() => {
     const w = walletState?.wallet;
-    // No live wallet (signed out or mock dev): nothing to hydrate from chain, so
-    // mark identity resolved. Onboarding still only shows once signed in.
-    if (!w) {
-      setIdentityHydrated(true);
-      return;
-    }
-    setIdentityHydrated(false);
+    if (!w) return;
     void w
       .listSessions()
       .then((sessions) => {
@@ -593,11 +586,9 @@ export function CortexApp({
         }
       })
       .catch(() => {});
-    // Identity (handle + profile + onboarded) lives on the Sui stack, not the
-    // browser. Hydrate it on sign-in; a returning user is already onboarded, a new
-    // one falls into onboarding once this resolves. Onboarded is a plain on-chain
-    // flag (not the profile blob) so it survives a failed blob write and never
-    // re-prompts.
+    // Profile + handle live on the Sui stack, not the browser. Hydrate them on
+    // sign-in so the Settings profile form is prefilled. There is no auto
+    // onboarding; the profile is set and edited from Settings only.
     void w
       .loadProfile()
       .then((p) => {
@@ -605,13 +596,6 @@ export function CortexApp({
           s.saveProfile(p as Parameters<typeof s.saveProfile>[0]);
       })
       .catch(() => {});
-    void w
-      .isOnboardedOnChain()
-      .then((done) => {
-        if (done) s.setOnboarded(true);
-      })
-      .catch(() => {})
-      .finally(() => setIdentityHydrated(true));
     void w
       .loadHandle()
       .then((h) => {
@@ -791,10 +775,6 @@ export function CortexApp({
     doSignIn();
     return false;
   }
-  useEffect(() => {
-    if (s.ready && isSignedIn && identityHydrated && !s.onboarded)
-      setOnboardOpen(true);
-  }, [s.ready, isSignedIn, identityHydrated, s.onboarded]);
   useEffect(() => {
     if (settingsOpen) {
       setProfileDraft({ ...useCortex.getState().profile });
