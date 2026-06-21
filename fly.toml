@@ -1,0 +1,35 @@
+# Fly.io config for the Cortex MCP server. Deploy from the repo root:
+#   fly deploy
+# Secrets (delegate key, MemWal creds, Gemini key, package ids, ...) are NOT here;
+# import them from the MCP .env once with:
+#   fly secrets import < backend/mcp/.env
+app = "cortex-mcp"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Non-secret runtime config. CORTEX_APP_URL is where the OAuth consent page
+# (/connect) lives - the frontend. Secrets override these if names collide.
+[env]
+  MCP_TRANSPORT = "http"
+  PORT = "8080"
+  CORTEX_MCP_PUBLIC_URL = "https://mcp.usecortexai.xyz"
+  CORTEX_APP_URL = "https://app.usecortexai.com"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # The MCP keeps OAuth/session state in memory, so it must stay up - don't let
+  # Fly stop the machine between requests.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/.well-known/oauth-protected-resource"

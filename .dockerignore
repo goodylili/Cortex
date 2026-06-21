@@ -1,0 +1,15 @@
+# Keep secrets, host modules, and build artifacts out of the image/build context.
+**/node_modules
+**/.next
+**/dist
+**/build
+**/out
+.git
+**/.git
+**/.env
+**/.env.*
+**/.DS_Store
+**/*.log
+**/coverage
+**/.turbo
+**/.vercel
