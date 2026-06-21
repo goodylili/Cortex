@@ -26,9 +26,20 @@ export function CaptureModal({
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const pushLive = (facts: string[]) => {
+  // Push each distilled fact to the durable Walrus/Sui memory the MCP reads. ONE AT A
+  // TIME, never in parallel: every wallet.remember signs from the same wallet, and
+  // concurrent transactions race for the same gas coin, so a parallel push silently
+  // dropped most facts from the durable store - leaving them browser-only and
+  // invisible to Claude. Failures surface instead of being swallowed.
+  const pushLive = async (facts: string[]) => {
     if (!wallet) return;
-    facts.forEach((f) => void wallet.remember(f).catch(() => {}));
+    for (const f of facts) {
+      try {
+        await wallet.remember(f);
+      } catch (e) {
+        flash(`A memory failed to save to Walrus: ${(e as Error).message}`);
+      }
+    }
   };
   const kept = (n: number) =>
     `${n} ${n === 1 ? "memory" : "memories"}${wallet ? " · on Walrus" : ""}`;
@@ -63,7 +74,7 @@ export function CaptureModal({
     const title = t.split("\n")[0]!.slice(0, 60) || "Note";
     const facts = await extractFacts(title, t);
     const out = s.ingestSource({ kind: "note", title, text: t, facts });
-    pushLive(out.facts);
+    await pushLive(out.facts);
     setBusy(false);
     flash(`Kept ${kept(out.facts.length)}.`);
     onClose();
@@ -93,7 +104,7 @@ export function CaptureModal({
         url: d.url,
         facts,
       });
-      pushLive(out.facts);
+      await pushLive(out.facts);
       flash(`Saved “${d.title || u}” · ${kept(out.facts.length)}.`);
       onClose();
     } catch {
@@ -123,7 +134,7 @@ export function CaptureModal({
           text: content,
           facts,
         });
-        pushLive(out.facts);
+        await pushLive(out.facts);
         total += out.facts.length;
       } catch (err) {
         flash((err as Error).message);
@@ -169,7 +180,8 @@ export function CaptureModal({
             </button>
           ))}
           <div className="cap-rail-foot">
-            Distilled into memories{wallet ? " and stored on Walrus" : " locally"}.
+            Distilled into memories
+            {wallet ? " and stored on Walrus" : " locally"}.
           </div>
         </div>
 
@@ -196,8 +208,8 @@ export function CaptureModal({
                 }}
               />
               <div className="cap-hint">
-                Cortex reads the page and keeps what matters, with the link as the
-                source.
+                Cortex reads the page and keeps what matters, with the link as
+                the source.
               </div>
             </div>
           )}
@@ -219,7 +231,7 @@ export function CaptureModal({
                   {busy ? "Working…" : "Choose files"}
                 </div>
                 <div className="cap-drop-s">
-                  images, audio, video, text  -  distilled into memories
+                  images, audio, video, text - distilled into memories
                 </div>
               </button>
             </div>
@@ -232,7 +244,9 @@ export function CaptureModal({
             {mode !== "file" && (
               <button
                 className="pill-btn keep"
-                disabled={busy || (mode === "note" ? !text.trim() : !url.trim())}
+                disabled={
+                  busy || (mode === "note" ? !text.trim() : !url.trim())
+                }
                 onClick={() => (mode === "note" ? addNote() : addLink())}
               >
                 {busy ? "Working…" : "Add to memory"}

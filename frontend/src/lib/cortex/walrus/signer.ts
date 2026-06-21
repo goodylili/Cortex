@@ -32,6 +32,31 @@ function enqueueTx<T>(task: () => Promise<T>): Promise<T> {
   return run;
 }
 
+// The settlement wait below is best-effort, but a fullnode that never reports a
+// digest (common on testnet) would otherwise leave the await hanging forever -
+// and because every wallet write is serialized through txQueue, one hung wait
+// wedges all later saves and the MCP authorization behind it. Cap it so the queue
+// always advances; the transaction is already submitted by this point.
+const SETTLEMENT_WAIT_MS = 20_000;
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error("settlement wait timed out")),
+      ms,
+    );
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 export function digestOf(result: SuiClientTypes.TransactionResult): string {
   return result.$kind === "Transaction"
     ? result.Transaction.digest
@@ -114,7 +139,10 @@ export class PrivySuiSigner extends Signer {
     return enqueueTx(async () => {
       const result = await super.signAndExecuteTransaction(input);
       try {
-        await input.client.core.waitForTransaction({ digest: digestOf(result) });
+        await withTimeout(
+          input.client.core.waitForTransaction({ digest: digestOf(result) }),
+          SETTLEMENT_WAIT_MS,
+        );
       } catch {
         /* settlement wait is best-effort; the queue still advances */
       }

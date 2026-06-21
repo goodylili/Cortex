@@ -47,7 +47,9 @@ import {
   registerClient,
   mintAuthCode,
   exchangeToken,
+  personalAccessToken,
   userFromBearer,
+  verifyJwt,
   verifySuiConsent,
   type UserContext,
 } from "./auth";
@@ -84,6 +86,30 @@ const OAUTH_SECRET =
   createHash("sha256")
     .update(`cortex-mcp-oauth:${cfg.delegateKey}`)
     .digest("hex");
+
+interface StoredConnectionRecord {
+  id?: unknown;
+}
+
+function hasConnectionRecord(raw: string | undefined, connectionId: string): boolean {
+  if (!raw || !connectionId) return false;
+  try {
+    const parsed = JSON.parse(raw) as StoredConnectionRecord[];
+    return (
+      Array.isArray(parsed) &&
+      parsed.some((entry) => typeof entry?.id === "string" && entry.id === connectionId)
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function isConnectionActive(userCtx: UserContext): Promise<boolean> {
+  // Allow legacy tokens with no connection id to keep working until they expire.
+  if (!userCtx.connectionId) return true;
+  const account = await readUserAccount(cfg, userCtx.address);
+  return hasConnectionRecord(account?.settings["mcp:connections"], userCtx.connectionId);
+}
 
 async function main() {
   const { McpServer } = await importExternal(
@@ -141,6 +167,7 @@ async function main() {
           ...globalCfg,
           namespace: userCtx.namespace,
           memwal: { ...globalCfg.memwal, accountId: userCtx.memwalAccountId },
+          userAddress: userCtx.address,
         }
       : globalCfg;
     const c = userCtx ? createClients(cfg) : globalClients;
@@ -897,7 +924,14 @@ async function main() {
             const signature = b.signature ?? "";
             const redirectUri = b.redirect_uri ?? "";
             const memwalAccountId = b.memwalAccountId ?? "";
-            if (!address || !codeChallenge || !signature || !redirectUri) {
+            const connectionId = b.connectionId ?? "";
+            if (
+              !address ||
+              !codeChallenge ||
+              !signature ||
+              !redirectUri ||
+              !connectionId
+            ) {
               sendJson(res, 400, { error: "invalid_request" });
               return;
             }
@@ -912,6 +946,7 @@ async function main() {
                 address,
                 namespace: b.namespace || address,
                 memwalAccountId,
+                connectionId,
               },
               codeChallenge,
               redirectUri,
@@ -922,8 +957,58 @@ async function main() {
             sendJson(res, 200, { redirect: redirect.toString() });
             return;
           }
+          if (req.method === "POST" && path === "/oauth/personal-token") {
+            // The dashboard calls this so the user can copy a static Bearer for MCP
+            // clients that don't run the OAuth flow. Same Sui-signature proof as
+            // /oauth/grant; we mint a long-lived access token instead of a code.
+            const b = ((await readBody(req)) ?? {}) as Record<string, string>;
+            const address = b.address ?? "";
+            const codeChallenge = b.code_challenge ?? "";
+            const signature = b.signature ?? "";
+            const connectionId = b.connectionId ?? "";
+            if (!address || !codeChallenge || !signature || !connectionId) {
+              sendJson(res, 400, { error: "invalid_request" });
+              return;
+            }
+            const ok = await verifySuiConsent(address, codeChallenge, signature);
+            if (!ok) {
+              sendJson(res, 401, { error: "invalid_consent" });
+              return;
+            }
+            sendJson(
+              res,
+              200,
+              personalAccessToken(OAUTH_SECRET, {
+                address,
+                namespace: b.namespace || address,
+                memwalAccountId: b.memwalAccountId ?? "",
+                connectionId,
+              }),
+            );
+            return;
+          }
           if (req.method === "POST" && path === "/token") {
-            const result = exchangeToken(OAUTH_SECRET, await readParams(req));
+            const params = await readParams(req);
+            const grant =
+              params.grant_type === "refresh_token"
+                ? verifyJwt(OAUTH_SECRET, params.refresh_token ?? "")
+                : verifyJwt(OAUTH_SECRET, params.code ?? "");
+            if (grant?.sub && grant?.cid) {
+              const active = await isConnectionActive({
+                address: String(grant.sub),
+                namespace: String(grant.ns ?? ""),
+                memwalAccountId: String(grant.acct ?? ""),
+                connectionId: String(grant.cid),
+              });
+              if (!active) {
+                sendJson(res, 400, {
+                  error: "invalid_grant",
+                  error_description: "Connection has been revoked.",
+                });
+                return;
+              }
+            }
+            const result = exchangeToken(OAUTH_SECRET, params);
             if (!result.ok) {
               sendJson(res, 400, {
                 error: result.error,
@@ -957,6 +1042,10 @@ async function main() {
             `Bearer resource_metadata="${issuer}/.well-known/oauth-protected-resource"`,
           );
           sendJson(res, 401, { error: "unauthorized" });
+          return;
+        }
+        if (!(await isConnectionActive(userCtx))) {
+          sendJson(res, 401, { error: "connection_revoked" });
           return;
         }
       }

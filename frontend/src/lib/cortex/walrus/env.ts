@@ -53,6 +53,7 @@ export interface CortexEnv {
   executorCapId: string;
   workspaceId: string;
   mcpAddress: string;
+  mcpUrl: string;
   mcpMemwalPubkey: string;
   walrusEpochs: number;
   walrusUploadRelay: string;
@@ -85,6 +86,7 @@ function parseList(value: string | undefined): string[] {
 // Network-agnostic (reused on both networks).
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "";
 const MCP_ADDRESS = process.env.NEXT_PUBLIC_CORTEX_MCP_ADDRESS ?? "";
+const MCP_URL = process.env.NEXT_PUBLIC_CORTEX_MCP_URL ?? "";
 const WORKSPACE_ID = process.env.NEXT_PUBLIC_CORTEX_WORKSPACE_ID ?? "";
 const WALRUS_EPOCHS = parseIntOr(
   process.env.NEXT_PUBLIC_WALRUS_EPOCHS,
@@ -153,6 +155,7 @@ function buildEnv(network: CortexNetwork): CortexEnv {
     executorCapId: s.executorCapId ?? "",
     workspaceId: WORKSPACE_ID,
     mcpAddress: MCP_ADDRESS,
+    mcpUrl: MCP_URL,
     mcpMemwalPubkey: s.mcpMemwalPubkey ?? "",
     walrusEpochs: WALRUS_EPOCHS,
     walrusUploadRelay: DEFAULT_UPLOAD_RELAY[network],

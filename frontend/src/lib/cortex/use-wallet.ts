@@ -73,6 +73,7 @@ import {
   loadRoster,
 } from "@/lib/cortex/walrus/agents";
 import {
+  clearConnections,
   listConnectionsFor,
   removeConnection,
   saveConnection,
@@ -158,13 +159,20 @@ export interface CortexWallet {
   workspaceStatus: () => Promise<string | null>;
   setupWorkspace: () => Promise<{ id: string; digest?: string }>;
   authorizeMcpAccess: () => Promise<string | undefined>;
+  // Grant on-chain access and mint a long-lived Bearer the user copies into an MCP
+  // client (Claude and others) that authenticates with a static token.
+  createMcpToken: () => Promise<string>;
   revokeMcpAccess: () => Promise<string | undefined>;
   // managed OAuth: consent grant for a connecting MCP client (e.g. Claude),
   // and the dashboard's connected-apps list + per-connection revoke.
-  connectMcp: (codeChallenge: string) => Promise<{
+  connectMcp: (
+    codeChallenge: string,
+    clientId?: string,
+  ) => Promise<{
     address: string;
     namespace: string;
     memwalAccountId: string;
+    connectionId: string;
     signature: string;
   }>;
   listConnections: () => Promise<ConnectionRecord[]>;
@@ -435,14 +443,19 @@ export function useCortexWallet(): CortexWalletState {
         // Runs detached so the UI isn't blocked; failures are logged, never swallowed,
         // and never undo the successful MemWal write.
         if (CORTEX_ENV.memoryModuleEnabled) {
-          void (async () => {
-            try {
-              const accountId = await ensureCortexAccount();
-              await recordMemoryOnChain(signer, accountId, text, "note", []);
-            } catch (err) {
-              console.error("cortex::memory backup failed:", err);
-            }
-          })();
+          // Tracked as an in-flight write across the WHOLE sequence (account resolve
+          // + record), not just recordMemoryOnChain's own write, so sign-out stays
+          // disabled until the backup truly lands and the memory can't be stranded.
+          void trackWalrusWrite(
+            (async () => {
+              try {
+                const accountId = await ensureCortexAccount();
+                await recordMemoryOnChain(signer, accountId, text, "note", []);
+              } catch (err) {
+                console.error("cortex::memory backup failed:", err);
+              }
+            })(),
+          );
         }
         return result;
       },
@@ -451,35 +464,39 @@ export function useCortexWallet(): CortexWalletState {
         return recallLive(userKey, NAMESPACE, query);
       },
       allMemories: async () => {
-        // The on-chain memory module is an additive, best-effort overlay: when
-        // enabled, its entries are merged in alongside the MemWal set (deduped by
-        // text); any read failure falls back to MemWal alone. When disabled this is
-        // exactly the original MemWal-only flow.
-        const onChain = CORTEX_ENV.memoryModuleEnabled
-          ? listMemoriesOnChain(signer, address).catch(
-              () => [] as { blobId: string; text: string }[],
-            )
-          : Promise.resolve([] as { blobId: string; text: string }[]);
-        // If not cached locally (first run, or after a sign-out cleared creds),
-        // recover the durable on-chain account before giving up  -  only a user
-        // who never provisioned memory truly has none. This is what makes a
-        // returning user's full memory set reappear instead of looking empty.
-        let memwal: RecalledMemory[] = [];
-        if (
-          memoryProvisioned(userKey) ||
-          (await findMemwalAccountId(address))
-        ) {
+        // Every remember() writes to BOTH MemWal and the on-chain cortex::memory
+        // module. MemWal is the recall engine (its vector search powers `recall` /
+        // the AI), but it has no way to enumerate a user's full set - so the
+        // "view all memories" list reads on-chain, where MemoryAdded/Removed events
+        // enumerate the entries (then Walrus blob -> Seal decrypt), the same way
+        // chat history reads back from the chain. On-chain entries are authoritative
+        // here, so on-chain removals are honored. A failed read is logged, never
+        // silently swallowed; MemWal is a best-effort safety net only when the
+        // module is disabled or the chain read fails / returns nothing, so a
+        // transient error doesn't blank the view.
+        if (CORTEX_ENV.memoryModuleEnabled) {
+          try {
+            const onChain = await listMemoriesOnChain(signer, address);
+            if (onChain.length) {
+              return onChain.map((e) => ({
+                blobId: e.blobId,
+                text: e.text,
+                distance: 0,
+              }));
+            }
+          } catch (err) {
+            console.error("cortex::memory read failed:", err);
+          }
+        }
+        // Safety net: read MemWal so a disabled module or a transient chain error
+        // doesn't blank the view. If not cached locally (first run, or after a
+        // sign-out cleared creds), recover the durable account before giving up -
+        // only a user who never provisioned memory truly has none.
+        if (memoryProvisioned(userKey) || (await findMemwalAccountId(address))) {
           await ensureMemory(userKey, signer);
-          memwal = await allMemoriesLive(userKey, NAMESPACE);
+          return allMemoriesLive(userKey, NAMESPACE);
         }
-        const merged: RecalledMemory[] = [...memwal];
-        const seenText = new Set(memwal.map((m) => m.text));
-        for (const entry of await onChain) {
-          if (seenText.has(entry.text)) continue;
-          seenText.add(entry.text);
-          merged.push({ blobId: entry.blobId, text: entry.text, distance: 0 });
-        }
-        return merged;
+        return [];
       },
       saveSession: async (meta: SessionMeta, chat: unknown) => {
         if (!contractsEnabled()) return [];
@@ -687,20 +704,61 @@ export function useCortexWallet(): CortexWalletState {
         if (!contractsEnabled()) return undefined;
         return grantMcpAccess(await ensureCortexAccount());
       },
+      createMcpToken: async () => {
+        if (!contractsEnabled())
+          throw new Error("Connect the Cortex contracts to authorize an MCP");
+        if (!CORTEX_ENV.mcpUrl)
+          throw new Error("Set NEXT_PUBLIC_CORTEX_MCP_URL to mint a token");
+        await ensureMemory(userKey, signer);
+        const accountId = await ensureCortexAccount();
+        await grantMcpAccess(accountId);
+        const connectionId = crypto.randomUUID();
+        await saveConnection(signer, accountId, {
+          id: connectionId,
+          client: "Personal token",
+          createdAt: Date.now(),
+        });
+        const challenge = crypto.randomUUID();
+        const message = new TextEncoder().encode(
+          `Authorize Cortex MCP for Claude\nchallenge:${challenge}`,
+        );
+        const { signature } = await signer.signPersonalMessage(message);
+        const base = CORTEX_ENV.mcpUrl.replace(/\/mcp\/?$/, "");
+        const res = await fetch(`${base}/oauth/personal-token`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            address,
+            namespace: NAMESPACE,
+            memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? "",
+            connectionId,
+            signature,
+            code_challenge: challenge,
+          }),
+        });
+        if (!res.ok) throw new Error(`Token request failed (${res.status})`);
+        const { access_token } = (await res.json()) as { access_token: string };
+        return access_token;
+      },
       revokeMcpAccess: async () => {
         if (!contractsEnabled() || !CORTEX_ENV.mcpAddress) return undefined;
-        return revokeMcpGrants(await ensureCortexAccount());
+        const accountId = await ensureCortexAccount();
+        const digest = await revokeMcpGrants(accountId);
+        await clearConnections(signer, accountId);
+        return digest;
       },
       // OAuth consent: provision memory, grant the MCP delegate, record the
       // connection, and sign the challenge so the MCP can mint the auth code. The
       // signature is the proof of address ownership the MCP verifies.
-      connectMcp: async (codeChallenge: string) => {
+      connectMcp: async (codeChallenge: string, clientId?: string) => {
         await ensureMemory(userKey, signer);
         const accountId = await ensureCortexAccount();
         await grantMcpAccess(accountId);
+        const connectionId = crypto.randomUUID();
         await saveConnection(signer, accountId, {
-          id: crypto.randomUUID(),
-          client: "Claude",
+          id: connectionId,
+          client: clientId || "OAuth Client",
+          clientId,
           createdAt: Date.now(),
         });
         const message = new TextEncoder().encode(
@@ -711,6 +769,7 @@ export function useCortexWallet(): CortexWalletState {
           address,
           namespace: NAMESPACE,
           memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? "",
+          connectionId,
           signature,
         };
       },
@@ -723,7 +782,6 @@ export function useCortexWallet(): CortexWalletState {
         if (!contractsEnabled()) return;
         const accountId = await ensureCortexAccount();
         await removeConnection(signer, accountId, id);
-        await revokeMcpGrants(accountId);
       },
       listDelegates: async () => {
         if (!contractsEnabled()) return [];

@@ -500,6 +500,8 @@ export function CortexApp({
   const [studioMenu, setStudioMenu] = useState(false);
   const [intOpen, setIntOpen] = useState<string | null>(null);
   const [mcpAuthBusy, setMcpAuthBusy] = useState(false);
+  const [mcpToken, setMcpToken] = useState("");
+  const [mcpTokenCopied, setMcpTokenCopied] = useState(false);
   const [mcpConnections, setMcpConnections] = useState<
     { id: string; client: string; createdAt: number }[]
   >([]);
@@ -541,6 +543,38 @@ export function CortexApp({
     }[]
   >([]);
   const toastSeq = useRef(0);
+  // Toasts auto-dismiss; the notification center keeps the full history so a user
+  // who looked away doesn't lose what happened. Persisted to localStorage so it
+  // survives reloads, capped so it never grows without bound.
+  const [notifications, setNotifications] = useState<
+    {
+      id: number;
+      body: string;
+      kind: "info" | "success" | "error";
+      source: View | "settings";
+      tx?: string;
+      ts: number;
+      read: boolean;
+    }[]
+  >(() => {
+    try {
+      const raw = localStorage.getItem("cortex-notifications");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [notesOpen, setNotesOpen] = useState(false);
+  const notesRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "cortex-notifications",
+        JSON.stringify(notifications.slice(0, 50)),
+      );
+    } catch {}
+  }, [notifications]);
+  const unreadCount = notifications.filter((n) => !n.read).length;
   const [chatRailOpen, setChatRailOpen] = useState(true);
   const [query, setQuery] = useState("");
   const [kbFilter, setKbFilter] = useState<
@@ -647,14 +681,16 @@ export function CortexApp({
     // 6s debounce on the sync effect gives the top-up time to land.
     if (!fundedAddresses.current.has(w.address)) {
       fundedAddresses.current.add(w.address);
-      void ensureGas(w.address, CORTEX_ENV.network).then(({ funded, reason }) => {
-        if (funded) flash("Wallet ready", "success");
-        else if (reason === "sponsor_exhausted")
-          flash(
-            "Gas station is empty. Request testnet SUI and WAL for your wallet at faucet.suilearn.io to keep saving.",
-            "error",
-          );
-      });
+      void ensureGas(w.address, CORTEX_ENV.network).then(
+        ({ funded, reason }) => {
+          if (funded) flash("Wallet ready", "success");
+          else if (reason === "sponsor_exhausted")
+            flash(
+              "Gas station is empty. Request testnet SUI and WAL for your wallet at faucet.suilearn.io to keep saving.",
+              "error",
+            );
+        },
+      );
     }
     void w
       .listSessions()
@@ -900,6 +936,16 @@ export function CortexApp({
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [profileOpen]);
+  useEffect(() => {
+    if (!notesOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (notesRef.current && !notesRef.current.contains(e.target as Node)) {
+        setNotesOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [notesOpen]);
   const isSignedIn = walletState
     ? walletState.authenticated && !!walletState.address
     : !!session;
@@ -928,6 +974,12 @@ export function CortexApp({
     // its actions to Settings rather than the underlying view.
     const source: View | "settings" = settingsOpen ? "settings" : view;
     setToasts((t) => [...t, { id, body: m, kind, source, tx }].slice(-4));
+    setNotifications((n) =>
+      [{ id, body: m, kind, source, tx, ts: Date.now(), read: false }, ...n].slice(
+        0,
+        50,
+      ),
+    );
     setTimeout(
       () => setToasts((t) => t.filter((x) => x.id !== id)),
       tx ? 8000 : 4200,
@@ -963,16 +1015,28 @@ export function CortexApp({
     if (!w || !mcpAuthReady) return;
     setMcpAuthBusy(true);
     try {
-      const digest = await w.authorizeMcpAccess();
+      const token = await w.createMcpToken();
+      setMcpToken(token);
+      setMcpTokenCopied(false);
       flash(
-        "Authorized your MCP  -  it can now access your profile, memory and shared agent workspace.",
+        "Authorized your MCP. Copy your access token below to connect Claude or any MCP client.",
         "success",
-        digest,
       );
     } catch (err) {
       flash(err instanceof Error ? err.message : String(err), "error");
     } finally {
       setMcpAuthBusy(false);
+    }
+  }
+
+  async function copyMcpToken() {
+    if (!mcpToken) return;
+    try {
+      await navigator.clipboard.writeText(mcpToken);
+      setMcpTokenCopied(true);
+      setTimeout(() => setMcpTokenCopied(false), 2000);
+    } catch {
+      flash("Couldn't copy to clipboard - select and copy the token manually.", "error");
     }
   }
 
@@ -982,6 +1046,7 @@ export function CortexApp({
     setMcpAuthBusy(true);
     try {
       const digest = await w.revokeMcpAccess();
+      setMcpToken("");
       flash(
         "Disconnected. The MCP no longer has access to your memory.",
         "success",
@@ -1681,7 +1746,7 @@ export function CortexApp({
           key: "walrus" as "walrus" | "pdf" | "markdown" | "other" | "shared",
           title: m.text,
           desc: `${m.mime || "file"} · sealed on Walrus`,
-          foot: m.blobId ? "Download" : "On Walrus",
+          foot: "On Walrus",
           date: ago(m.ts),
           url: m.url ?? null,
           blobId: m.blobId ?? null,
@@ -2895,6 +2960,102 @@ export function CortexApp({
               </svg>
               Add memory
             </button>
+            <div className="tb-notes" ref={notesRef}>
+              <button
+                className={"tb-icon tb-bell" + (notesOpen ? " on" : "")}
+                onClick={() => {
+                  setNotesOpen((o) => {
+                    const next = !o;
+                    if (next)
+                      setNotifications((n) =>
+                        n.map((x) => ({ ...x, read: true })),
+                      );
+                    return next;
+                  });
+                }}
+                aria-haspopup="menu"
+                aria-expanded={notesOpen}
+                aria-label="Notifications"
+                title="Notifications"
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+                </svg>
+                {unreadCount > 0 && (
+                  <span className="tb-bell-dot">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+              {notesOpen && (
+                <div className="tb-menu tb-note-menu" role="menu">
+                  <div className="tb-note-head">
+                    <span className="nm">Notifications</span>
+                    {notifications.length > 0 && (
+                      <button
+                        className="tb-note-clear-all"
+                        onClick={() => setNotifications([])}
+                      >
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                  {notifications.length === 0 ? (
+                    <div className="tb-note-empty">
+                      You&apos;re all caught up.
+                    </div>
+                  ) : (
+                    <div className="tb-note-list">
+                      {notifications.map((n) => {
+                        const isSettings = n.source === "settings";
+                        const meta = isSettings
+                          ? undefined
+                          : NAV.find(([v]) => v === n.source);
+                        const title = isSettings
+                          ? "Settings"
+                          : (meta?.[1] ?? "Cortex");
+                        return (
+                          <div
+                            className={"tb-note-item tb-note-" + n.kind}
+                            key={n.id}
+                          >
+                            <span className="tb-note-dot" />
+                            <div className="tb-note-body">
+                              <div className="tb-note-title">{title}</div>
+                              <div className="tb-note-msg">{n.body}</div>
+                              {n.tx && (
+                                <a
+                                  className="ntf-link"
+                                  href={`https://suiscan.xyz/${CORTEX_ENV.network}/tx/${n.tx}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  View on Suiscan ↗
+                                </a>
+                              )}
+                            </div>
+                            <button
+                              className="tb-note-x"
+                              onClick={() =>
+                                setNotifications((cur) =>
+                                  cur.filter((x) => x.id !== n.id),
+                                )
+                              }
+                              aria-label="Clear notification"
+                            >
+                              <svg viewBox="0 0 24 24">
+                                <path d="M18 6 6 18M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="tb-profile" ref={profileRef}>
               <button
                 className={"tb-you" + (profileOpen ? " on" : "")}
@@ -3032,7 +3193,9 @@ export function CortexApp({
                         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                         <path d="M16 17l5-5-5-5M21 12H9" />
                       </svg>
-                      <span>{savingToChain ? "Saving to Sui…" : "Sign out"}</span>
+                      <span>
+                        {savingToChain ? "Saving to Sui…" : "Sign out"}
+                      </span>
                     </button>
                   ) : privyOn ? (
                     <button
@@ -5499,38 +5662,24 @@ export function CortexApp({
                     <div className="kb2-desc">{it.desc}</div>
                   )}
                   <div className="kb2-foot">
-                    {it.url ? (
-                      <a
-                        className="l"
-                        href={it.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <svg viewBox="0 0 24 24">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                        </svg>
-                        {it.foot}
-                      </a>
-                    ) : (
-                      <button
-                        className="l"
-                        onClick={() => {
-                          if (it.shared) {
-                            setMemFilter("__shared");
-                            setView("memories");
-                          } else if (it.name) {
-                            setQuery(it.name);
-                            setView("memories");
-                          }
-                        }}
-                      >
-                        <svg viewBox="0 0 24 24">
-                          <ellipse cx="12" cy="6" rx="8" ry="3" />
-                          <path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6" />
-                        </svg>
-                        {it.foot}
-                      </button>
-                    )}
+                    <button
+                      className="l"
+                      onClick={() => {
+                        if (it.shared) {
+                          setMemFilter("__shared");
+                          setView("memories");
+                        } else if (it.name) {
+                          setQuery(it.name);
+                          setView("memories");
+                        }
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <ellipse cx="12" cy="6" rx="8" ry="3" />
+                        <path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6" />
+                      </svg>
+                      {it.foot}
+                    </button>
                     <span>{it.date}</span>
                   </div>
                 </div>
@@ -6031,6 +6180,31 @@ export function CortexApp({
                       Revoke
                     </button>
                   </div>
+                  {mcpToken && (
+                    <div className="mcp-token">
+                      <div className="mcp-token-label">
+                        Your MCP access token
+                      </div>
+                      <div className="mcp-token-row">
+                        <input
+                          className="mcp-token-input"
+                          readOnly
+                          value={mcpToken}
+                          onFocus={(e) => e.currentTarget.select()}
+                        />
+                        <button
+                          className="pill-btn keep"
+                          onClick={() => void copyMcpToken()}
+                        >
+                          {mcpTokenCopied ? "Copied" : "Copy"}
+                        </button>
+                      </div>
+                      <div className="ssub" style={{ marginTop: 8 }}>
+                        Paste this as a Bearer token in your MCP client. Keep it
+                        secret; revoking access makes it stop working.
+                      </div>
+                    </div>
+                  )}
                   {!mcpAuthReady && (
                     <div className="ssub" style={{ marginTop: 10 }}>
                       {!walletState?.wallet
@@ -6599,6 +6773,32 @@ export function CortexApp({
                             Revoke
                           </button>
                         </div>
+                        {mcpToken && (
+                          <div className="mcp-token">
+                            <div className="mcp-token-label">
+                              Your MCP access token
+                            </div>
+                            <div className="mcp-token-row">
+                              <input
+                                className="mcp-token-input"
+                                readOnly
+                                value={mcpToken}
+                                onFocus={(e) => e.currentTarget.select()}
+                              />
+                              <button
+                                className="pill-btn keep"
+                                onClick={() => void copyMcpToken()}
+                              >
+                                {mcpTokenCopied ? "Copied" : "Copy"}
+                              </button>
+                            </div>
+                            <div className="ssub" style={{ marginTop: 8 }}>
+                              Paste this as a Bearer token in your MCP client.
+                              Keep it secret; revoking access makes it stop
+                              working.
+                            </div>
+                          </div>
+                        )}
                         {!mcpAuthReady && (
                           <div className="ssub" style={{ marginTop: 10 }}>
                             {!walletState?.wallet

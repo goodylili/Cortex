@@ -76,6 +76,7 @@ export function Consent() {
 
   const redirectUri = params.get("redirect_uri") ?? "";
   const codeChallenge = params.get("code_challenge") ?? "";
+  const clientId = params.get("client_id") ?? "";
   const state = params.get("state") ?? "";
   const mcp = params.get("mcp") ?? "";
   const valid = !!redirectUri && !!codeChallenge && !!mcp;
@@ -85,7 +86,7 @@ export function Consent() {
     setBusy(true);
     setError(null);
     try {
-      const bundle = await wallet.connectMcp(codeChallenge);
+      const bundle = await wallet.connectMcp(codeChallenge, clientId || undefined);
       const res = await fetch(`${mcpBaseFrom(mcp)}/oauth/grant`, {
         method: "POST",
         headers: { "content-type": "application/json" },

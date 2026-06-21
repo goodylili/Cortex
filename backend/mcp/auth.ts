@@ -18,12 +18,18 @@ import { verifyPersonalMessageSignature } from "@mysten/sui/verify";
 const CODE_TTL_SEC = 300;
 const ACCESS_TTL_SEC = 3600;
 const REFRESH_TTL_SEC = 60 * 60 * 24 * 30;
+// A copy-paste personal access token for MCP clients that authenticate with a
+// static Bearer header instead of running the OAuth flow. It is the same routing
+// JWT as a normal access token, just long-lived: the real authority is still the
+// on-chain delegate, so revoking that (or the connection) makes it inert.
+const PAT_TTL_SEC = 60 * 60 * 24 * 365;
 const SCOPE = "cortex.memory";
 
 export interface UserContext {
   address: string;
   namespace: string;
   memwalAccountId: string;
+  connectionId: string;
 }
 
 const nowSec = (): number => Math.floor(Date.now() / 1000);
@@ -156,6 +162,7 @@ export function mintAuthCode(
       sub: user.address,
       ns: user.namespace,
       acct: user.memwalAccountId,
+      cid: user.connectionId,
       cc: codeChallenge,
       ru: redirectUri,
     },
@@ -176,6 +183,7 @@ function accessTokens(secret: string, user: UserContext): TokenResponse {
     sub: user.address,
     ns: user.namespace,
     acct: user.memwalAccountId,
+    cid: user.connectionId,
   };
   return {
     access_token: mintJwt(secret, { ...claims, typ: "access" }, ACCESS_TTL_SEC),
@@ -186,6 +194,33 @@ function accessTokens(secret: string, user: UserContext): TokenResponse {
     ),
     token_type: "Bearer",
     expires_in: ACCESS_TTL_SEC,
+    scope: SCOPE,
+  };
+}
+
+export interface PersonalTokenResponse {
+  access_token: string;
+  token_type: "Bearer";
+  expires_in: number;
+  scope: string;
+}
+
+// Mint a long-lived Bearer the user copies into an MCP client. Caller must have
+// already verified the user's Sui signature (verifySuiConsent).
+export function personalAccessToken(
+  secret: string,
+  user: UserContext,
+): PersonalTokenResponse {
+  const claims = {
+    sub: user.address,
+    ns: user.namespace,
+    acct: user.memwalAccountId,
+    cid: user.connectionId,
+  };
+  return {
+    access_token: mintJwt(secret, { ...claims, typ: "access" }, PAT_TTL_SEC),
+    token_type: "Bearer",
+    expires_in: PAT_TTL_SEC,
     scope: SCOPE,
   };
 }
@@ -220,6 +255,7 @@ export function exchangeToken(
         address: String(claims.sub),
         namespace: String(claims.ns),
         memwalAccountId: String(claims.acct),
+        connectionId: String(claims.cid ?? ""),
       }),
     };
   }
@@ -233,6 +269,7 @@ export function exchangeToken(
         address: String(claims.sub),
         namespace: String(claims.ns),
         memwalAccountId: String(claims.acct),
+        connectionId: String(claims.cid ?? ""),
       }),
     };
   }
@@ -252,5 +289,6 @@ export function userFromBearer(
     address: String(claims.sub),
     namespace: String(claims.ns),
     memwalAccountId: String(claims.acct),
+    connectionId: String(claims.cid ?? ""),
   };
 }

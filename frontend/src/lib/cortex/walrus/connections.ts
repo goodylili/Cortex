@@ -14,6 +14,7 @@ export const CONNECTIONS_KEY = "mcp:connections";
 export interface ConnectionRecord {
   id: string;
   client: string;
+  clientId?: string;
   createdAt: number;
 }
 
@@ -59,4 +60,11 @@ export async function removeConnection(
     JSON.stringify(next),
   );
   return next;
+}
+
+export async function clearConnections(
+  signer: PrivySuiSigner,
+  accountId: string,
+): Promise<void> {
+  await saveSettingValue(signer, accountId, CONNECTIONS_KEY, JSON.stringify([]));
 }

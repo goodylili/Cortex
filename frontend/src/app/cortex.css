@@ -6029,6 +6029,138 @@ body.dev .dev-switch::after {
 .tb-profile {
   position: relative;
 }
+.tb-notes {
+  position: relative;
+}
+.tb-bell {
+  position: relative;
+}
+.tb-bell-dot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  border: 2px solid var(--paper);
+}
+.tb-note-menu {
+  width: 340px;
+  padding: 0;
+  overflow: hidden;
+}
+.tb-note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.tb-note-head .nm {
+  font-size: 14px;
+  font-weight: 600;
+}
+.tb-note-clear-all {
+  font-size: 12.5px;
+  color: var(--muted);
+  transition: color 0.12s;
+}
+.tb-note-clear-all:hover {
+  color: var(--ink);
+}
+.tb-note-empty {
+  padding: 28px 14px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.tb-note-list {
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 6px;
+}
+.tb-note-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 8px 10px 12px;
+  border-radius: var(--r);
+  transition: background 0.12s;
+}
+.tb-note-item:hover {
+  background: var(--surface2);
+}
+.tb-note-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.tb-note-info .tb-note-dot {
+  background: var(--accent);
+}
+.tb-note-success .tb-note-dot {
+  background: var(--sage);
+}
+.tb-note-error .tb-note-dot {
+  background: #e5484d;
+}
+.tb-note-body {
+  min-width: 0;
+  flex: 1;
+}
+.tb-note-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.tb-note-msg {
+  font-size: 13.5px;
+  color: var(--ink);
+  margin-top: 1px;
+  word-break: break-word;
+}
+.tb-note-x {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--faint);
+  opacity: 0;
+  transition:
+    opacity 0.12s,
+    background 0.12s,
+    color 0.12s;
+}
+.tb-note-item:hover .tb-note-x {
+  opacity: 1;
+}
+.tb-note-x:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+.tb-note-x svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .tb-you {
   display: flex;
   align-items: center;
@@ -7479,6 +7611,7 @@ body.dev .dev-switch::after {
 .kb2-menu-wrap {
   position: relative;
   flex: none;
+  margin-left: auto;
 }
 .kb2-menu {
   color: var(--faint);
@@ -10219,6 +10352,38 @@ body.dev .dev-switch::after {
 .mention-role {
   font-size: 12px;
   color: var(--muted);
+}
+
+/* Copyable personal access token in the Authorize MCP card */
+.mcp-token {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line2);
+  border-radius: var(--r);
+  background: var(--surface2);
+}
+.mcp-token-label {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.mcp-token-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.mcp-token-input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--line2);
+  border-radius: var(--r);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12.5px;
 }
 
 /* Connected apps (OAuth clients) in the Authorize MCP card */
