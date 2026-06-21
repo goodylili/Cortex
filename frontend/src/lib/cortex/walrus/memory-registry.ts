@@ -19,7 +19,7 @@ import { trackWalrusWrite } from "./inflight";
 import type { PrivySuiSigner } from "./signer";
 
 const CONTENT_HASH_LENGTH = 32;
-const SESSION_TTL_MIN = 60;
+const SESSION_TTL_MIN = 30;
 // The cortex contracts record encoding as their own enum (ENCODING_RS2 = 0) and
 // reject anything >= ENCODING_COUNT (= 1), so only 0 is accepted; every Walrus blob
 // is RedStuff/RS2 (see files.ts CONTRACT_ENCODING_RS2).
@@ -106,10 +106,15 @@ export async function recordMemoryOnChain(
   const resource = toHex(contentHash);
   const identity = deriveIdentity(accountId, resource);
 
+  // The memory module's code (and its seal_approve) lives at the upgraded package
+  // id; calls and the Seal policy must target that. Type tags keep the original id
+  // (handled in listMemoriesOnChain's event filter).
+  const callPkg = CORTEX_ENV.memoryPackageId;
+
   const work = (async () => {
     const { encryptedObject } = await getSealClient().encrypt({
       threshold: CORTEX_ENV.seal.threshold,
-      packageId: CORTEX_ENV.packageId,
+      packageId: callPkg,
       id: toHex(identity),
       data: bytes,
     });
@@ -128,7 +133,7 @@ export async function recordMemoryOnChain(
 
     const tx = new Transaction();
     const walrusRef = tx.moveCall({
-      target: `${CORTEX_ENV.packageId}::walrus::new_ref`,
+      target: `${callPkg}::walrus::new_ref`,
       arguments: [
         tx.pure.u256(blobIdToInt(blobId)),
         tx.pure.u64(BigInt(size)),
@@ -137,15 +142,15 @@ export async function recordMemoryOnChain(
       ],
     });
     const sealId = tx.moveCall({
-      target: `${CORTEX_ENV.packageId}::seal::derive_identity`,
+      target: `${callPkg}::seal::derive_identity`,
       arguments: [tx.pure.id(accountId), tx.pure.string(resource)],
     });
     const sealRef = tx.moveCall({
-      target: `${CORTEX_ENV.packageId}::seal::new_ref`,
+      target: `${callPkg}::seal::new_ref`,
       arguments: [sealId, tx.pure.u8(CORTEX_ENV.seal.threshold)],
     });
     tx.moveCall({
-      target: `${CORTEX_ENV.packageId}::memory::add_memory`,
+      target: `${callPkg}::memory::add_memory`,
       arguments: [
         tx.object(accountId),
         walrusRef,
@@ -178,11 +183,21 @@ export async function listMemoriesOnChain(
 ): Promise<OnChainMemory[]> {
   if (!memoryModuleReady()) return [];
 
-  const pkg = CORTEX_ENV.packageId;
-  const [added, removed] = await Promise.all([
-    allEventsBySender(`${pkg}::${ADDED_EVENT}`, owner),
-    allEventsBySender(`${pkg}::${REMOVED_EVENT}`, owner),
+  // Event type tags carry the package's ORIGINAL id, but after an upgrade the runtime
+  // id differs; query both candidate ids and merge so enumeration is correct
+  // regardless of which the type tag resolved to.
+  const callPkg = CORTEX_ENV.memoryPackageId;
+  const typePkgs = Array.from(
+    new Set([CORTEX_ENV.packageId, callPkg].filter((p) => p.length > 0)),
+  );
+  const [addedLists, removedLists] = await Promise.all([
+    Promise.all(typePkgs.map((p) => allEventsBySender(`${p}::${ADDED_EVENT}`, owner))),
+    Promise.all(
+      typePkgs.map((p) => allEventsBySender(`${p}::${REMOVED_EVENT}`, owner)),
+    ),
   ]);
+  const added = addedLists.flat();
+  const removed = removedLists.flat();
 
   const removedIds = new Set<string>();
   for (const { json } of removed) {
@@ -214,7 +229,7 @@ export async function listMemoriesOnChain(
   const suiClient = getSuiClient();
   const sessionKey = await SessionKey.create({
     address: signer.toSuiAddress(),
-    packageId: pkg,
+    packageId: callPkg,
     ttlMin: SESSION_TTL_MIN,
     signer,
     suiClient,
@@ -232,7 +247,7 @@ export async function listMemoriesOnChain(
       const data = await fetchBlob(item.blobId);
       const tx = new Transaction();
       tx.moveCall({
-        target: `${pkg}::memory::seal_approve`,
+        target: `${callPkg}::memory::seal_approve`,
         arguments: [
           tx.pure.vector("u8", identityBytes),
           tx.object(item.entryId),
@@ -269,7 +284,7 @@ export async function removeMemoryOnChain(
   if (!memoryModuleReady()) return;
   const tx = new Transaction();
   tx.moveCall({
-    target: `${CORTEX_ENV.packageId}::memory::remove_memory`,
+    target: `${CORTEX_ENV.memoryPackageId}::memory::remove_memory`,
     arguments: [tx.object(entryId), tx.object(SUI_CLOCK_OBJECT_ID)],
   });
   await signer.signAndExecuteTransaction({

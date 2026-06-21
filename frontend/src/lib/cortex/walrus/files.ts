@@ -16,7 +16,7 @@ import { withWalrusWrite } from "./write-lock";
 import { digestOf, type PrivySuiSigner } from "./signer";
 
 const CONTENT_HASH_LENGTH = 32;
-const SESSION_TTL_MIN = 60;
+const SESSION_TTL_MIN = 30;
 // The cortex::walrus contract records encoding as its own enum (ENCODING_RS2 = 0)
 // and rejects anything >= ENCODING_COUNT (= 1), so it accepts only 0. The Walrus
 // SDK numbers RS2 differently, which made new_ref abort with EUnknownEncoding.
