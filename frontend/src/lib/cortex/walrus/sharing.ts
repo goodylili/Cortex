@@ -32,6 +32,10 @@ const SHARING_MODULE = "sharing";
 const SHARE_RESOURCE = "shared-memory:v1";
 const CONTENT_HASH_LENGTH = 32;
 const SUI_OBJECT_ID_BYTES = 32;
+// The cortex::walrus contract accepts only its own ENCODING_RS2 = 0; the Walrus
+// SDK numbers RS2 differently, which aborts new_ref with EUnknownEncoding. Every
+// Walrus blob is RS2, so record the contract's code.
+const CONTRACT_ENCODING_RS2 = 0;
 const SESSION_TTL_MIN = 10;
 const SHARED_OWNER_KIND = "Shared";
 const CREATED_ID_OPERATION = "Created";
@@ -181,7 +185,7 @@ export async function setShareBundle(
   });
   const size = Number(blobObject.size);
   const endEpoch = blobObject.storage.end_epoch;
-  const encoding = blobObject.encoding_type;
+  const encoding = CONTRACT_ENCODING_RS2;
 
   const tx = new Transaction();
   const walrusRef = tx.moveCall({
