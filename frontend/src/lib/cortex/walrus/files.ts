@@ -12,6 +12,7 @@ import { blobIdToInt } from "@mysten/walrus";
 import { fromHex, SUI_CLOCK_OBJECT_ID, toHex } from "@mysten/sui/utils";
 import { CORTEX_ENV, contractsEnabled, sealEnabled } from "./env";
 import { getSealClient, getSuiClient, getWalrusClient } from "./clients";
+import { withWalrusWrite } from "./write-lock";
 import { digestOf, type PrivySuiSigner } from "./signer";
 
 const CONTENT_HASH_LENGTH = 32;
@@ -78,12 +79,14 @@ export async function storeFile(opts: {
     payload = encryptedObject;
   }
 
-  const { blobId, blobObject } = await getWalrusClient().writeBlob({
-    blob: payload,
-    deletable: false,
-    epochs: CORTEX_ENV.walrusEpochs,
-    signer,
-  });
+  const { blobId, blobObject } = await withWalrusWrite(() =>
+    getWalrusClient().writeBlob({
+      blob: payload,
+      deletable: false,
+      epochs: CORTEX_ENV.walrusEpochs,
+      signer,
+    }),
+  );
 
   const size = Number(blobObject.size);
   const endEpoch = blobObject.storage.end_epoch;

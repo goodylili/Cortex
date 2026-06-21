@@ -16,6 +16,7 @@ import { fromHex, SUI_CLOCK_OBJECT_ID, toHex } from "@mysten/sui/utils";
 import type { LoopRun } from "@/lib/cortex/loops";
 import type { AgentMessage, AgentTask } from "../agents";
 import { getSealClient, getSuiClient, getWalrusClient } from "./clients";
+import { withWalrusWrite } from "./write-lock";
 import { CORTEX_ENV } from "./env";
 import { objectJson } from "./graphql";
 import { loadSettingValue, saveSettingValue } from "./sessions";
@@ -190,12 +191,14 @@ async function setBlob(
   data: unknown,
 ): Promise<void> {
   const sealed = await encryptScoped(workspaceId, scope, JSON.stringify(data));
-  const { blobId } = await getWalrusClient().writeBlob({
-    blob: sealed,
-    deletable: true,
-    epochs: CORTEX_ENV.walrusEpochs,
-    signer,
-  });
+  const { blobId } = await withWalrusWrite(() =>
+    getWalrusClient().writeBlob({
+      blob: sealed,
+      deletable: true,
+      epochs: CORTEX_ENV.walrusEpochs,
+      signer,
+    }),
+  );
   const tx = new Transaction();
   tx.moveCall({
     target: workspaceTarget(fn),

@@ -22,6 +22,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import { fromHex, SUI_CLOCK_OBJECT_ID, toHex } from "@mysten/sui/utils";
 import { blobIdFromInt, blobIdToInt } from "@mysten/walrus";
 import { getSealClient, getSuiClient, getWalrusClient } from "./clients";
+import { withWalrusWrite } from "./write-lock";
 import { CORTEX_ENV } from "./env";
 import { moduleEvents, objectJson } from "./graphql";
 import type { PrivySuiSigner } from "./signer";
@@ -177,12 +178,14 @@ export async function setShareBundle(
     data: plaintext,
   });
 
-  const { blobId, blobObject } = await getWalrusClient().writeBlob({
-    blob: encryptedObject,
-    deletable: true,
-    epochs: CORTEX_ENV.walrusEpochs,
-    signer,
-  });
+  const { blobId, blobObject } = await withWalrusWrite(() =>
+    getWalrusClient().writeBlob({
+      blob: encryptedObject,
+      deletable: true,
+      epochs: CORTEX_ENV.walrusEpochs,
+      signer,
+    }),
+  );
   const size = Number(blobObject.size);
   const endEpoch = blobObject.storage.end_epoch;
   const encoding = CONTRACT_ENCODING_RS2;

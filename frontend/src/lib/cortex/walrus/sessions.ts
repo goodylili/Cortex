@@ -15,6 +15,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { CORTEX_ENV, sealEnabled } from "./env";
 import { getSuiClient, getWalrusClient } from "./clients";
+import { withWalrusWrite } from "./write-lock";
 import { objectJson } from "./graphql";
 import { sealDecrypt, sealEncrypt } from "./seal";
 import type { PrivySuiSigner } from "./signer";
@@ -113,12 +114,14 @@ export async function putBlob(
   data: unknown,
 ): Promise<string> {
   const sealed = await encrypt(signer, JSON.stringify(data));
-  const { blobId } = await getWalrusClient().writeBlob({
-    blob: sealed,
-    deletable: true,
-    epochs: CORTEX_ENV.walrusEpochs,
-    signer,
-  });
+  const { blobId } = await withWalrusWrite(() =>
+    getWalrusClient().writeBlob({
+      blob: sealed,
+      deletable: true,
+      epochs: CORTEX_ENV.walrusEpochs,
+      signer,
+    }),
+  );
   return blobId;
 }
 
