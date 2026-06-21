@@ -422,24 +422,27 @@ export function useCortexWallet(): CortexWalletState {
       },
       remember: async (text: string) => {
         await ensureMemory(userKey, signer);
-        // MemWal is the primary durable write; run it first and on its own so the
-        // composer's "kept" confirmation reflects a real persist.
+        // MemWal is the primary durable write; await it on its own so the composer's
+        // "kept" confirmation reflects a real persist and returns fast.
         const result = await trackWalrusWrite(
           rememberLive(userKey, NAMESPACE, text),
         );
         // Then record the memory on chain (cortex::memory) so it survives a refresh
-        // and feeds the AI, independent of MemWal. This MUST run AFTER the MemWal
-        // write, not concurrently: both sign from the same wallet, and two in-flight
-        // transactions race for the same gas coin, so the parallel version silently
-        // lost (the backup never landed on Sui). Failures are logged, never swallowed,
+        // and feeds the AI, independent of MemWal. This is kicked off only AFTER the
+        // MemWal write has settled, never concurrently with it: both sign from the
+        // same wallet, and two in-flight transactions race for the same gas coin, so
+        // the old parallel version silently lost and the backup never landed on Sui.
+        // Runs detached so the UI isn't blocked; failures are logged, never swallowed,
         // and never undo the successful MemWal write.
         if (CORTEX_ENV.memoryModuleEnabled) {
-          try {
-            const accountId = await ensureCortexAccount();
-            await recordMemoryOnChain(signer, accountId, text, "note", []);
-          } catch (err) {
-            console.error("cortex::memory backup failed:", err);
-          }
+          void (async () => {
+            try {
+              const accountId = await ensureCortexAccount();
+              await recordMemoryOnChain(signer, accountId, text, "note", []);
+            } catch (err) {
+              console.error("cortex::memory backup failed:", err);
+            }
+          })();
         }
         return result;
       },
@@ -462,7 +465,10 @@ export function useCortexWallet(): CortexWalletState {
         // who never provisioned memory truly has none. This is what makes a
         // returning user's full memory set reappear instead of looking empty.
         let memwal: RecalledMemory[] = [];
-        if (memoryProvisioned(userKey) || (await findMemwalAccountId(address))) {
+        if (
+          memoryProvisioned(userKey) ||
+          (await findMemwalAccountId(address))
+        ) {
           await ensureMemory(userKey, signer);
           memwal = await allMemoriesLive(userKey, NAMESPACE);
         }
