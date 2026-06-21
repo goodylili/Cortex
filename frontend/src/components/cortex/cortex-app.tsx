@@ -3776,24 +3776,11 @@ export function CortexApp({
 
                   <div className="pr-main">
                     {(() => {
-                      const shortId = (id: string) =>
-                        id.length > 14
-                          ? `${id.slice(0, 8)}…${id.slice(-4)}`
-                          : id;
-                      if (workspaceId) {
-                        return (
-                          <div className="pr-setup ok">
-                            <div className="pr-setup-l">
-                              <b>On-chain workspace</b>
-                              <span className="pr-setup-sub">
-                                Live · {shortId(workspaceId)} - your team shares
-                                this board and message bus on chain.
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      }
-                      if (!workspaceReady) return null;
+                      // The live "on-chain workspace" banner is intentionally not
+                      // shown  -  once a workspace exists the board speaks for
+                      // itself. Only the one-time setup CTA appears, and only
+                      // until a workspace has been created.
+                      if (workspaceId || !workspaceReady) return null;
                       return (
                         <div className="pr-setup">
                           <div className="pr-setup-l">
