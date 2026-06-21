@@ -28,6 +28,11 @@ const MCP_DELEGATE_LABEL = "Cortex MCP";
 // closest rows even when they're unrelated. Drop anything at/above this distance
 // (>= 0.7 is "usually unrelated") so the brain only ingests clearly-relevant hits.
 const RECALL_MAX_DISTANCE = 0.7;
+// recall() only searches the relayer's LOCAL vector index; the durable copies of
+// every memory live on Walrus. restore() rebuilds the missing index rows from
+// Walrus (newest-first, single-shot, skipping already-indexed blobs), so this is
+// the cap on how many on-chain blobs a single rehydration inspects.
+const RESTORE_LIMIT = 500;
 
 export interface MemoryCreds {
   accountId: string;
@@ -319,16 +324,46 @@ export async function recallLive(
   }));
 }
 
-// Fetch every stored memory for display (Memories view + brain). Unlike recall,
-// this applies NO distance filter (we want the whole set, not a relevance slice)
-// and uses a broad " " query, which the relayer accepts where empty is rejected.
+// Rebuild this namespace's relayer-side index from the durable Walrus copies so
+// recall can see the whole set. recall() searches only the relayer's LOCAL vector
+// index, which can be empty or partial after a sign-out/in, a relayer restart, or
+// writes made from another device  -  even though every memory's encrypted blob
+// still lives on Walrus. restore() pulls those blobs back, decrypts, re-embeds and
+// inserts the missing rows; it is idempotent (already-indexed blobs are skipped
+// cheaply). Single-shot + newest-first, so when more blobs exist on chain than the
+// first pass inspected, we top up to the full count. Returns how many on-chain
+// blobs the relayer saw, or 0 when memory isn't usable / restore fails.
+export async function restoreMemories(
+  userKey: string,
+  namespace: string,
+  limit = RESTORE_LIMIT,
+): Promise<number> {
+  const memwal = getMemoryClient(userKey, namespace);
+  if (!memwal) return 0;
+  try {
+    const first = await memwal.restore(namespace, limit);
+    if (first.total > limit) {
+      await memwal.restore(namespace, first.total);
+    }
+    return first.total;
+  } catch {
+    return 0;
+  }
+}
+
+// Fetch every stored memory for display (Memories view + brain). It first restores
+// the relayer index from Walrus so nothing the user ever saved is missing, then
+// reads it back. Unlike recall, this applies NO distance filter (we want the whole
+// set, not a relevance slice) and uses a broad " " query, which the relayer accepts
+// where empty is rejected. The limit is generous so the full set comes back at once.
 export async function allMemoriesLive(
   userKey: string,
   namespace: string,
-  limit = 500,
+  limit = RESTORE_LIMIT,
 ): Promise<RecalledMemory[]> {
   const memwal = getMemoryClient(userKey, namespace);
   if (!memwal) return [];
+  await restoreMemories(userKey, namespace, limit);
   const { results } = await memwal.recall({ query: " ", limit });
   return results.map((r) => ({
     blobId: r.blob_id,
