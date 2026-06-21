@@ -31,8 +31,11 @@ const RECALL_MAX_DISTANCE = 0.7;
 // recall() only searches the relayer's LOCAL vector index; the durable copies of
 // every memory live on Walrus. restore() rebuilds the missing index rows from
 // Walrus (newest-first, single-shot, skipping already-indexed blobs), so this is
-// the cap on how many on-chain blobs a single rehydration inspects.
-const RESTORE_LIMIT = 500;
+// the cap on how many on-chain blobs a single rehydration inspects. Restore costs
+// "seconds per blob" on a cold cache, so the cap stays modest (the memwal skill
+// recommends <=50 for interactive flows) and the rebuild runs once per session.
+const RESTORE_LIMIT = 50;
+const RECALL_LIMIT = 200;
 
 export interface MemoryCreds {
   accountId: string;
@@ -97,6 +100,7 @@ export function clearMemoryCreds(): void {
     }
   } catch {}
   deviceKeyCache.clear();
+  restoreInFlight.clear();
 }
 
 export function saveMemoryCreds(userKey: string, creds: MemoryCreds): void {
@@ -324,46 +328,60 @@ export async function recallLive(
   }));
 }
 
+// One in-flight restore per (user, namespace), so repeated allMemories() calls
+// (sign-in load, the ask fallback, view switches) share a SINGLE rebuild instead of
+// each kicking off its own multi-second Walrus scan and piling up. Resolves to the
+// promise once started; cleared only on sign-out (clearMemoryCreds).
+const restoreInFlight = new Map<string, Promise<number>>();
+
+function restoreKey(userKey: string, namespace: string): string {
+  return `${userKey}::${namespace}`;
+}
+
 // Rebuild this namespace's relayer-side index from the durable Walrus copies so
 // recall can see the whole set. recall() searches only the relayer's LOCAL vector
 // index, which can be empty or partial after a sign-out/in, a relayer restart, or
 // writes made from another device  -  even though every memory's encrypted blob
 // still lives on Walrus. restore() pulls those blobs back, decrypts, re-embeds and
 // inserts the missing rows; it is idempotent (already-indexed blobs are skipped
-// cheaply). Single-shot + newest-first, so when more blobs exist on chain than the
-// first pass inspected, we top up to the full count. Returns how many on-chain
-// blobs the relayer saw, or 0 when memory isn't usable / restore fails.
-export async function restoreMemories(
+// cheaply). Single-flight + memoized per session: the heavy rebuild happens at most
+// once. Returns how many on-chain blobs the relayer saw, or 0 when memory isn't
+// usable / restore fails.
+export function restoreMemories(
   userKey: string,
   namespace: string,
   limit = RESTORE_LIMIT,
 ): Promise<number> {
-  const memwal = getMemoryClient(userKey, namespace);
-  if (!memwal) return 0;
-  try {
-    const first = await memwal.restore(namespace, limit);
-    if (first.total > limit) {
-      await memwal.restore(namespace, first.total);
+  const key = restoreKey(userKey, namespace);
+  const existing = restoreInFlight.get(key);
+  if (existing) return existing;
+  const run = (async () => {
+    const memwal = getMemoryClient(userKey, namespace);
+    if (!memwal) return 0;
+    try {
+      const { total } = await memwal.restore(namespace, limit);
+      return total;
+    } catch {
+      return 0;
     }
-    return first.total;
-  } catch {
-    return 0;
-  }
+  })();
+  restoreInFlight.set(key, run);
+  return run;
 }
 
 // Fetch every stored memory for display (Memories view + brain). It first restores
-// the relayer index from Walrus so nothing the user ever saved is missing, then
-// reads it back. Unlike recall, this applies NO distance filter (we want the whole
-// set, not a relevance slice) and uses a broad " " query, which the relayer accepts
-// where empty is rejected. The limit is generous so the full set comes back at once.
+// the relayer index from Walrus (once per session) so nothing the user ever saved
+// is missing, then reads it back. Unlike recall, this applies NO distance filter
+// (we want the whole set, not a relevance slice) and uses a broad " " query, which
+// the relayer accepts where empty is rejected.
 export async function allMemoriesLive(
   userKey: string,
   namespace: string,
-  limit = RESTORE_LIMIT,
+  limit = RECALL_LIMIT,
 ): Promise<RecalledMemory[]> {
   const memwal = getMemoryClient(userKey, namespace);
   if (!memwal) return [];
-  await restoreMemories(userKey, namespace, limit);
+  await restoreMemories(userKey, namespace);
   const { results } = await memwal.recall({ query: " ", limit });
   return results.map((r) => ({
     blobId: r.blob_id,

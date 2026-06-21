@@ -119,6 +119,7 @@ import {
   sealEnabled,
 } from "@/lib/cortex/walrus/env";
 import { getSuiClient } from "@/lib/cortex/walrus/clients";
+import { hasPendingWalrusWrites } from "@/lib/cortex/walrus/inflight";
 import {
   type AgentRole,
   ACCENTS,
@@ -540,6 +541,21 @@ export function CortexApp({
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+
+  // Guard against closing the tab mid-write. A blob that is uploaded to Walrus but
+  // not yet recorded on Sui (or vice versa) is silent data loss, so while any
+  // durable write is in flight  -  the debounced batch, a remember, or a file
+  // upload  -  trigger the browser's native "Leave site?" confirmation.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (saveState === "saving" || hasPendingWalrusWrites()) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [saveState]);
 
   useEffect(() => {
     s.hydrate();

@@ -49,6 +49,7 @@ import {
   fetchSealedFile,
   type StoredFile,
 } from "@/lib/cortex/walrus/files";
+import { trackWalrusWrite } from "@/lib/cortex/walrus/inflight";
 import { listKbFiles, type KbFileInfo } from "@/lib/cortex/walrus/kb";
 import {
   saveSession as walrusSaveSession,
@@ -386,15 +387,17 @@ export function useCortexWallet(): CortexWalletState {
             handle: `cortex_${address.slice(2, 10)}`,
           });
         }
-        return storeFile({
-          signer,
-          accountId,
-          file: {
-            name: file.name,
-            mime: file.type || "application/octet-stream",
-            bytes,
-          },
-        });
+        return trackWalrusWrite(
+          storeFile({
+            signer,
+            accountId,
+            file: {
+              name: file.name,
+              mime: file.type || "application/octet-stream",
+              bytes,
+            },
+          }),
+        );
       },
       listFiles: () => listKbFiles(address),
       // Fetch a KbFile's bytes for download: Seal-decrypt under the user's key when
@@ -416,7 +419,7 @@ export function useCortexWallet(): CortexWalletState {
       },
       remember: async (text: string) => {
         await ensureMemory(userKey, signer);
-        return rememberLive(userKey, NAMESPACE, text);
+        return trackWalrusWrite(rememberLive(userKey, NAMESPACE, text));
       },
       recall: async (query: string) => {
         await ensureMemory(userKey, signer);
@@ -442,7 +445,9 @@ export function useCortexWallet(): CortexWalletState {
           displayName: "Cortex",
           handle: `cortex_${address.slice(2, 10)}`,
         });
-        return walrusSaveSession(signer, accountId, meta, chat);
+        return trackWalrusWrite(
+          walrusSaveSession(signer, accountId, meta, chat),
+        );
       },
       listSessions: async () => {
         if (!contractsEnabled()) return [];
@@ -458,7 +463,9 @@ export function useCortexWallet(): CortexWalletState {
           displayName: "Cortex",
           handle: `cortex_${address.slice(2, 10)}`,
         });
-        await saveState(signer, accountId, TIMELINE_KEY, events);
+        await trackWalrusWrite(
+          saveState(signer, accountId, TIMELINE_KEY, events),
+        );
       },
       loadTimeline: async () => {
         if (!contractsEnabled()) return null;
@@ -473,7 +480,9 @@ export function useCortexWallet(): CortexWalletState {
           displayName: "Cortex",
           handle: `cortex_${address.slice(2, 10)}`,
         });
-        await saveState(signer, accountId, DOCUMENTS_KEY, documents);
+        await trackWalrusWrite(
+          saveState(signer, accountId, DOCUMENTS_KEY, documents),
+        );
       },
       loadDocuments: async () => {
         if (!contractsEnabled()) return null;
@@ -488,7 +497,9 @@ export function useCortexWallet(): CortexWalletState {
           displayName: "Cortex",
           handle: `cortex_${address.slice(2, 10)}`,
         });
-        await saveState(signer, accountId, PROFILE_KEY, profile);
+        await trackWalrusWrite(
+          saveState(signer, accountId, PROFILE_KEY, profile),
+        );
       },
       loadProfile: async () => {
         if (!contractsEnabled()) return null;
@@ -505,7 +516,9 @@ export function useCortexWallet(): CortexWalletState {
       markOnboarded: async () => {
         if (!contractsEnabled()) return;
         const accountId = await ensureCortexAccount();
-        await saveSettingValue(signer, accountId, ONBOARDED_KEY, "1");
+        await trackWalrusWrite(
+          saveSettingValue(signer, accountId, ONBOARDED_KEY, "1"),
+        );
       },
       isOnboardedOnChain: async () => {
         if (!contractsEnabled()) return false;
@@ -543,7 +556,9 @@ export function useCortexWallet(): CortexWalletState {
               saveTasks(signer, accountId, tasks),
               saveBus(signer, accountId, messages),
             ]);
-        await Promise.all([board, saveRoster(signer, accountId, roster)]);
+        await trackWalrusWrite(
+          Promise.all([board, saveRoster(signer, accountId, roster)]),
+        );
       },
       loadAgents: async () => {
         if (!contractsEnabled()) return null;
@@ -576,7 +591,7 @@ export function useCortexWallet(): CortexWalletState {
           handle: `cortex_${address.slice(2, 10)}`,
         });
         const workspaceId = await ensureWorkspaceId(accountId);
-        await saveWorkspaceLoops(signer, workspaceId, loops);
+        await trackWalrusWrite(saveWorkspaceLoops(signer, workspaceId, loops));
       },
       loadLoops: async () => {
         if (!contractsEnabled() || !sealEnabled()) return null;
