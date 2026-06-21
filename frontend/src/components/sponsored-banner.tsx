@@ -45,7 +45,17 @@ export function SponsoredBanner() {
         zIndex: 1000,
       }}
     >
-      All transactions are sponsored on testnet, no gas required.
+      All transactions are sponsored on testnet, no gas required. Walrus storage
+      needs WAL  -  claim it from your account, or request testnet tokens at{" "}
+      <a
+        href="https://faucet.suilearn.io"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ color: "#fff", textDecoration: "underline" }}
+      >
+        faucet.suilearn.io
+      </a>
+      .
       <button
         onClick={dismiss}
         aria-label="Dismiss"

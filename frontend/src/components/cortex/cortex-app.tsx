@@ -120,6 +120,7 @@ import {
 } from "@/lib/cortex/walrus/env";
 import { getSuiClient } from "@/lib/cortex/walrus/clients";
 import { hasPendingWalrusWrites } from "@/lib/cortex/walrus/inflight";
+import { SponsoredBanner } from "@/components/sponsored-banner";
 import {
   type AgentRole,
   ACCENTS,
@@ -2731,6 +2732,7 @@ export function CortexApp({
         "app" + (onHome ? " home-rail" : "") + (railOn ? " rail-expanded" : "")
       }
     >
+      <SponsoredBanner />
       <header className="topbar">
         <div className="topbar-inner">
           <div className="tb-left">
