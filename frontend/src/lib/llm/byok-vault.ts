@@ -228,7 +228,15 @@ export const enrollPasskey = async (): Promise<void> => {
         { type: "public-key", alg: ES256 },
         { type: "public-key", alg: RS256 },
       ],
-      authenticatorSelection: { residentKey: "preferred", userVerification: "required" },
+      // Non-discoverable: this passkey only ever unlocks the key vault via
+      // allowCredentials (the stored id), so it must NOT be a resident credential.
+      // That keeps it out of Privy's passwordless passkey picker, so the auth
+      // passkey and the vault passkey never show up in each other's flows.
+      authenticatorSelection: {
+        residentKey: "discouraged",
+        requireResidentKey: false,
+        userVerification: "required",
+      },
       extensions: { prf: {} },
     },
   })) as PublicKeyCredential | null;

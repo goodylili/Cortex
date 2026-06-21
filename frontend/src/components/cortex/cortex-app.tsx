@@ -32,6 +32,9 @@ import {
   siVscodium,
   siX,
   siGooglegemini,
+  siPerplexity,
+  siSuno,
+  siElevenlabs,
 } from "simple-icons";
 
 // Documentation site, surfaced as a floating widget on every page.
@@ -50,6 +53,21 @@ const BRAND_LOGO_PATHS: Record<string, string> = {
   codex: OPENAI_PATH,
   windsurf: siWindsurf.path,
   cline: siCline.path,
+};
+
+// Brand marks for the Studio "Open in …" destinations, keyed by product name.
+// Products with no published simple-icons mark (Midjourney, Ideogram, Leonardo,
+// Udio, Runway, Pika) fall back to the first letter.
+const STUDIO_PRODUCT_LOGOS: Record<string, string> = {
+  ChatGPT: OPENAI_PATH,
+  "DALL·E in ChatGPT": OPENAI_PATH,
+  Sora: OPENAI_PATH,
+  Claude: siClaude.path,
+  Gemini: siGooglegemini.path,
+  "Veo in Gemini": siGooglegemini.path,
+  Perplexity: siPerplexity.path,
+  Suno: siSuno.path,
+  ElevenLabs: siElevenlabs.path,
 };
 
 // Provider brand mark for model rows (xAI/Grok falls back to the X mark).
@@ -1938,6 +1956,7 @@ export function CortexApp({
     setLoopPreviewId(null);
   }
   function saveFinding(taskId: string, obsId: string) {
+    if (!gate()) return;
     const text = s.saveObservationAsMemory(taskId, obsId);
     if (text && wallet) void wallet.remember(text).catch(() => {});
     flash(text ? "Saved to shared memory." : "Nothing to save.");
@@ -1948,8 +1967,9 @@ export function CortexApp({
       if (text) {
         setInput((v) => (v ? v + " " : "") + text);
         grow(ta.current);
-      } else flash("Couldn't transcribe  -  set OPENAI_API_KEY for voice.");
+      } else flash("Couldn't transcribe  -  set GEMINI_API_KEY for voice.");
     } else {
+      if (!gate()) return;
       try {
         await dictation.start();
       } catch (e) {
@@ -2617,17 +2637,28 @@ export function CortexApp({
                 <div className="ov-hero">
                   <h1 className="ov-hello">
                     Hello,{" "}
-                    {claimedName
-                      ? claimedName.split(/[.@]/)[0]
-                      : username || "User"}
+                    {isSignedIn
+                      ? claimedName
+                        ? claimedName.split(/[.@]/)[0]
+                        : username || "there"
+                      : "anon"}
                     .
                   </h1>
                   <p className="ov-sub">
-                    Cortex has processed{" "}
-                    {(added24 || live.length).toLocaleString()}{" "}
-                    {(added24 || live.length) === 1 ? "memory" : "memories"}{" "}
-                    since your last session. Ready to expand your neural
-                    workspace?
+                    {isSignedIn ? (
+                      <>
+                        Cortex has processed{" "}
+                        {(added24 || live.length).toLocaleString()}{" "}
+                        {(added24 || live.length) === 1 ? "memory" : "memories"}{" "}
+                        since your last session. Ready to expand your neural
+                        workspace?
+                      </>
+                    ) : (
+                      <>
+                        Sign in to open your memory. Until then we don&apos;t know
+                        you, and nothing is stored.
+                      </>
+                    )}
                   </p>
                 </div>
 
@@ -3810,7 +3841,7 @@ export function CortexApp({
                         <div className="capture-bar">
                           <button
                             className="cap-tool icon"
-                            onClick={() => fileRef.current?.click()}
+                            onClick={() => gate() && fileRef.current?.click()}
                             aria-label="Attach"
                           >
                             <svg viewBox="0 0 24 24">
@@ -4264,7 +4295,7 @@ export function CortexApp({
                   <div className="capture-bar studio-bar">
                     <button
                       className="cap-tool icon"
-                      onClick={() => fileRef.current?.click()}
+                      onClick={() => gate() && fileRef.current?.click()}
                       aria-label="Attach"
                     >
                       <svg viewBox="0 0 24 24">
@@ -4597,7 +4628,19 @@ export function CortexApp({
                             className="st2-menu-item"
                             onClick={() => openStudioProduct(p)}
                           >
-                            <span className="st2-menu-av">{p.name[0]}</span>
+                            <span className="st2-menu-av">
+                              {STUDIO_PRODUCT_LOGOS[p.name] ? (
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  fill="currentColor"
+                                  aria-hidden="true"
+                                >
+                                  <path d={STUDIO_PRODUCT_LOGOS[p.name]} />
+                                </svg>
+                              ) : (
+                                p.name[0]
+                              )}
+                            </span>
                             <span className="st2-menu-tx">
                               <b>Open in {p.name} ↗</b>
                               <span>Copies your prompt and opens it</span>
@@ -4668,7 +4711,7 @@ export function CortexApp({
                 )}
                 <button
                   className="kb2-add"
-                  onClick={() => fileRef.current?.click()}
+                  onClick={() => gate() && fileRef.current?.click()}
                   aria-label="Add source"
                 >
                   <svg viewBox="0 0 24 24">
@@ -4680,7 +4723,7 @@ export function CortexApp({
             <div className="kb2-grid">
               <button
                 className="kb2-card kb2-ingest"
-                onClick={() => fileRef.current?.click()}
+                onClick={() => gate() && fileRef.current?.click()}
                 onDragOver={(e) => {
                   e.preventDefault();
                   e.currentTarget.classList.add("over");
@@ -5296,7 +5339,8 @@ export function CortexApp({
                     style={{ marginTop: 10, fontFamily: "var(--mono)" }}
                   >
                     {CORTEX_ENV.mcpAddress
-                      ? CORTEX_ENV.mcpAddress.slice(0, 10) +
+                      ? "MCP wallet · " +
+                        CORTEX_ENV.mcpAddress.slice(0, 10) +
                         "…" +
                         CORTEX_ENV.mcpAddress.slice(-6)
                       : "No MCP wallet configured"}
@@ -5802,7 +5846,8 @@ export function CortexApp({
                           }}
                         >
                           {CORTEX_ENV.mcpAddress
-                            ? CORTEX_ENV.mcpAddress.slice(0, 10) +
+                            ? "MCP wallet · " +
+                              CORTEX_ENV.mcpAddress.slice(0, 10) +
                               "…" +
                               CORTEX_ENV.mcpAddress.slice(-6)
                             : "No MCP wallet configured"}
@@ -6277,7 +6322,7 @@ export function CortexApp({
               <div className="capture-bar">
                 <button
                   className="cap-tool icon"
-                  onClick={() => fileRef.current?.click()}
+                  onClick={() => gate() && fileRef.current?.click()}
                   aria-label="Attach"
                 >
                   <svg viewBox="0 0 24 24">

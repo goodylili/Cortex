@@ -121,7 +121,13 @@ img,pre{max-width:100%}
 @media(min-width:1024px){.composer-dock{padding-left:64px;padding-right:64px}}
 @media(max-width:880px){.composer-dock{left:0;padding:12px 18px 16px}}
 .capture-bar{flex-wrap:nowrap}
-.capture-bar.studio-bar{flex-wrap:nowrap;padding-right:14px;padding-bottom:12px}
+.capture-bar.studio-bar{flex-wrap:nowrap;padding-right:14px;padding-bottom:12px;min-width:0}
+/* Keep the whole studio bar on one line: the For/Style/Type dropdowns shrink and
+   their values ellipsis so the generate button never overflows the composer. */
+.capture-bar.studio-bar .st2-dd{min-width:0;flex-shrink:1}
+.capture-bar.studio-bar .st2-dd-btn{min-width:0;max-width:100%}
+.capture-bar.studio-bar .st2-dd-v{max-width:88px}
+.capture-bar.studio-bar .cap-tail{flex:none}
 .cap-tool{white-space:nowrap;flex-shrink:0}
 .model-chip span,.web-chip{white-space:nowrap}
 /* segmented controls: mode + importance */
@@ -725,6 +731,7 @@ body.dev .dev-switch::after{transform:translateX(14px)}
 .st2-menu-item{display:flex;align-items:center;gap:13px;width:100%;text-align:left;padding:10px 11px;border-radius:var(--r);transition:background .12s}
 .st2-menu-item:hover{background:var(--surface2)}
 .st2-menu-av{width:34px;height:34px;flex-shrink:0;border-radius:var(--r);border:1px solid var(--line2);background:var(--surface2);display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--muted);text-transform:lowercase}
+.st2-menu-av svg{width:18px;height:18px;color:var(--ink)}
 .st2-menu-tx{display:flex;flex-direction:column;min-width:0}
 .st2-menu-tx b{font-size:14px;font-weight:600;color:var(--ink)}
 .st2-menu-tx span{font-size:12.5px;color:var(--muted)}
