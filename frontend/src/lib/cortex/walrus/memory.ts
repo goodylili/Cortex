@@ -464,6 +464,19 @@ export async function authorizeMemoryDelegate(opts: {
   const creds = loadMemoryCreds(opts.userKey);
   if (!creds) return false;
 
+  // Idempotent: MemWal's account::add_delegate_key aborts (code 0) when the key is
+  // already registered, so re-authorizing the MCP would fail. Skip the add when this
+  // delegate is already on the account's key list.
+  const target = normalizeDelegatePublicKey(opts.delegatePublicKey);
+  if (target) {
+    try {
+      const json = await objectJson(creds.accountId);
+      if (json && extractDelegatePublicKeys(json).includes(target)) return true;
+    } catch {
+      /* couldn't read the list  -  fall through and attempt the add */
+    }
+  }
+
   const { addDelegateKey } = await import("@mysten-incubation/memwal/account");
   await addDelegateKey({
     packageId: CORTEX_ENV.memwal.packageId,
