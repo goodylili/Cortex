@@ -481,23 +481,14 @@ function logEvent(
 const PROFILE_KEY = "cortex-profile";
 const ONBOARDED_KEY = "cortex-onboarded";
 
+// Profile + onboarded start empty and are hydrated from the Sui stack on sign-in
+// (see use-wallet loadProfile / loadHandle); they are never read from the browser.
 function loadProfile(): UserProfile {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(PROFILE_KEY);
-    return raw ? (JSON.parse(raw) as UserProfile) : {};
-  } catch {
-    return {};
-  }
+  return {};
 }
 
 function loadOnboarded(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.localStorage.getItem(ONBOARDED_KEY) === "1";
-  } catch {
-    return false;
-  }
+  return false;
 }
 
 export function clearLocalProfile(): void {
@@ -505,13 +496,6 @@ export function clearLocalProfile(): void {
   try {
     window.localStorage.removeItem(PROFILE_KEY);
     window.localStorage.removeItem(ONBOARDED_KEY);
-  } catch {}
-}
-
-function writeLocal(key: string, value: string) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(key, value);
   } catch {}
 }
 
@@ -2040,14 +2024,11 @@ export const useCortex = create<State>((set, get) => ({
     }),
   setSharedMemories: (sharedMemories) => set({ sharedMemories }),
   setShares: (shares) => set({ shares }),
-  saveProfile: (profile) => {
-    writeLocal(PROFILE_KEY, JSON.stringify(profile));
-    set({ profile });
-  },
-  setOnboarded: (flag) => {
-    writeLocal(ONBOARDED_KEY, flag ? "1" : "0");
-    set({ onboarded: flag });
-  },
+  // Profile + onboarded are durable on the Sui stack (a Walrus blob pointed to by
+  // the account's PROFILE_KEY setting), hydrated on sign-in. Keep them in memory
+  // only here; nothing personal is written to the browser.
+  saveProfile: (profile) => set({ profile }),
+  setOnboarded: (flag) => set({ onboarded: flag }),
   seedProfileMemories: (profile) => {
     const facts = profileToMemories(profile);
     if (!facts.length) return [];

@@ -9,7 +9,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { CORTEX_ENV } from "./env";
 import { getSuiClient } from "./clients";
-import { ownedObjects } from "./graphql";
+import { objectJson, ownedObjects } from "./graphql";
 import { digestOf, type PrivySuiSigner } from "./signer";
 
 const REGISTER_LOOKUP_RETRIES = 6;
@@ -27,6 +27,21 @@ function delay(ms: number): Promise<void> {
 export async function getAccountId(owner: string): Promise<string | null> {
   const owned = await ownedObjects(owner, accountType());
   return owned[0]?.id ?? null;
+}
+
+// The auto-generated handle ensureAccount() registers when none is claimed yet.
+function autoHandle(owner: string): string {
+  return `cortex_${owner.slice(2, 10)}`;
+}
+
+// The caller's user-claimed handle from chain, or null if they only have the
+// auto-generated default (so the UI shows a real claimed name, not cortex_xxxx).
+export async function getClaimedHandle(owner: string): Promise<string | null> {
+  const accountId = await getAccountId(owner);
+  if (!accountId) return null;
+  const json = await objectJson(accountId);
+  const handle = typeof json?.handle === "string" ? json.handle : "";
+  return handle && handle !== autoHandle(owner) ? handle : null;
 }
 
 export async function registerAccount(opts: {

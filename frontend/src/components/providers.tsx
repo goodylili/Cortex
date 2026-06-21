@@ -12,23 +12,9 @@ export function Providers({ children }: { children: ReactNode }) {
       config={{
         // No "wallet": Privy only connects external EVM/Solana wallets, never Sui,
         // and the managed embedded wallet already IS the user's Sui wallet.
-        loginMethods: [
-          "email",
-          "sms",
-          "google",
-          "apple",
-          "twitter",
-          "discord",
-          "github",
-          "linkedin",
-          "spotify",
-          "instagram",
-          "tiktok",
-          "line",
-          "twitch",
-          "telegram",
-          "passkey",
-        ],
+        // Must match the methods enabled in the Privy dashboard: phone, email,
+        // Google, and GitHub.
+        loginMethods: ["sms", "email", "google", "github"],
         // Brand the sign-in modal to match the app: pure-white surface, black
         // accent, the Cortex mark, and on-brand copy.
         appearance: {

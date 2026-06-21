@@ -468,6 +468,10 @@ export function CortexApp({
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimErr, setClaimErr] = useState("");
   const [claimedName, setClaimedName] = useState("");
+  // Whether identity (handle + profile + onboarded) has been read back from the
+  // Sui stack yet. Until then we hold the onboarding modal so it never flashes
+  // for a returning user mid-hydration.
+  const [identityHydrated, setIdentityHydrated] = useState(false);
   const [shareSel, setShareSel] = useState<Set<string>>(new Set());
   const [sharedRefreshing, setSharedRefreshing] = useState(false);
   const [revokingShareId, setRevokingShareId] = useState<string | null>(null);
@@ -504,8 +508,6 @@ export function CortexApp({
       if (localStorage.getItem("cortex-dev")) setDev(true);
       const ss = localStorage.getItem("cortex-session");
       if (ss) setSession(JSON.parse(ss));
-      const cn = localStorage.getItem("cortex-username");
-      if (cn) setClaimedName(cn);
       const cr = localStorage.getItem("cortex-chatrail");
       if (cr !== null) setChatRailOpen(cr === "1");
     } catch {}
@@ -557,7 +559,13 @@ export function CortexApp({
   // sign-in. Local cache stays instant; this fills in cross-device history.
   useEffect(() => {
     const w = walletState?.wallet;
-    if (!w) return;
+    // No live wallet (signed out or mock dev): nothing to hydrate from chain, so
+    // mark identity resolved. Onboarding still only shows once signed in.
+    if (!w) {
+      setIdentityHydrated(true);
+      return;
+    }
+    setIdentityHydrated(false);
     void w
       .listSessions()
       .then((sessions) => {
@@ -570,6 +578,25 @@ export function CortexApp({
             }
           });
         }
+      })
+      .catch(() => {});
+    // Identity (handle + profile + onboarded) lives on the Sui stack, not the
+    // browser. Hydrate it on sign-in; a returning user with a stored profile is
+    // already onboarded, a new one falls into onboarding once this resolves.
+    void w
+      .loadProfile()
+      .then((p) => {
+        if (p && typeof p === "object") {
+          s.saveProfile(p as Parameters<typeof s.saveProfile>[0]);
+          s.setOnboarded(true);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIdentityHydrated(true));
+    void w
+      .loadHandle()
+      .then((h) => {
+        if (h) setClaimedName(h);
       })
       .catch(() => {});
     void w
@@ -732,8 +759,9 @@ export function CortexApp({
     return false;
   }
   useEffect(() => {
-    if (s.ready && isSignedIn && !s.onboarded) setOnboardOpen(true);
-  }, [s.ready, isSignedIn, s.onboarded]);
+    if (s.ready && isSignedIn && identityHydrated && !s.onboarded)
+      setOnboardOpen(true);
+  }, [s.ready, isSignedIn, identityHydrated, s.onboarded]);
   useEffect(() => {
     if (settingsOpen) {
       setProfileDraft({ ...useCortex.getState().profile });
@@ -1017,10 +1045,9 @@ export function CortexApp({
     setClaimErr("");
     try {
       const result = await w.claimUsername(name);
+      // The claimed handle is now durable on the account (account::set_handle);
+      // no browser copy. It is read back via loadHandle() on next sign-in.
       setClaimedName(result.name);
-      try {
-        localStorage.setItem("cortex-username", result.name);
-      } catch {}
       flash(`Claimed ${result.name}.`, "success", result.digest);
     } catch (err) {
       setClaimErr(err instanceof Error ? err.message : String(err));
@@ -2016,6 +2043,7 @@ export function CortexApp({
   }
   function completeOnboarding(profile: UserProfile) {
     s.saveProfile(profile);
+    if (wallet) void wallet.saveProfile(profile).catch(() => {});
     const n = seedProfileToMemory(profile);
     s.setOnboarded(true);
     setOnboardOpen(false);
@@ -2026,7 +2054,10 @@ export function CortexApp({
     );
   }
   function skipOnboarding(profile: UserProfile) {
-    if (profileAnsweredCount(profile) > 0) s.saveProfile(profile);
+    if (profileAnsweredCount(profile) > 0) {
+      s.saveProfile(profile);
+      if (wallet) void wallet.saveProfile(profile).catch(() => {});
+    }
     s.setOnboarded(true);
     setOnboardOpen(false);
   }
@@ -2042,6 +2073,7 @@ export function CortexApp({
       if (v?.trim() && !prev[k]?.trim()) fresh[k] = v;
     });
     s.saveProfile(profileDraft);
+    if (wallet) void wallet.saveProfile(profileDraft).catch(() => {});
     const n = Object.keys(fresh).length ? seedProfileToMemory(fresh) : 0;
     setProfileSaved(true);
     flash(
@@ -4302,6 +4334,16 @@ export function CortexApp({
                     onChange={(e) => {
                       setStudioTask(e.target.value);
                       grow(e.target);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" || e.shiftKey) return;
+                      e.preventDefault();
+                      if (studioMode === "loop") {
+                        if (!loopBusy && studioTask.trim())
+                          void makeLoopFromStudio();
+                      } else if (!studioLoading) {
+                        void generateStudio();
+                      }
                     }}
                   />
                   <div className="capture-bar studio-bar">

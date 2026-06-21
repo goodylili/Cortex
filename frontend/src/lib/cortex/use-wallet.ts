@@ -14,6 +14,7 @@ import { PrivySuiSigner, type SignRawHash } from "@/lib/cortex/walrus/signer";
 import {
   ensureAccount,
   getAccountId,
+  getClaimedHandle,
   grantAdmin as accountGrantAdmin,
   revokeAdmin as accountRevokeAdmin,
   setHandle as accountSetHandle,
@@ -52,6 +53,7 @@ import {
   loadState,
   TIMELINE_KEY,
   DOCUMENTS_KEY,
+  PROFILE_KEY,
   type SessionMeta,
 } from "@/lib/cortex/walrus/sessions";
 import {
@@ -108,6 +110,9 @@ export interface CortexWallet {
   loadTimeline: () => Promise<unknown | null>;
   saveDocuments: (documents: unknown) => Promise<void>;
   loadDocuments: () => Promise<unknown | null>;
+  saveProfile: (profile: unknown) => Promise<void>;
+  loadProfile: () => Promise<unknown | null>;
+  loadHandle: () => Promise<string | null>;
   saveAgents: (tasks: AgentTask[], messages: AgentMessage[]) => Promise<void>;
   loadAgents: () => Promise<{
     tasks: AgentTask[] | null;
@@ -338,6 +343,25 @@ export function useCortexWallet(): CortexWalletState {
         if (!contractsEnabled()) return null;
         const accountId = await getAccountId(address);
         return accountId ? loadState(signer, accountId, DOCUMENTS_KEY) : null;
+      },
+      saveProfile: async (profile: unknown) => {
+        if (!contractsEnabled()) return;
+        const accountId = await ensureAccount({
+          signer,
+          memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? ZERO_ID,
+          displayName: "Cortex",
+          handle: `cortex_${address.slice(2, 10)}`,
+        });
+        await saveState(signer, accountId, PROFILE_KEY, profile);
+      },
+      loadProfile: async () => {
+        if (!contractsEnabled()) return null;
+        const accountId = await getAccountId(address);
+        return accountId ? loadState(signer, accountId, PROFILE_KEY) : null;
+      },
+      loadHandle: async () => {
+        if (!contractsEnabled()) return null;
+        return getClaimedHandle(address);
       },
       // With Seal configured, the agent task board + bus live in the shared
       // Workspace object (owner + an authorized MCP can read/write). Without Seal,
