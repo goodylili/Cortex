@@ -13,6 +13,7 @@ import { MemWal } from "@mysten-incubation/memwal";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { fromBase64, toHex } from "@mysten/sui/utils";
 import { CORTEX_ENV } from "./env";
+import { isMeaningfulMemory } from "../logic";
 import { objectJson, firstEventBySender } from "./graphql";
 import type { PrivySuiSigner } from "./signer";
 import { toWalletSigner } from "./signer";
@@ -302,6 +303,7 @@ export async function rememberLive(
   namespace: string,
   text: string,
 ): Promise<{ blobId: string } | null> {
+  if (!isMeaningfulMemory(text)) return null;
   const memwal = getMemoryClient(userKey, namespace);
   if (!memwal) return null;
   const result = await memwal.rememberAndWait(text);

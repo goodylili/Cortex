@@ -8,6 +8,7 @@ import {
   uid,
   toks,
   autoTags,
+  isMeaningfulMemory,
   extract,
   retrieve,
   type WebResult,
@@ -618,7 +619,7 @@ export const useCortex = create<State>((set, get) => ({
 
   remember: (text, importance) => {
     const t = text.trim();
-    if (!t) return;
+    if (!t || !isMeaningfulMemory(t)) return;
     const now = Date.now();
     const base: Memory = {
       id: uid("mem"),
@@ -2075,7 +2076,10 @@ export const useCortex = create<State>((set, get) => ({
       const fresh = recalled
         .filter(
           (r) =>
-            r.text.trim() && !r.text.startsWith("__") && !have.has(r.blobId),
+            r.text.trim() &&
+            !r.text.startsWith("__") &&
+            isMeaningfulMemory(r.text) &&
+            !have.has(r.blobId),
         )
         .map((r) =>
           newMemory(

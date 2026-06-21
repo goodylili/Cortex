@@ -105,6 +105,13 @@ const TAG_MAP: Record<string, RegExp> = {
   money: /\b(buy|paid|cost|price|invoice|subscription|rent)\b/i,
   health: /\b(doctor|sick|medicine|run|stretch|appointment)\b/i,
 };
+// A real memory carries at least one letter or digit. Punctuation-only scraps like
+// "[" (which slipped through as saved "memories") are junk that must never be
+// stored, backed up, or shown. Used as a guard at every save and load boundary.
+export function isMeaningfulMemory(text: string): boolean {
+  return /[\p{L}\p{N}]/u.test(text);
+}
+
 export function autoTags(t: string): string[] {
   const tags = Object.entries(TAG_MAP)
     .filter(([, re]) => re.test(t))

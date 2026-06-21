@@ -12,6 +12,7 @@ import { SessionKey } from "@mysten/seal";
 import { blobIdFromInt, blobIdToInt } from "@mysten/walrus";
 import { fromHex, SUI_CLOCK_OBJECT_ID, toHex } from "@mysten/sui/utils";
 import { CORTEX_ENV } from "./env";
+import { isMeaningfulMemory } from "../logic";
 import { getSealClient, getSuiClient, getWalrusClient } from "./clients";
 import { allEventsBySender, objectJson } from "./graphql";
 import { withWalrusWrite } from "./write-lock";
@@ -94,7 +95,9 @@ export async function recordMemoryOnChain(
   facet: string,
   tags: string[],
 ): Promise<{ entryId?: string; blobId: string }> {
-  if (!memoryModuleReady()) return { blobId: NO_BLOB_SENTINEL };
+  if (!memoryModuleReady() || !isMeaningfulMemory(text)) {
+    return { blobId: NO_BLOB_SENTINEL };
+  }
 
   const bytes = new TextEncoder().encode(text);
   const contentHash = await sha256(bytes);
