@@ -8,17 +8,24 @@
     "dev": "tsx watch server.ts",
     "start:http": "MCP_TRANSPORT=http tsx server.ts",
     "dev:http": "MCP_TRANSPORT=http tsx watch server.ts",
+    "demo": "tsx src/core/cli.ts demo",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@cortex/core": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "@mysten-incubation/memwal": "^0.0.7",
+    "@mysten/seal": "^1.1.3",
     "@mysten/sui": "^2.17.0",
+    "@mysten/suins": "^1.2.0",
+    "@mysten/walrus": "^1.1.7",
+    "yaml": "^2.5.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^22",
     "tsx": "^4.19.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   }
 }

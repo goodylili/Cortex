@@ -292,17 +292,31 @@ const generateGif = async (
   });
 };
 
+const OPENAI_COMPATIBLE_IMAGE: Provider[] = ["openai", "xai"];
+const OPENAI_COMPATIBLE_VIDEO: Provider[] = ["openai"];
+
+const unsupportedReason = (output: MediaOutput, provider: Provider): string =>
+  `${output} generation needs an OpenAI-compatible endpoint; the ${provider} provider does not expose one`;
+
 export const generateMedia = async (
   args: GenerateArgs,
   emit: GenerateListener,
 ): Promise<void> => {
   try {
     if (args.output === "image") {
+      if (!OPENAI_COMPATIBLE_IMAGE.includes(args.provider)) {
+        emit({ phase: "error", reason: unsupportedReason("image", args.provider) });
+        return;
+      }
       if (args.provider === "openai") {
         await generateOpenAiImage(args, emit);
         return;
       }
       await generateImagesEndpoint(args, emit);
+      return;
+    }
+    if (!OPENAI_COMPATIBLE_VIDEO.includes(args.provider)) {
+      emit({ phase: "error", reason: unsupportedReason(args.output, args.provider) });
       return;
     }
     if (args.output === "gif") {

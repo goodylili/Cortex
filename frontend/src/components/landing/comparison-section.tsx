@@ -74,7 +74,7 @@ const ROWS: ComparisonRow[] = [
   {
     feature: "Elastic brain",
     detail:
-      "Learns from use, runs consolidation sweeps, folds duplicates, and fades weak signals to reduce memory bloat over time",
+      "Learns from use, runs consolidation sweeps, folds duplicates, and prunes redundant entries to reduce memory bloat over time",
     cortex: "Native",
     supermemory: "No",
     cortexTone: "strong",

@@ -13,7 +13,7 @@
 import { SessionKey } from "@mysten/seal";
 import { Transaction } from "@mysten/sui/transactions";
 import { fromHex, SUI_CLOCK_OBJECT_ID, toHex } from "@mysten/sui/utils";
-import type { LoopRun } from "@cortex/core/loops";
+import type { LoopRun } from "@/lib/cortex/loops";
 import type { AgentMessage, AgentTask } from "../agents";
 import { getSealClient, getSuiClient, getWalrusClient } from "./clients";
 import { CORTEX_ENV } from "./env";

@@ -10,7 +10,7 @@ import {
   autoTags,
   extract,
   retrieve,
-  webSearch,
+  type WebResult,
   emptyState,
   ago,
   MODELS,
@@ -90,7 +90,7 @@ import {
   spawnChildSpec,
   linkChild,
   hasBoardConflict,
-} from "@cortex/core/loops";
+} from "@/lib/cortex/loops";
 
 const STEP_MEMORY_LIMIT = 6;
 const ITERATION_DELAY_MS = 1200;
@@ -909,7 +909,7 @@ export const useCortex = create<State>((set, get) => ({
         return { memories };
       });
     }
-    const web = get().web ? webSearch(q) : [];
+    const web: WebResult[] = [];
     const sources: ChatSource[] = [
       ...memCites.map((c) => ({
         type: "memory" as const,

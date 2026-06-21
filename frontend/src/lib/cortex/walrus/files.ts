@@ -29,6 +29,7 @@ export interface StoredFile {
   encoding: number;
   contentHash: string;
   sealed: boolean;
+  persisted: boolean;
   digest?: string;
   kbFileId?: string;
 }
@@ -94,6 +95,7 @@ export async function storeFile(opts: {
     encoding,
     contentHash: toHex(contentHash),
     sealed,
+    persisted: false,
   };
 
   if (!contractsEnabled()) return result;
@@ -134,6 +136,7 @@ export async function storeFile(opts: {
     client: getSuiClient(),
   });
   result.digest = digestOf(exec);
+  result.persisted = true;
   return result;
 }
 

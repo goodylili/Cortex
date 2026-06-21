@@ -23,6 +23,9 @@ interface FeatureItem {
 
 const HEADLINE = "Everything You Need to Remember";
 
+const DOCS_URL =
+  process.env.NEXT_PUBLIC_DOCS_URL || "https://docs.usecortexai.com";
+
 const FEATURES: FeatureItem[] = [
   {
     id: "1",
@@ -172,7 +175,7 @@ export function FeaturesSection() {
             variant="outline"
             className="rounded-[var(--r)] border-ink/20 bg-transparent px-8 text-ink hover:bg-ink/10 hover:text-ink"
           >
-            <Link href="#faq">View Documentation</Link>
+            <Link href={DOCS_URL}>View Documentation</Link>
           </Button>
         </motion.div>
       </div>

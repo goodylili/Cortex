@@ -38,7 +38,8 @@ import {
 } from "simple-icons";
 
 // Documentation site, surfaced as a floating widget on every page.
-const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL || "https://docs.usecortexai.com";
+const DOCS_URL =
+  process.env.NEXT_PUBLIC_DOCS_URL || "https://docs.usecortexai.com";
 
 // OpenAI's mark (used for ChatGPT + Codex); simple-icons dropped it for trademark.
 const OPENAI_PATH =
@@ -114,7 +115,6 @@ import {
   CORTEX_NETWORKS,
   networkAvailable,
   setPreferredNetwork,
-  authEnabled,
   contractsEnabled,
   sealEnabled,
 } from "@/lib/cortex/walrus/env";
@@ -125,7 +125,7 @@ import {
   roleLabel,
   isBuiltInAgent,
 } from "@/lib/cortex/agents";
-import type { LoopRun, LoopSpec } from "@cortex/core/loops";
+import type { LoopRun, LoopSpec } from "@/lib/cortex/loops";
 import { useDictation, useReadAloud } from "@/lib/cortex/use-voice";
 import {
   ONBOARDING_STEPS,
@@ -322,6 +322,28 @@ const dataUrlToFile = async (url: string, name: string): Promise<File> => {
   const blob = await (await fetch(url)).blob();
   return new File([blob], name, { type: blob.type });
 };
+// A fresh Privy embedded wallet holds no SUI or WAL, so every on-chain write and
+// every Walrus blob write would revert for lack of gas. The gas station (POST
+// /api/gas) tops the wallet up from the executor wallet. Called once per address
+// on sign-in, before the debounced background sync runs. Degrades silently when
+// the route is unconfigured (503) or unreachable so the app still loads.
+const ensureGas = async (
+  address: string,
+  network: "testnet" | "mainnet",
+): Promise<boolean> => {
+  try {
+    const res = await fetch("/api/gas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address, network }),
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { funded?: boolean };
+    return data.funded === true;
+  } catch {
+    return false;
+  }
+};
 const renderMessageText = (
   text: string,
   names: string[] = [],
@@ -378,6 +400,7 @@ export function CortexApp({
     wal: string;
   } | null>(null);
   const [balancesLoading, setBalancesLoading] = useState(false);
+  const [claiming, setClaiming] = useState(false);
   const openSettings = (section: SettingsSection) => {
     setSettingsSection(section);
     setSettingsSearch("");
@@ -508,7 +531,15 @@ export function CortexApp({
   // one again doesn't refetch. Only the most-recent session is hydrated at
   // sign-in; the rest load lazily the first time they're opened.
   const loadedSessions = useRef<Set<string>>(new Set());
+  // Addresses already topped up from the gas station this session, so a re-render
+  // of the init effect doesn't re-fund a wallet that already has gas.
+  const fundedAddresses = useRef<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
+  // Surfaced state of the debounced background sync to Walrus/Sui, shown in the
+  // toolbar so a failed write is visible instead of silently swallowed.
+  const [saveState, setSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
 
   useEffect(() => {
     s.hydrate();
@@ -518,8 +549,6 @@ export function CortexApp({
       const t = localStorage.getItem("cortex-theme") as Theme;
       if (t) setTheme(t);
       if (localStorage.getItem("cortex-dev")) setDev(true);
-      const ss = localStorage.getItem("cortex-session");
-      if (ss) setSession(JSON.parse(ss));
       const cr = localStorage.getItem("cortex-chatrail");
       if (cr !== null) setChatRailOpen(cr === "1");
     } catch {}
@@ -572,6 +601,16 @@ export function CortexApp({
   useEffect(() => {
     const w = walletState?.wallet;
     if (!w) return;
+    // Fund the embedded wallet first so the writes triggered below (account
+    // register, session/timeline/doc/agent/loop blobs, KB files) have gas. Loads
+    // don't need gas, so this runs alongside them rather than blocking them; the
+    // 6s debounce on the sync effect gives the top-up time to land.
+    if (!fundedAddresses.current.has(w.address)) {
+      fundedAddresses.current.add(w.address);
+      void ensureGas(w.address, CORTEX_ENV.network).then((funded) => {
+        if (funded) flash("Wallet ready", "success");
+      });
+    }
     void w
       .listSessions()
       .then((sessions) => {
@@ -665,20 +704,47 @@ export function CortexApp({
     const w = walletState?.wallet;
     if (!w) return;
     const t = setTimeout(() => {
+      // Each write surfaces its own failure (a swallowed write is data loss the
+      // user never sees), and the batch drives the toolbar save indicator.
+      const fail = (label: string) => (e: unknown) => {
+        flash(`Couldn't save your ${label}: ${(e as Error).message}`, "error");
+        throw e;
+      };
+      const writes: Promise<unknown>[] = [];
       const active = s.sessions.find((x) => x.id === s.activeId);
       if (active && s.chat.length && !s.chat.some((m) => m.streaming)) {
-        void w
-          .saveSession(
-            { id: active.id, title: active.title, updatedAt: active.updatedAt },
-            s.chat,
-          )
-          .catch(() => {});
+        writes.push(
+          w
+            .saveSession(
+              {
+                id: active.id,
+                title: active.title,
+                updatedAt: active.updatedAt,
+              },
+              s.chat,
+            )
+            .catch(fail("chat")),
+        );
       }
-      if (s.events.length) void w.saveTimeline(s.events).catch(() => {});
-      if (s.documents.length) void w.saveDocuments(s.documents).catch(() => {});
+      if (s.events.length)
+        writes.push(w.saveTimeline(s.events).catch(fail("timeline")));
+      if (s.documents.length)
+        writes.push(w.saveDocuments(s.documents).catch(fail("documents")));
       if (s.tasks.length || s.agentMessages.length || s.agents.length)
-        void w.saveAgents(s.tasks, s.agentMessages, s.agents).catch(() => {});
-      if (s.loops.length) void w.saveLoops(s.loops).catch(() => {});
+        writes.push(
+          w
+            .saveAgents(s.tasks, s.agentMessages, s.agents)
+            .catch(fail("agents")),
+        );
+      if (s.loops.length)
+        writes.push(w.saveLoops(s.loops).catch(fail("loops")));
+      if (!writes.length) return;
+      setSaveState("saving");
+      void Promise.allSettled(writes).then((results) => {
+        setSaveState(
+          results.some((r) => r.status === "rejected") ? "error" : "saved",
+        );
+      });
     }, 6000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -710,7 +776,13 @@ export function CortexApp({
       void dataUrlToFile(md.dataUrl, mediaName(md.kind, md.mime))
         .then((file) => w.storeFile(file))
         .then((stored) => s.setChatMediaBlob(i, stored.blobId))
-        .catch(() => mediaUploads.current.delete(key));
+        .catch((e) => {
+          mediaUploads.current.delete(key);
+          flash(
+            `Couldn't store media on Walrus: ${(e as Error).message}`,
+            "error",
+          );
+        });
     });
     s.tasks.forEach((t) => {
       t.observations.forEach((o) => {
@@ -727,7 +799,13 @@ export function CortexApp({
         void dataUrlToFile(md.dataUrl, mediaName(md.kind, md.mime))
           .then((file) => w.storeFile(file))
           .then((stored) => s.setObsMediaBlob(t.id, o.id, stored.blobId))
-          .catch(() => mediaUploads.current.delete(`o:${o.id}`));
+          .catch((e) => {
+            mediaUploads.current.delete(`o:${o.id}`);
+            flash(
+              `Couldn't store media on Walrus: ${(e as Error).message}`,
+              "error",
+            );
+          });
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -915,6 +993,49 @@ export function CortexApp({
     }
   }
 
+  // Top the user's wallet up from the executor gas station so they have the SUI
+  // (gas) and WAL (Walrus storage) their writes need. The same endpoint runs on
+  // sign-in; this is the manual control when a user wants to claim on demand.
+  async function claimGas() {
+    const owner = walletState?.address;
+    if (!owner) return;
+    setClaiming(true);
+    flash("Requesting testnet tokens from the executor…");
+    try {
+      const res = await fetch("/api/gas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: owner, network: CORTEX_ENV.network }),
+      });
+      const data = (await res.json()) as {
+        funded?: boolean;
+        digest?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        flash(
+          data.error
+            ? `Couldn't get tokens: ${data.error}`
+            : "Couldn't get tokens right now.",
+          "error",
+        );
+      } else if (data.funded) {
+        flash(
+          "Sent testnet SUI and WAL to your wallet.",
+          "success",
+          data.digest,
+        );
+        await refreshBalances();
+      } else {
+        flash("Your wallet already has enough SUI and WAL.");
+      }
+    } catch (e) {
+      flash(`Couldn't get tokens: ${(e as Error).message}`, "error");
+    } finally {
+      setClaiming(false);
+    }
+  }
+
   async function loadDelegates() {
     const w = walletState?.wallet;
     if (!w) {
@@ -1095,13 +1216,17 @@ export function CortexApp({
   async function revokeShare(shareId: string) {
     const w = walletState?.wallet;
     if (!w) return;
+    if (!contractsEnabled()) {
+      flash("Revoking a share needs the cortex contracts configured.", "error");
+      return;
+    }
     setRevokingShareId(shareId);
     try {
       await w.revokeShare(shareId);
       s.setShares(await w.listMyShares());
-      flash("Revoked.");
+      flash("Revoked.", "success");
     } catch (err) {
-      flash(err instanceof Error ? err.message : String(err));
+      flash(err instanceof Error ? err.message : String(err), "error");
     } finally {
       setRevokingShareId(null);
     }
@@ -1191,12 +1316,22 @@ export function CortexApp({
     if (!query) return;
     if (!gate()) return;
     s.setMode("ask");
-    if (wallet)
-      wallet
-        .recall(query)
-        .then((rec) => s.ask(query, rec))
-        .catch(() => s.ask(query));
-    else s.ask(query);
+    if (!wallet) {
+      s.ask(query);
+      return;
+    }
+    wallet
+      .recall(query)
+      .then(async (rec) => {
+        if (rec.length) return s.ask(query, rec);
+        // Semantic recall misses meta-questions ("what's my most recent
+        // memory?") that don't match any single fact. Fall back to the full set
+        // so the model sees the user's memories instead of wrongly concluding
+        // there are none.
+        const all = await wallet.allMemories().catch(() => []);
+        s.ask(query, all.slice(0, 12));
+      })
+      .catch(() => s.ask(query));
   }
   // Open a past chat. Its messages live in a Walrus blob (pointer in the session
   // index); only the most-recent one is hydrated at sign-in, so pull this one
@@ -1272,6 +1407,16 @@ export function CortexApp({
       }
     });
     if (fileRef.current) fileRef.current.value = "";
+  }
+  // Paste support shared across every composer: a pasted file or image (e.g. a
+  // screenshot) is ingested the same way a drop or browse is, while pasted text
+  // keeps the textarea's native paste. Stops the binary from also landing as text.
+  function onPasteFiles(e: React.ClipboardEvent) {
+    const files = e.clipboardData?.files;
+    if (files && files.length) {
+      e.preventDefault();
+      onFiles(files);
+    }
   }
 
   const hasChat = s.chat.length > 0 && s.mode === "ask";
@@ -1551,8 +1696,13 @@ export function CortexApp({
   );
   // Trigger a browser download from in-memory bytes (a same-origin object URL,
   // unlike the cross-origin aggregator URL which the browser just opens).
-  function downloadBytes(data: Uint8Array | string, name: string, type: string) {
-    const part: BlobPart = typeof data === "string" ? data : new Uint8Array(data);
+  function downloadBytes(
+    data: Uint8Array | string,
+    name: string,
+    type: string,
+  ) {
+    const part: BlobPart =
+      typeof data === "string" ? data : new Uint8Array(data);
     const url = URL.createObjectURL(new Blob([part], { type }));
     const a = document.createElement("a");
     a.href = url;
@@ -1590,7 +1740,11 @@ export function CortexApp({
       return;
     }
     // A text-backed memory/source: download its text.
-    downloadBytes(it.body || it.title, (it.title || "memory") + ".txt", "text/plain");
+    downloadBytes(
+      it.body || it.title,
+      (it.title || "memory") + ".txt",
+      "text/plain",
+    );
   }
   // studio
   const studioSelected =
@@ -1704,7 +1858,9 @@ export function CortexApp({
             2,
           );
   const SNIPPET_LABEL: Record<"url" | "cli" | "config", string> = {
-    url: hostedMcp ? "Your Cortex connector URL" : "Hosted connector (coming soon)",
+    url: hostedMcp
+      ? "Your Cortex connector URL"
+      : "Hosted connector (coming soon)",
     cli: "Run this once (stdio)",
     config: "Add to your MCP config (stdio)",
   };
@@ -1888,8 +2044,8 @@ export function CortexApp({
     flash("Signed out.");
   }
 
-  // When Privy is configured the account comes from a managed Sui wallet; the
-  // local ephemeral session is the fallback for the keyless mock.
+  // When Privy is configured the account comes from a managed Sui wallet. With no
+  // Privy app id the app runs in explore mode and sign-in stays disabled.
   const privyOn = !!walletState;
   const wallet = walletState?.wallet ?? null;
 
@@ -1967,7 +2123,9 @@ export function CortexApp({
         void wallet
           .remember(text)
           .catch((err) =>
-            flash(`Saved locally; Walrus memory failed: ${(err as Error).message}`),
+            flash(
+              `Saved locally; Walrus memory failed: ${(err as Error).message}`,
+            ),
           );
       setInput("");
       grow(ta.current);
@@ -2096,7 +2254,12 @@ export function CortexApp({
   function saveFinding(taskId: string, obsId: string) {
     if (!gate()) return;
     const text = s.saveObservationAsMemory(taskId, obsId);
-    if (text && wallet) void wallet.remember(text).catch(() => {});
+    if (text && wallet)
+      void wallet
+        .remember(text)
+        .catch((e) =>
+          flash(`Couldn't save to memory: ${(e as Error).message}`, "error"),
+        );
     flash(text ? "Saved to shared memory." : "Nothing to save.");
   }
   async function toggleDictation() {
@@ -2121,8 +2284,14 @@ export function CortexApp({
       : null
     : session;
   function doSignIn() {
-    if (walletState) walletState.login();
-    else startSession("Google");
+    if (walletState) {
+      walletState.login();
+      return;
+    }
+    flash(
+      "Sign-in is not configured. Set NEXT_PUBLIC_PRIVY_APP_ID to sign in with a managed Sui wallet.",
+      "error",
+    );
   }
   async function doSignOut() {
     forgetLocalIdentity();
@@ -2136,15 +2305,38 @@ export function CortexApp({
   }
   function seedProfileToMemory(profile: UserProfile) {
     const texts = s.seedProfileMemories(profile);
-    if (wallet)
-      texts.forEach((t) => void wallet.remember(t).catch(() => {}));
+    if (wallet) {
+      let flagged = false;
+      texts.forEach(
+        (t) =>
+          void wallet.remember(t).catch((e) => {
+            if (flagged) return;
+            flagged = true;
+            flash(
+              `Couldn't seed your profile into memory: ${(e as Error).message}`,
+              "error",
+            );
+          }),
+      );
+    }
     return texts.length;
   }
   function completeOnboarding(profile: UserProfile) {
     s.saveProfile(profile);
     if (wallet) {
-      void wallet.saveProfile(profile).catch(() => {});
-      void wallet.markOnboarded().catch(() => {});
+      void wallet
+        .saveProfile(profile)
+        .catch((e) =>
+          flash(`Couldn't save your profile: ${(e as Error).message}`, "error"),
+        );
+      void wallet
+        .markOnboarded()
+        .catch((e) =>
+          flash(
+            `Couldn't record onboarding on-chain: ${(e as Error).message}`,
+            "error",
+          ),
+        );
     }
     const n = seedProfileToMemory(profile);
     s.setOnboarded(true);
@@ -2193,11 +2385,7 @@ export function CortexApp({
     flash(`Storing ${file.name} on Walrus…`);
     try {
       const stored = await wallet.storeFile(file);
-      flash(
-        `Stored ${file.name} on Walrus.`,
-        "success",
-        stored.digest,
-      );
+      flash(`Stored ${file.name} on Walrus.`, "success", stored.digest);
       wallet
         .listFiles()
         .then((files) => s.syncFiles(files))
@@ -2542,6 +2730,22 @@ export function CortexApp({
             </button>
           </div>
           <div className="tb-right">
+            {saveState === "saving" || saveState === "error" ? (
+              <span
+                title={
+                  saveState === "error"
+                    ? "A background save to Walrus failed"
+                    : "Saving to Walrus"
+                }
+                style={{
+                  fontSize: 12,
+                  opacity: 0.7,
+                  color: saveState === "error" ? "#e5484d" : "inherit",
+                }}
+              >
+                {saveState === "error" ? "Save failed" : "Saving…"}
+              </span>
+            ) : null}
             <button
               className="tb-add"
               onClick={() => gate() && setCaptureOpen(true)}
@@ -2597,11 +2801,7 @@ export function CortexApp({
                       )}
                     </div>
                   </div>
-                  <div
-                    className="tb-net"
-                    role="group"
-                    aria-label="Network"
-                  >
+                  <div className="tb-net" role="group" aria-label="Network">
                     {CORTEX_NETWORKS.map((n) => {
                       const active = CORTEX_ENV.network === n;
                       const avail = networkAvailable(n);
@@ -2611,7 +2811,11 @@ export function CortexApp({
                           key={n}
                           className={"tb-net-opt" + (active ? " on" : "")}
                           disabled={!avail || active}
-                          title={avail ? `Switch to ${label}` : `${label} coming soon`}
+                          title={
+                            avail
+                              ? `Switch to ${label}`
+                              : `${label} coming soon`
+                          }
                           onClick={() => {
                             if (!avail || active) return;
                             setPreferredNetwork(n);
@@ -2728,9 +2932,6 @@ export function CortexApp({
         </button>
         <div className="cr-label">
           <span>Recents</span>
-          <button className="cr-viewall" onClick={() => setView("memories")}>
-            View all
-          </button>
         </div>
         <div className="cr-recents">
           {s.sessions.length ? (
@@ -2805,8 +3006,8 @@ export function CortexApp({
                       </>
                     ) : (
                       <>
-                        Sign in to open your memory. Until then we don&apos;t know
-                        you, and nothing is stored.
+                        Sign in to open your memory. Until then we don&apos;t
+                        know you, and nothing is stored.
                       </>
                     )}
                   </p>
@@ -3320,9 +3521,7 @@ export function CortexApp({
                 .toUpperCase();
               return (
                 <div className="pr-shell">
-                  <aside
-                    className={"pr-rail" + (roomRailOpen ? " open" : "")}
-                  >
+                  <aside className={"pr-rail" + (roomRailOpen ? " open" : "")}>
                     <div className="pr-rail-body">
                       <button
                         className="pr-new"
@@ -3412,7 +3611,9 @@ export function CortexApp({
                             aria-expanded={secAgents}
                           >
                             <svg
-                              className={"pr-caret" + (secAgents ? " open" : "")}
+                              className={
+                                "pr-caret" + (secAgents ? " open" : "")
+                              }
                               viewBox="0 0 24 24"
                             >
                               <path d="M9 6l6 6-6 6" />
@@ -3452,7 +3653,8 @@ export function CortexApp({
                                         setAgRenameVal(e.target.value)
                                       }
                                       onKeyDown={(e) => {
-                                        if (e.key === "Enter") commitRename(a.id);
+                                        if (e.key === "Enter")
+                                          commitRename(a.id);
                                         if (e.key === "Escape")
                                           setAgRenameId(null);
                                       }}
@@ -3568,7 +3770,7 @@ export function CortexApp({
                             <div className="pr-setup-l">
                               <b>On-chain workspace</b>
                               <span className="pr-setup-sub">
-                                Live · {shortId(workspaceId)}  -  your team shares
+                                Live · {shortId(workspaceId)} - your team shares
                                 this board and message bus on chain.
                               </span>
                             </div>
@@ -3581,9 +3783,9 @@ export function CortexApp({
                           <div className="pr-setup-l">
                             <b>Set up agent workspace</b>
                             <span className="pr-setup-sub">
-                              Create the shared Workspace once. Its id is saved to
-                              your account so the app and your MCP read the same
-                              board.
+                              Create the shared Workspace once. Its id is saved
+                              to your account so the app and your MCP read the
+                              same board.
                             </span>
                           </div>
                           <button
@@ -3591,9 +3793,7 @@ export function CortexApp({
                             onClick={createAgentWorkspace}
                             disabled={workspaceBusy}
                           >
-                            {workspaceBusy
-                              ? "Creating…"
-                              : "Create workspace"}
+                            {workspaceBusy ? "Creating…" : "Create workspace"}
                           </button>
                         </div>
                       );
@@ -3633,12 +3833,12 @@ export function CortexApp({
                           <div className="pr-day">Today</div>
                           <div className="pr-msg">
                             <span className="pr-av human">
-                            <GenAvatar
-                              seed={sess?.addr ?? walletState?.label ?? "you"}
-                              size={34}
-                              radius={8}
-                            />
-                          </span>
+                              <GenAvatar
+                                seed={sess?.addr ?? walletState?.label ?? "you"}
+                                size={34}
+                                radius={8}
+                              />
+                            </span>
                             <div className="pr-msg-body">
                               <div className="pr-msg-head">
                                 <b>You</b>
@@ -3648,12 +3848,12 @@ export function CortexApp({
                               </div>
                               <div className="pr-msg-text">
                                 {renderMessageText(
-                                    "@" +
-                                      (byId(room.assignedTo)?.name ?? "team") +
-                                      " " +
-                                      room.goal,
-                                    rosterNames,
-                                  )}
+                                  "@" +
+                                    (byId(room.assignedTo)?.name ?? "team") +
+                                    " " +
+                                    room.goal,
+                                  rosterNames,
+                                )}
                               </div>
                             </div>
                           </div>
@@ -3717,9 +3917,7 @@ export function CortexApp({
                             </span>
                             <div className="pr-msg-body">
                               <div className="pr-msg-head">
-                                <b>
-                                  {byId(room.assignedTo)?.name ?? "Agent"}
-                                </b>
+                                <b>{byId(room.assignedTo)?.name ?? "Agent"}</b>
                                 <span className="pr-sysline">
                                   opened a task
                                 </span>
@@ -3809,7 +4007,8 @@ export function CortexApp({
                         <div className="pr-loops-head">
                           <span className="pr-loops-t">Loops</span>
                           <span className="pr-loops-sub">
-                            self-correcting runs, guarded by budget + a human gate
+                            self-correcting runs, guarded by budget + a human
+                            gate
                           </span>
                         </div>
                         {s.loops.map((run) => {
@@ -3821,9 +4020,7 @@ export function CortexApp({
                           return (
                             <div className="pr-loop" key={run.spec.id}>
                               <div className="pr-loop-row">
-                                <span
-                                  className={"pr-loop-dot " + run.status}
-                                />
+                                <span className={"pr-loop-dot " + run.status} />
                                 <button
                                   className="pr-loop-main"
                                   onClick={() =>
@@ -3921,8 +4118,7 @@ export function CortexApp({
                                         </li>
                                         <li>
                                           <span>act</span>
-                                          {step.acted ||
-                                            "(no output produced)"}
+                                          {step.acted || "(no output produced)"}
                                         </li>
                                         <li>
                                           <span>gather</span>
@@ -3953,7 +4149,8 @@ export function CortexApp({
                             <button
                               key={a.id}
                               className={
-                                "mention-row" + (i === mentionIndex ? " on" : "")
+                                "mention-row" +
+                                (i === mentionIndex ? " on" : "")
                               }
                               onMouseEnter={() => setMentionIndex(i)}
                               onClick={() => pickMention(a.name)}
@@ -4005,12 +4202,14 @@ export function CortexApp({
                             grow(e.target);
                             syncMention(e.target);
                           }}
+                          onPaste={onPasteFiles}
                           onBlur={() =>
                             window.setTimeout(() => setMentionQuery(null), 120)
                           }
                           onKeyDown={(e) => {
                             const open =
-                              mentionQuery !== null && mentionMatches.length > 0;
+                              mentionQuery !== null &&
+                              mentionMatches.length > 0;
                             if (open && e.key === "ArrowDown") {
                               e.preventDefault();
                               setMentionIndex(
@@ -4027,7 +4226,10 @@ export function CortexApp({
                               );
                               return;
                             }
-                            if (open && (e.key === "Enter" || e.key === "Tab")) {
+                            if (
+                              open &&
+                              (e.key === "Enter" || e.key === "Tab")
+                            ) {
                               e.preventDefault();
                               pickMention(mentionMatches[mentionIndex]!.name);
                               return;
@@ -4261,7 +4463,13 @@ export function CortexApp({
                                 }
                               >
                                 <svg viewBox="0 0 24 24">
-                                  <rect x="9" y="3" width="6" height="11" rx="3" />
+                                  <rect
+                                    x="9"
+                                    y="3"
+                                    width="6"
+                                    height="11"
+                                    rx="3"
+                                  />
                                   <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
                                 </svg>{" "}
                                 {dictation.busy
@@ -4339,8 +4547,7 @@ export function CortexApp({
                             <span
                               style={{
                                 width: taskPct(thread) + "%",
-                                background: byId(thread.assignedTo)
-                                  ?.accent,
+                                background: byId(thread.assignedTo)?.accent,
                               }}
                             />
                           </div>
@@ -4747,156 +4954,162 @@ export function CortexApp({
               )}
 
               <div className="st2-output">
-               <div className="cmsg">
-                <div className="cmsg-q">
-                  <div className="bubble-q">
-                    {studioTask.trim() || "Generate from my memory"}
+                <div className="cmsg">
+                  <div className="cmsg-q">
+                    <div className="bubble-q">
+                      {studioTask.trim() || "Generate from my memory"}
+                    </div>
+                    <span className="cmsg-uav">
+                      <GenAvatar
+                        seed={sess?.addr ?? walletState?.label ?? "you"}
+                        size={28}
+                      />
+                    </span>
                   </div>
-                  <span className="cmsg-uav">
-                    <GenAvatar
-                      seed={sess?.addr ?? walletState?.label ?? "you"}
-                      size={28}
-                    />
-                  </span>
-                </div>
-                <div className="cmsg-a">
-                  {(() => {
-                    // BYOK models answer under their own avatar; the free Gemini
-                    // assistant keeps the Cortex mark, exactly like the chat page.
-                    const prov = modelProvider(s.model.name, s.customModels);
-                    if (prov && prov !== "google")
+                  <div className="cmsg-a">
+                    {(() => {
+                      // BYOK models answer under their own avatar; the free Gemini
+                      // assistant keeps the Cortex mark, exactly like the chat page.
+                      const prov = modelProvider(s.model.name, s.customModels);
+                      if (prov && prov !== "google")
+                        return (
+                          <span className="cmsg-av plain" title={s.model.name}>
+                            <GenAvatar seed={s.model.name} size={34} />
+                          </span>
+                        );
                       return (
-                        <span className="cmsg-av plain" title={s.model.name}>
-                          <GenAvatar seed={s.model.name} size={34} />
+                        <span className="cmsg-av" aria-hidden="true">
+                          <Logo variant="current" className="cmsg-logo" />
                         </span>
                       );
-                    return (
-                      <span className="cmsg-av" aria-hidden="true">
-                        <Logo variant="current" className="cmsg-logo" />
-                      </span>
-                    );
-                  })()}
-                  <div className="cmsg-card">
-                <div className="st2-out-top">
-                  <span className="st-tok">
-                    ~{Math.round(studioOut.length / 4)} tokens
-                  </span>
-                </div>
-                <div
-                  className={
-                    "st2-bubble" +
-                    (CODE_TYPES.includes(studioType) ? " mono" : "") +
-                    (studioLoading ? " loading" : "")
-                  }
-                >
-                  {CODE_TYPES.includes(studioType) ? (
-                    studioOut
-                  ) : (
-                    <Markdown text={studioOut} />
-                  )}
-                </div>
-                <div className="st2-actions">
-                  <div className="st2-copy">
-                    <button
-                      className="st2-copy-main"
-                      onClick={() => {
-                        navigator.clipboard?.writeText(studioOut);
-                        flash("Prompt copied");
-                      }}
-                    >
-                      <svg viewBox="0 0 24 24">
-                        <rect x="9" y="9" width="11" height="11" rx="2" />
-                        <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-                      </svg>
-                      Copy content
-                    </button>
-                    <button
-                      className="st2-copy-chev"
-                      onClick={() => setStudioMenu((o) => !o)}
-                      aria-label="More options"
-                    >
-                      <svg viewBox="0 0 24 24">
-                        <path d="M6 9l6 6 6-6" />
-                      </svg>
-                    </button>
-                    {studioMenu && (
-                      <div className="st2-menu">
+                    })()}
+                    <div className="cmsg-card">
+                      <div className="st2-out-top">
+                        <span className="st-tok">
+                          ~{Math.round(studioOut.length / 4)} tokens
+                        </span>
+                      </div>
+                      <div
+                        className={
+                          "st2-bubble" +
+                          (CODE_TYPES.includes(studioType) ? " mono" : "") +
+                          (studioLoading ? " loading" : "")
+                        }
+                      >
+                        {CODE_TYPES.includes(studioType) ? (
+                          studioOut
+                        ) : (
+                          <Markdown text={studioOut} />
+                        )}
+                      </div>
+                      <div className="st2-actions">
+                        <div className="st2-copy">
+                          <button
+                            className="st2-copy-main"
+                            onClick={() => {
+                              navigator.clipboard?.writeText(studioOut);
+                              flash("Prompt copied");
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24">
+                              <rect x="9" y="9" width="11" height="11" rx="2" />
+                              <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                            </svg>
+                            Copy content
+                          </button>
+                          <button
+                            className="st2-copy-chev"
+                            onClick={() => setStudioMenu((o) => !o)}
+                            aria-label="More options"
+                          >
+                            <svg viewBox="0 0 24 24">
+                              <path d="M6 9l6 6 6-6" />
+                            </svg>
+                          </button>
+                          {studioMenu && (
+                            <div className="st2-menu">
+                              <button
+                                className="st2-menu-item"
+                                onClick={() => {
+                                  navigator.clipboard?.writeText(
+                                    "```\n" + studioOut + "\n```",
+                                  );
+                                  setStudioMenu(false);
+                                  flash("Copied as Markdown");
+                                }}
+                              >
+                                <span className="st2-menu-av">md</span>
+                                <span className="st2-menu-tx">
+                                  <b>Copy as Markdown</b>
+                                  <span>
+                                    Fenced, ready to paste into an LLM
+                                  </span>
+                                </span>
+                              </button>
+                              {STUDIO_PRODUCTS[studioModality].map((p) => (
+                                <button
+                                  key={p.name}
+                                  className="st2-menu-item"
+                                  onClick={() => openStudioProduct(p)}
+                                >
+                                  <span className="st2-menu-av">
+                                    {STUDIO_PRODUCT_LOGOS[p.name] ? (
+                                      <svg
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                        aria-hidden="true"
+                                      >
+                                        <path
+                                          d={STUDIO_PRODUCT_LOGOS[p.name]}
+                                        />
+                                      </svg>
+                                    ) : STUDIO_PRODUCT_GLYPHS[p.name] ? (
+                                      <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth={1.7}
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        aria-hidden="true"
+                                      >
+                                        <path
+                                          d={STUDIO_PRODUCT_GLYPHS[p.name]}
+                                        />
+                                      </svg>
+                                    ) : (
+                                      p.name[0]
+                                    )}
+                                  </span>
+                                  <span className="st2-menu-tx">
+                                    <b>Open in {p.name} ↗</b>
+                                    <span>Copies your prompt and opens it</span>
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <button
-                          className="st2-menu-item"
+                          className="st-act"
                           onClick={() => {
-                            navigator.clipboard?.writeText(
-                              "```\n" + studioOut + "\n```",
+                            const t = TYPES.find((x) => x.id === studioType)!;
+                            const file = `${studioStyle}-prompt.${t.ext}`;
+                            const a = document.createElement("a");
+                            a.href = URL.createObjectURL(
+                              new Blob([studioOut], { type: "text/plain" }),
                             );
-                            setStudioMenu(false);
-                            flash("Copied as Markdown");
+                            a.download = file;
+                            a.click();
+                            flash("Downloaded " + file);
                           }}
                         >
-                          <span className="st2-menu-av">md</span>
-                          <span className="st2-menu-tx">
-                            <b>Copy as Markdown</b>
-                            <span>Fenced, ready to paste into an LLM</span>
-                          </span>
+                          Download
                         </button>
-                        {STUDIO_PRODUCTS[studioModality].map((p) => (
-                          <button
-                            key={p.name}
-                            className="st2-menu-item"
-                            onClick={() => openStudioProduct(p)}
-                          >
-                            <span className="st2-menu-av">
-                              {STUDIO_PRODUCT_LOGOS[p.name] ? (
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  fill="currentColor"
-                                  aria-hidden="true"
-                                >
-                                  <path d={STUDIO_PRODUCT_LOGOS[p.name]} />
-                                </svg>
-                              ) : STUDIO_PRODUCT_GLYPHS[p.name] ? (
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth={1.7}
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  aria-hidden="true"
-                                >
-                                  <path d={STUDIO_PRODUCT_GLYPHS[p.name]} />
-                                </svg>
-                              ) : (
-                                p.name[0]
-                              )}
-                            </span>
-                            <span className="st2-menu-tx">
-                              <b>Open in {p.name} ↗</b>
-                              <span>Copies your prompt and opens it</span>
-                            </span>
-                          </button>
-                        ))}
                       </div>
-                    )}
-                  </div>
-                  <button
-                    className="st-act"
-                    onClick={() => {
-                      const t = TYPES.find((x) => x.id === studioType)!;
-                      const file = `${studioStyle}-prompt.${t.ext}`;
-                      const a = document.createElement("a");
-                      a.href = URL.createObjectURL(
-                        new Blob([studioOut], { type: "text/plain" }),
-                      );
-                      a.download = file;
-                      a.click();
-                      flash("Downloaded " + file);
-                    }}
-                  >
-                    Download
-                  </button>
-                </div>
+                    </div>
                   </div>
                 </div>
-               </div>
               </div>
               {studioMenu && (
                 <div
@@ -5170,7 +5383,7 @@ export function CortexApp({
                 <p className="lede show">
                   Claim a name under cortex.sui, share memories with people by
                   name, and see what others have shared with you. Everything is
-                  owned by your wallet on Sui  -  you can revoke a share at any
+                  owned by your wallet on Sui - you can revoke a share at any
                   time.
                 </p>
 
@@ -5186,10 +5399,12 @@ export function CortexApp({
                       className="pill-btn keep"
                       style={{ marginTop: 14 }}
                       onClick={doSignIn}
+                      disabled={!privyOn}
+                      title={privyOn ? undefined : "Sign-in is not configured"}
                     >
                       {privyOn
                         ? "Sign in with Privy"
-                        : "Continue with Google (zkLogin)"}
+                        : "Sign-in not configured"}
                     </button>
                   </div>
                 ) : (
@@ -5219,7 +5434,7 @@ export function CortexApp({
                               <span style={{ fontFamily: "var(--mono)" }}>
                                 {claimedName}
                               </span>{" "}
-                               -  it points to your wallet.
+                              - it points to your wallet.
                             </div>
                             <button
                               className="pill-btn"
@@ -5783,7 +5998,7 @@ export function CortexApp({
                         <div className="set-gs">
                           {privyOn
                             ? "How you sign in. Cortex uses Privy for login and a managed Sui wallet  -  your identity stays yours, with no seed phrase to lose."
-                            : "How you sign in. Cortex uses zkLogin so your identity stays yours, with no password to leak."}
+                            : "Sign-in is not configured in this build, so the app runs in explore mode with no wallet and nothing persisted."}
                         </div>
                       </div>
                       {sess ? (
@@ -5805,19 +6020,26 @@ export function CortexApp({
                         </div>
                       ) : (
                         <div className="set-signin">
-                          <button className="pill-btn keep" onClick={doSignIn}>
+                          <button
+                            className="pill-btn keep"
+                            onClick={doSignIn}
+                            disabled={!privyOn}
+                            title={
+                              privyOn ? undefined : "Sign-in is not configured"
+                            }
+                          >
                             <svg viewBox="0 0 24 24">
                               <circle cx="12" cy="12" r="9" />
                               <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
                             </svg>
                             {privyOn
                               ? "Sign in with Privy"
-                              : "Continue with Google (zkLogin)"}
+                              : "Sign-in not configured"}
                           </button>
                           <div className="set-note">
                             {privyOn
                               ? "Privy logs you in by email or social and provisions a managed Sui wallet that owns your memory on Walrus."
-                              : "This creates a local ephemeral session right now. Add a Privy app id (NEXT_PUBLIC_PRIVY_APP_ID) to sign in with a managed Sui wallet."}
+                              : "Sign-in is not configured in this build. Add a Privy app id (NEXT_PUBLIC_PRIVY_APP_ID) to sign in with a managed Sui wallet."}
                           </div>
                         </div>
                       )}
@@ -5890,7 +6112,7 @@ export function CortexApp({
                               </svg>
                               <span>
                                 Only send <b>SUI</b> and <b>WAL</b> to this
-                                address  -  they cover gas and Walrus storage.
+                                address - they cover gas and Walrus storage.
                                 Other tokens or NFTs sent here may be lost.
                               </span>
                             </div>
@@ -5925,6 +6147,25 @@ export function CortexApp({
                                 </div>
                               ))}
                             </div>
+                            {CORTEX_ENV.network === "testnet" && (
+                              <>
+                                <button
+                                  className="wcard-claim"
+                                  onClick={() => void claimGas()}
+                                  disabled={claiming}
+                                >
+                                  {claiming
+                                    ? "Sending tokens…"
+                                    : "Get testnet SUI & WAL"}
+                                </button>
+                                <div className="wcard-claim-sub">
+                                  Claim gas and Walrus storage from the Cortex
+                                  executor. Transactions are sponsored on
+                                  testnet, so you never need to fund this wallet
+                                  yourself.
+                                </div>
+                              </>
+                            )}
                           </div>
                         </>
                       )}
@@ -6016,7 +6257,7 @@ export function CortexApp({
                         <div className="set-gt">Models &amp; API keys</div>
                         <div className="set-gs">
                           Bring your own keys to enable any model. Keys are
-                          encrypted and stored only on this device  -  calls run
+                          encrypted and stored only on this device - calls run
                           straight from your browser to the provider, never our
                           servers.
                         </div>
@@ -6091,7 +6332,7 @@ export function CortexApp({
                         <div className="set-gs">
                           How your data is protected and who can reach it.
                           Sensitive data is encrypted client-side before it ever
-                          touches Walrus  -  only your wallet can decrypt it.
+                          touches Walrus - only your wallet can decrypt it.
                         </div>
                       </div>
 
@@ -6209,12 +6450,10 @@ export function CortexApp({
                         {claimedName && (
                           <div className="ssub" style={{ marginTop: 10 }}>
                             You hold{" "}
-                            <span
-                              style={{ fontFamily: "var(--mono)" }}
-                            >
+                            <span style={{ fontFamily: "var(--mono)" }}>
                               {claimedName}
                             </span>{" "}
-                             -  it points to your wallet.
+                            - it points to your wallet.
                           </div>
                         )}
                         {claimErr && (
@@ -6247,7 +6486,7 @@ export function CortexApp({
                         <div className="set-gt">Devices &amp; Access</div>
                         <div className="set-gs">
                           Each device and agent that can read your memory has
-                          its own key, derived on that device and never stored  - 
+                          its own key, derived on that device and never stored -
                           revoke any of them anytime.
                         </div>
                       </div>
@@ -6498,7 +6737,7 @@ export function CortexApp({
                         <div className="set-gs">
                           Clear this browser&apos;s working memory and start
                           from a blank slate. Your durable record on Walrus is
-                          not touched  -  this only wipes the local index.
+                          not touched - this only wipes the local index.
                         </div>
                       </div>
                       <button
@@ -6582,6 +6821,7 @@ export function CortexApp({
                   grow(e.target);
                 }}
                 onKeyDown={onKey}
+                onPaste={onPasteFiles}
               />
               <div className="capture-bar">
                 <button
@@ -6851,10 +7091,7 @@ export function CortexApp({
             s.updateLoopSpec(spec.id, patch);
           return (
             <div className="am-scrim" onClick={() => discardLoop(spec.id)}>
-              <div
-                className="am-modal"
-                onClick={(e) => e.stopPropagation()}
-              >
+              <div className="am-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="am-head">
                   <div className="am-title">Run as a loop</div>
                   <button
@@ -6874,7 +7111,9 @@ export function CortexApp({
                       <span>{sum.does}</span>
                     </div>
                     <div className="lp-sum-row">
-                      <span className="lp-sum-l">How it knows it&apos;s done</span>
+                      <span className="lp-sum-l">
+                        How it knows it&apos;s done
+                      </span>
                       <span>{sum.done}</span>
                     </div>
                     <div className="lp-sum-row">
@@ -6885,14 +7124,13 @@ export function CortexApp({
                       <span className="lp-sum-l">Human gate</span>
                       <span>{sum.gate}</span>
                     </div>
-                    {!run.iterations.length && spec.gates.some(
-                      (g) => g.kind !== "reviewer",
-                    ) && (
-                      <div className="lp-sum-note">
-                        Command gates need a server/MCP executor to run, so this
-                        loop pauses and escalates to you in the browser.
-                      </div>
-                    )}
+                    {!run.iterations.length &&
+                      spec.gates.some((g) => g.kind !== "reviewer") && (
+                        <div className="lp-sum-note">
+                          Command gates need a server/MCP executor to run, so
+                          this loop pauses and escalates to you in the browser.
+                        </div>
+                      )}
                   </div>
                   <button
                     className="lp-adv-toggle"
@@ -6909,9 +7147,7 @@ export function CortexApp({
                           className="lp-area"
                           rows={2}
                           value={spec.goal}
-                          onChange={(e) =>
-                            setField({ goal: e.target.value })
-                          }
+                          onChange={(e) => setField({ goal: e.target.value })}
                         />
                       </label>
                       <label className="am-field">
@@ -6927,9 +7163,7 @@ export function CortexApp({
                         <span className="am-label">Give up when</span>
                         <input
                           value={spec.giveUp}
-                          onChange={(e) =>
-                            setField({ giveUp: e.target.value })
-                          }
+                          onChange={(e) => setField({ giveUp: e.target.value })}
                         />
                       </label>
                       <label className="am-field">
@@ -7043,7 +7277,11 @@ export function CortexApp({
             <div className="am-body">
               <div className="ag-preview">
                 <span className="pr-av">
-                  <GenAvatar seed={agName || "new-agent"} size={34} radius={8} />
+                  <GenAvatar
+                    seed={agName || "new-agent"}
+                    size={34}
+                    radius={8}
+                  />
                 </span>
                 <div className="ag-preview-m">
                   <div className="ag-preview-n">{agName || "New agent"}</div>
@@ -7178,7 +7416,11 @@ export function CortexApp({
                         setAmApiId("");
                       }}
                     >
-                      {k === "text" ? "Text" : k === "image" ? "Image" : "Video"}
+                      {k === "text"
+                        ? "Text"
+                        : k === "image"
+                          ? "Image"
+                          : "Video"}
                     </button>
                   ))}
                 </div>
@@ -7210,9 +7452,7 @@ export function CortexApp({
                   <input
                     className="am-input"
                     placeholder={
-                      amKind === "image"
-                        ? "e.g., gpt-image-1"
-                        : "e.g., sora-2"
+                      amKind === "image" ? "e.g., gpt-image-1" : "e.g., sora-2"
                     }
                     value={amApiId}
                     onChange={(e) => setAmApiId(e.target.value)}
@@ -7249,7 +7489,7 @@ export function CortexApp({
               <div className="am-note">
                 Your key is encrypted and stored only on this device
                 {passkeySupported() ? ", unlocked with a passkey" : ""}. It
-                never touches our servers  -  calls go straight from your browser
+                never touches our servers - calls go straight from your browser
                 to the provider.
               </div>
             </div>
@@ -7320,7 +7560,7 @@ export function CortexApp({
                   <div className="mm-note" style={{ marginTop: 16 }}>
                     Shared with you, read-only. It lives in{" "}
                     {m.sharedBy || "the"}
-                    {m.sharedBy ? "’s" : " owner’s"} memory  -  you can read it,
+                    {m.sharedBy ? "’s" : " owner’s"} memory - you can read it,
                     but only they can change it.
                   </div>
                 </>
@@ -7646,6 +7886,17 @@ export function CortexApp({
                   </a>
                 )}
               </div>
+              <button
+                className="ntf-close"
+                onClick={() =>
+                  setToasts((cur) => cur.filter((x) => x.id !== t.id))
+                }
+                aria-label="Dismiss notification"
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
             </div>
           );
         })}

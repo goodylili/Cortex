@@ -37,7 +37,7 @@ import {
   readUserAccount,
   executorGrantKbAccess,
   executorRenewKbFile,
-} from "@cortex/core";
+} from "./src/core";
 import { createServer } from "node:http";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";

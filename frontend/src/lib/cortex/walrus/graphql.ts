@@ -120,6 +120,35 @@ export async function objectJson(
 // Events of one fully-qualified Move type (e.g. `${pkg}::sharing::ShareCreated`),
 // returning each event's sender address and its payload decoded as JSON. Callers filter
 // on the JSON fields. Move struct fields arrive as plain JSON (no `.fields`).
+const EVENT_BY_SENDER_QUERY = graphql(`
+  query EventBySender($type: String!, $sender: SuiAddress!) {
+    events(first: 1, filter: { type: $type, sender: $sender }) {
+      nodes {
+        contents {
+          json
+        }
+      }
+    }
+  }
+`);
+
+// The decoded payload of the first event of a type emitted by a given sender, or
+// null if none. Used to recover an owner -> object mapping from a permanent
+// creation event (e.g. MemWal's AccountCreated) when the object itself is shared
+// and so can't be found by an owned-objects read.
+export async function firstEventBySender(
+  eventType: string,
+  sender: string,
+): Promise<Record<string, unknown> | null> {
+  const res = await gql().query({
+    query: EVENT_BY_SENDER_QUERY,
+    variables: { type: eventType, sender },
+  });
+  const data = res.data as EventsResult | undefined;
+  const json = data?.events?.nodes?.[0]?.contents?.json;
+  return json ? (json as Record<string, unknown>) : null;
+}
+
 export async function moduleEvents(eventType: string): Promise<ModuleEvent[]> {
   const res = await gql().query({
     query: EVENTS_QUERY,

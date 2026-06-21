@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 
 const HEADLINE = "Own your memory stack, not just another AI workspace";
 
+const DOCS_URL =
+  process.env.NEXT_PUBLIC_DOCS_URL || "https://docs.usecortexai.com";
+
 export function CtaSection() {
   return (
     <section className="relative w-full overflow-hidden bg-gradient-to-b from-canvas via-canvas to-ink/20">
@@ -48,7 +51,7 @@ export function CtaSection() {
               variant="outline"
               className="border-ink/20 bg-transparent px-8 text-ink hover:bg-ink/10 hover:text-ink"
             >
-              <Link href="#faq">Read the Docs</Link>
+              <Link href={DOCS_URL}>Read the Docs</Link>
             </Button>
           </div>
         </div>

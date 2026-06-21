@@ -90,13 +90,14 @@ import {
   loadWorkspaceLoops,
 } from "@/lib/cortex/walrus/workspace";
 import type { AgentDef, AgentTask, AgentMessage } from "@/lib/cortex/agents";
-import type { LoopRun } from "@cortex/core/loops";
+import type { LoopRun } from "@/lib/cortex/loops";
 
 const WORKSPACE_KEY = "agents:workspace";
 import {
   allMemoriesLive,
   authorizeMemoryDelegate,
   ensureMemory,
+  findMemwalAccountId,
   listMemoryDelegates,
   loadMemoryCreds,
   memoryProvisioned,
@@ -210,10 +211,10 @@ function suiAccountOf(user: PrivyUser): SuiAccount | null {
 function labelOf(user: PrivyUser): string {
   for (const acct of user?.linkedAccounts ?? []) {
     if (acct.type === "email") return acct.address;
-    if (acct.type === "google_oauth") return acct.email ?? acct.name ?? "Google";
+    if (acct.type === "google_oauth")
+      return acct.email ?? acct.name ?? "Google";
     if (acct.type === "phone") return acct.number;
-    if (acct.type === "twitter_oauth")
-      return acct.username ?? acct.name ?? "X";
+    if (acct.type === "twitter_oauth") return acct.username ?? acct.name ?? "X";
     if (acct.type === "discord_oauth") return acct.username ?? "Discord";
   }
   return "Account";
@@ -226,8 +227,11 @@ async function resolveRecipient(
   input: string,
 ): Promise<{ address: string; displayName: string }> {
   const trimmed = input.trim();
-  if (trimmed.startsWith("0x")) return { address: trimmed, displayName: trimmed };
-  const name = trimmed.includes(".") ? trimmed.toLowerCase() : toSuinsName(trimmed);
+  if (trimmed.startsWith("0x"))
+    return { address: trimmed, displayName: trimmed };
+  const name = trimmed.includes(".")
+    ? trimmed.toLowerCase()
+    : toSuinsName(trimmed);
   const address = await resolveSuinsAddress(name);
   if (!address) {
     throw new Error(
@@ -240,7 +244,10 @@ async function resolveRecipient(
 // A decrypted shared item becomes a read-only memory in the recipient's brain: a
 // namespaced id (so it never collides with or overwrites their own), the owner's
 // handle as provenance, and the "shared" marks the UI reads to badge it.
-function sharedItemToMemory(item: SharedMemoryItem, share: ShareSummary): Memory {
+function sharedItemToMemory(
+  item: SharedMemoryItem,
+  share: ShareSummary,
+): Memory {
   return {
     id: `shared_${share.id}_${item.id}`,
     text: item.text,
@@ -416,9 +423,14 @@ export function useCortexWallet(): CortexWalletState {
         return recallLive(userKey, NAMESPACE, query);
       },
       allMemories: async () => {
-        // Don't provision (sign + create the MemWal account) just to list
-        // memories; a brand-new user has none. Only recall once provisioned.
-        if (!memoryProvisioned(userKey)) return [];
+        // If not cached locally (first run, or after a sign-out cleared creds),
+        // recover the durable on-chain account before giving up  -  only a user
+        // who never provisioned memory truly has none. This is what makes a
+        // returning user's full memory set reappear instead of looking empty.
+        if (!memoryProvisioned(userKey)) {
+          const recovered = await findMemwalAccountId(address);
+          if (!recovered) return [];
+        }
         await ensureMemory(userKey, signer);
         return allMemoriesLive(userKey, NAMESPACE);
       },
@@ -703,7 +715,8 @@ export function useCortexWallet(): CortexWalletState {
         await shareWithAddress(signer, shareId, recipientAddress, displayName);
         return shareId;
       },
-      listMyShares: async () => (contractsEnabled() ? loadMyShares(address) : []),
+      listMyShares: async () =>
+        contractsEnabled() ? loadMyShares(address) : [],
       // Pull every active share addressed to me, decrypt each bundle, and flatten to
       // read-only "shared" memories for the brain. A share we can't decrypt (revoked
       // mid-flight, key server down) is skipped rather than failing the whole load.
@@ -722,7 +735,8 @@ export function useCortexWallet(): CortexWalletState {
         return out;
       },
       unshareMemory: async (shareId: string, recipient: string) => {
-        if (contractsEnabled()) await sharingUnshare(signer, shareId, recipient);
+        if (contractsEnabled())
+          await sharingUnshare(signer, shareId, recipient);
       },
       revokeShare: async (shareId: string) => {
         if (contractsEnabled()) await sharingRevokeShare(signer, shareId);

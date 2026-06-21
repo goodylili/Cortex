@@ -7,6 +7,7 @@
 import { agentById } from "@/lib/cortex/agents";
 import { modelByName } from "@/lib/llm/models";
 import { complete } from "@/lib/llm/complete";
+import { CORTEX_APP_CONTEXT } from "@/lib/llm/cortex-context";
 
 interface StepMemory {
   text: string;
@@ -68,13 +69,16 @@ export async function POST(req: Request) {
     model,
   } = body;
   const agent = agentById(agentId);
-  const systemPrompt = agent?.system ?? system;
-  if (!systemPrompt) {
+  const ownPrompt = agent?.system ?? system;
+  if (!ownPrompt) {
     return Response.json(
       { error: `unknown agentId "${agentId}" and no system prompt supplied` },
       { status: 400 },
     );
   }
+  // Every agent answers as itself, but on top of a shared understanding of what
+  // Cortex is and how the app is laid out, so it can also help the user navigate.
+  const systemPrompt = `${CORTEX_APP_CONTEXT}\n\n${ownPrompt}`;
 
   const chosen = modelByName(model);
   const user = [

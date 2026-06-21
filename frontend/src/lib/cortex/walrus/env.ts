@@ -79,6 +79,7 @@ function parseList(value: string | undefined): string[] {
 // Network-agnostic (reused on both networks).
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "";
 const MCP_ADDRESS = process.env.NEXT_PUBLIC_CORTEX_MCP_ADDRESS ?? "";
+const WORKSPACE_ID = process.env.NEXT_PUBLIC_CORTEX_WORKSPACE_ID ?? "";
 const WALRUS_EPOCHS = parseIntOr(
   process.env.NEXT_PUBLIC_WALRUS_EPOCHS,
   DEFAULT_WALRUS_EPOCHS,
@@ -139,7 +140,7 @@ function buildEnv(network: CortexNetwork): CortexEnv {
     registryId: s.registryId ?? "",
     accessRegistryId: s.accessRegistryId ?? "",
     executorCapId: s.executorCapId ?? "",
-    workspaceId: "",
+    workspaceId: WORKSPACE_ID,
     mcpAddress: MCP_ADDRESS,
     mcpMemwalPubkey: s.mcpMemwalPubkey ?? "",
     walrusEpochs: WALRUS_EPOCHS,

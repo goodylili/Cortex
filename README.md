@@ -6,23 +6,22 @@ It exists for one reason: AI should not lose your context every time the session
 
 ## Monorepo Layout
 
-This is a pnpm workspace with four packages plus the Move contracts.
+This is a pnpm workspace with three packages plus the Move contracts.
 
 ```text
 frontend/                  cortex-frontend: the Next.js app (the product)
 backend/
-  core/                    @cortex/core: the memory runtime, CLI, and demo pipeline
+  mcp/                     cortex-mcp: the merged runtime + MCP server
     src/core/              the Cortex facade (cortex.ts), config, sync, models, artifacts
-    src/lib/cortex/        shared loop spec and helpers
+    src/lib/cortex/        backend loop helpers
     sui/                   Sui/Walrus/Seal/MemWal client wiring for the runtime
-  mcp/                     cortex-mcp: the MCP server (stdio + Streamable HTTP)
-    server.ts             memory, agents, loops, execution, and connector tools
+    server.ts              memory, agents, loops, execution, and connector tools
   sui/
     contract/cortex/       the Cortex Move package (deployed to mainnet)
 docs/                      cortex-docs: the documentation site (Vocs)
 ```
 
-The main facade is the `Cortex` class in `backend/core/src/core/cortex.ts`. The core artifact types (`Source`, `Memory`, `Extraction`, `MemoryDiff`, `NamespaceManifest`) live in `backend/core/src/core/models.ts`.
+The main facade is the `Cortex` class in `backend/mcp/src/core/cortex.ts`. The core artifact types (`Source`, `Memory`, `Extraction`, `MemoryDiff`, `NamespaceManifest`) live in `backend/mcp/src/core/models.ts`.
 
 ## Quick Start
 

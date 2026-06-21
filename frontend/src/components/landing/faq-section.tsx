@@ -44,7 +44,7 @@ const FAQS: FaqItem[] = [
     id: "5",
     question: "What is Cortex's elastic brain?",
     answer:
-      "The elastic brain is Cortex's memory hygiene system. The codebase already runs consolidation sweeps that fade weak memories, fold duplicates, promote durable ones, and ease down weaker signals, so your memory graph keeps learning from use instead of bloating forever.",
+      "The elastic brain is Cortex's memory hygiene system. The codebase already runs consolidation sweeps that fold duplicates, promote durable memories, and prune redundant entries, so your memory graph keeps learning from use instead of bloating forever.",
   },
   {
     id: "6",

@@ -11,9 +11,9 @@
 
 import { MemWal } from "@mysten-incubation/memwal";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
-import { toHex } from "@mysten/sui/utils";
+import { fromBase64, toHex } from "@mysten/sui/utils";
 import { CORTEX_ENV } from "./env";
-import { objectJson } from "./graphql";
+import { objectJson, firstEventBySender } from "./graphql";
 import type { PrivySuiSigner } from "./signer";
 import { toWalletSigner } from "./signer";
 import { getSuiClient } from "./clients";
@@ -165,6 +165,53 @@ export function getMemoryClient(
   });
 }
 
+// Recover the user's existing MemWalAccount by owner. The account object is a
+// SHARED object (so it can't be found by an owned-objects read), but the contract
+// allows exactly one per address and emits a permanent `AccountCreated { owner,
+// account_id }` event on creation. We read that event back by sender, so the
+// durable account is always discoverable even after the local cred cache is
+// cleared (sign-out). Returns null only when memory was genuinely never
+// provisioned. This is what keeps a user's memories from vanishing on re-login:
+// we reuse the on-chain account instead of provisioning a fresh, empty one.
+export async function findMemwalAccountId(
+  owner: string,
+): Promise<string | null> {
+  if (!CORTEX_ENV.memwal.packageId) return null;
+  try {
+    const json = await firstEventBySender(
+      `${CORTEX_ENV.memwal.packageId}::account::AccountCreated`,
+      owner,
+    );
+    const id = json?.account_id;
+    return typeof id === "string" && id ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+// Authorize this device's delegate public key on a recovered account when it is
+// not already in the on-chain delegate list (a brand-new device). The original
+// device's key is already registered, so this is a no-op + no transaction there.
+async function authorizeDeviceIfMissing(
+  accountId: string,
+  publicKey: string,
+  signer: PrivySuiSigner,
+): Promise<void> {
+  const json = await objectJson(accountId);
+  const registered = json ? extractDelegatePublicKeys(json) : [];
+  if (registered.includes(publicKey.toLowerCase())) return;
+  const { addDelegateKey } = await import("@mysten-incubation/memwal/account");
+  await addDelegateKey({
+    packageId: CORTEX_ENV.memwal.packageId,
+    accountId,
+    publicKey,
+    label: DEVICE_KEY_LABEL,
+    walletSigner: toWalletSigner(signer),
+    suiClient: getSuiClient(),
+    suiNetwork: CORTEX_ENV.network,
+  });
+}
+
 // Ensure this user has a usable Walrus Memory account AND that this device's
 // delegate key is authorized on it. The private delegate key is derived in memory
 // (never persisted). On first use the MemWal account is created (signed by the
@@ -184,6 +231,20 @@ export async function ensureMemory(
   const existing = loadMemoryCreds(userKey);
 
   if (!existing) {
+    // The local cred cache is empty (first run on this device, or after a
+    // sign-out cleared it). Recover the durable on-chain account before creating
+    // a new one, so a returning user keeps every memory they ever stored.
+    const recovered = await findMemwalAccountId(signer.toSuiAddress());
+    if (recovered) {
+      const device = await ensureDeviceKey(userKey, signer, deviceId);
+      await authorizeDeviceIfMissing(recovered, device.publicKey, signer);
+      saveMemoryCreds(userKey, {
+        accountId: recovered,
+        deviceId,
+        registered: [device.publicKey],
+      });
+      return true;
+    }
     await provisionMemory({
       userKey,
       signer,
@@ -198,9 +259,8 @@ export async function ensureMemory(
   const hasLegacyKey = existing.delegateKey !== undefined;
 
   if (!registered.includes(device.publicKey)) {
-    const { addDelegateKey } = await import(
-      "@mysten-incubation/memwal/account"
-    );
+    const { addDelegateKey } =
+      await import("@mysten-incubation/memwal/account");
     await addDelegateKey({
       packageId: CORTEX_ENV.memwal.packageId,
       accountId: existing.accountId,
@@ -289,9 +349,8 @@ export async function provisionMemory(opts: {
   memwalRegistryId: string;
   label?: string;
 }): Promise<MemoryCreds> {
-  const { createAccount, addDelegateKey } = await import(
-    "@mysten-incubation/memwal/account"
-  );
+  const { createAccount, addDelegateKey } =
+    await import("@mysten-incubation/memwal/account");
   const walletSigner = toWalletSigner(opts.signer);
   const suiClient = getSuiClient();
   const deviceId = getDeviceId();
@@ -328,7 +387,7 @@ export async function provisionMemory(opts: {
 // Seal-encrypts per namespace and gates access by the account's delegate-key list,
 // so authorizing the MCP's public delegate key (set via env, e.g.
 // NEXT_PUBLIC_CORTEX_MCP_MEMWAL_PUBKEY) lets the MCP read/write that memory without
-// making anything public. The MCP's private delegate key never leaves the server  - 
+// making anything public. The MCP's private delegate key never leaves the server  -
 // only its public key is passed here. Returns false (no-op) when memwal isn't
 // configured or the user has no MemWal account yet.
 export async function authorizeMemoryDelegate(opts: {
@@ -363,15 +422,28 @@ export async function authorizeMemoryDelegate(opts: {
   return true;
 }
 
+// Normalize a delegate public key to lowercase hex of its 32 raw bytes. On-chain
+// the key is stored base64 (e.g. "LkecG3...="), while our derived device key is
+// hex; both must compare equal, so decode base64 to bytes first and fall back to
+// treating the string as hex. This is what lets recovery recognize a device key
+// that is already authorized (and skip a redundant, possibly aborting, add).
 function normalizeDelegatePublicKey(value: unknown): string | null {
-  if (typeof value === "string") {
+  if (typeof value === "string" && value.length) {
+    try {
+      const bytes = fromBase64(value);
+      if (bytes.length === ED25519_SECRET_KEY_LENGTH) {
+        return toHex(bytes).toLowerCase();
+      }
+    } catch {
+      /* not base64  -  fall through to the hex interpretation */
+    }
     const trimmed = value.startsWith("0x") ? value.slice(2) : value;
     return /^[0-9a-fA-F]+$/.test(trimmed) && trimmed.length > 0
       ? trimmed.toLowerCase()
       : null;
   }
   if (Array.isArray(value) && value.every((n) => typeof n === "number")) {
-    return toHex(Uint8Array.from(value as number[]));
+    return toHex(Uint8Array.from(value as number[])).toLowerCase();
   }
   return null;
 }
@@ -434,9 +506,8 @@ export async function revokeMemoryDelegate(opts: {
   const creds = loadMemoryCreds(opts.userKey);
   if (!creds) return false;
 
-  const { removeDelegateKey } = await import(
-    "@mysten-incubation/memwal/account"
-  );
+  const { removeDelegateKey } =
+    await import("@mysten-incubation/memwal/account");
   await removeDelegateKey({
     packageId: CORTEX_ENV.memwal.packageId,
     accountId: creds.accountId,

@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 export type SourceKind = "memory" | "knowledge" | "web";
 
 export interface SourceItem {
@@ -32,6 +36,7 @@ function Icon({ kind }: { kind: SourceKind }) {
 }
 
 export function SourceChips({ sources }: { sources: SourceItem[] }) {
+  const [open, setOpen] = useState<number | null>(null);
   if (!sources.length) return null;
   return (
     <div className="src-chips">
@@ -44,20 +49,39 @@ export function SourceChips({ sources }: { sources: SourceItem[] }) {
             <span className="src-chip-t">{s.label}</span>
           </>
         );
-        return s.url ? (
-          <a
-            key={i}
-            className="src-chip"
-            href={s.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={s.title ?? s.label}
-          >
-            {body}
-          </a>
-        ) : (
-          <span key={i} className="src-chip" title={s.title ?? s.label}>
-            {body}
+        // Web sources link out; memory + knowledge sources reveal their text on
+        // click so the user can see exactly which memory grounded the answer.
+        if (s.url) {
+          return (
+            <a
+              key={i}
+              className="src-chip"
+              href={s.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={s.title ?? s.label}
+            >
+              {body}
+            </a>
+          );
+        }
+        const detail = s.title;
+        return (
+          <span key={i} className="src-chip-wrap">
+            <button
+              type="button"
+              className={"src-chip" + (open === i ? " on" : "")}
+              onClick={() => setOpen(open === i ? null : i)}
+              aria-expanded={open === i}
+              title={detail ?? s.label}
+            >
+              {body}
+            </button>
+            {open === i && detail ? (
+              <div className="src-chip-pop" role="tooltip">
+                {detail}
+              </div>
+            ) : null}
           </span>
         );
       })}

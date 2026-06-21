@@ -1,6 +1,19 @@
 {
-  "//": "Typecheck config for the Cortex MCP server. Inherits Node compiler options from the core runtime it imports (@cortex/core).",
-  "extends": "../core/tsconfig.json",
-  "include": ["server.ts", "auth.ts"],
-  "exclude": ["node_modules"]
+  "//": "Typecheck config for the merged Cortex MCP package: transport/auth plus the inlined runtime and Sui/Walrus clients.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "noEmit": true
+  },
+  "include": ["server.ts", "auth.ts", "src/core", "src/lib/cortex", "sui/app", "sui/walrus"],
+  "exclude": ["node_modules", "dist"]
 }

@@ -1,6 +1,4 @@
-
-
-
+import { CORTEX_APP_CONTEXT } from "./cortex-context";
 
 export interface AskMemory {
   text: string;
@@ -11,12 +9,16 @@ export interface AskMemory {
 export const ASK_MAX_TOKENS = 700;
 
 export const askSystem = (web?: boolean): string =>
-  "You are Cortex, a sharp, genuinely helpful personal assistant with access to the user's saved memories. " +
+  CORTEX_APP_CONTEXT +
+  "\n\n" +
+  "You are Cortex, a sharp, genuinely helpful personal assistant. You are backed by the user's own persistent memory: a private store, kept on Walrus and Sui, of things they have saved that grows over time and that you can always recall. " +
+  "The memories listed under the question are the ones retrieved as relevant to THIS question by semantic search over that store. " +
+  "An empty or small set means nothing matched THIS specific question  -  it does NOT mean the user has no memories. " +
+  "Never tell the user their memory is empty, that 'nothing is saved', or that they have no memories yet. If nothing relevant came back, say you couldn't find anything matching that particular question and offer to look another way or to save it. " +
   "Always be useful: answer directly and conversationally, drawing on your own general knowledge" +
   (web ? " and the web results provided" : "") +
   ". When the provided memories are relevant, weave them into the answer and cite them inline as [1], [2] by number. " +
   "For greetings or small talk, just respond warmly and naturally. " +
-  "If the user explicitly asks about what they have saved and no memories are provided, say briefly that nothing is saved on that yet, then still help however you can. " +
   "Do not pad answers with remarks about memories when they are not relevant. Keep it concise.";
 
 const askContext = (memories: AskMemory[]): string =>
@@ -34,7 +36,10 @@ const askContext = (memories: AskMemory[]): string =>
 export const askUser = (question: string, memories: AskMemory[]): string =>
   `My memories:\n${askContext(memories)}\n\nQuestion: ${question}`;
 
-export const askFallback = (question: string, memories: AskMemory[]): string => {
+export const askFallback = (
+  question: string,
+  memories: AskMemory[],
+): string => {
   if (!memories.length) {
     return "I don't have a memory or source that touches on that yet. Keep a note about it, or turn on web search, and I'll be able to answer.";
   }

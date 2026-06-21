@@ -2,8 +2,69 @@
 // text + a title, so the capture layer can distill it into memories. Best-effort
 // HTML stripping  -  enough to feed extraction, not a full reader-mode parser.
 
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
+
 const MAX_CHARS = 20_000;
 const FETCH_TIMEOUT_MS = 12_000;
+const IPV4_OCTET_COUNT = 4;
+const IPV4_MAX_OCTET = 255;
+const IPV4_VERSION = 4;
+const IPV6_VERSION = 6;
+
+function ipv4ToOctets(ip: string): number[] | null {
+  const parts = ip.split(".");
+  if (parts.length !== IPV4_OCTET_COUNT) return null;
+  const octets = parts.map((p) => Number(p));
+  if (octets.some((o) => !Number.isInteger(o) || o < 0 || o > IPV4_MAX_OCTET)) {
+    return null;
+  }
+  return octets;
+}
+
+function isBlockedIpv4(ip: string): boolean {
+  const o = ipv4ToOctets(ip);
+  if (!o) return true;
+  const [a, b] = o;
+  if (a === 0 || a === 10 || a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b! >= 16 && b! <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a! >= 224) return true;
+  return false;
+}
+
+function isBlockedIpv6(ip: string): boolean {
+  const v = ip.toLowerCase().split("%")[0]!;
+  if (v === "::1" || v === "::") return true;
+  if (v.startsWith("fe80") || v.startsWith("fc") || v.startsWith("fd")) {
+    return true;
+  }
+  const mapped = v.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return isBlockedIpv4(mapped[1]!);
+  return false;
+}
+
+function isBlockedAddress(ip: string): boolean {
+  const kind = isIP(ip);
+  if (kind === IPV4_VERSION) return isBlockedIpv4(ip);
+  if (kind === IPV6_VERSION) return isBlockedIpv6(ip);
+  return true;
+}
+
+async function isSafeTarget(target: URL): Promise<boolean> {
+  const host = target.hostname.replace(/^\[|\]$/g, "");
+  const lowered = host.toLowerCase();
+  if (lowered === "localhost" || lowered.endsWith(".localhost")) return false;
+  if (isIP(host)) return !isBlockedAddress(host);
+  try {
+    const resolved = await lookup(host, { all: true });
+    if (resolved.length === 0) return false;
+    return resolved.every((r) => !isBlockedAddress(r.address));
+  } catch {
+    return false;
+  }
+}
 
 function extractTitle(html: string, fallback: string): string {
   const og = html.match(
@@ -45,6 +106,13 @@ export async function POST(req: Request) {
     }
   } catch {
     return Response.json({ error: "invalid url" }, { status: 400 });
+  }
+
+  if (!(await isSafeTarget(target))) {
+    return Response.json(
+      { error: "target host is not allowed" },
+      { status: 400 },
+    );
   }
 
   try {

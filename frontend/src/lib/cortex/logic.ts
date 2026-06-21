@@ -237,32 +237,11 @@ export interface WebResult {
   url: string;
   snippet: string;
 }
-export function webSearch(q: string): WebResult[] {
-  const slug =
-    q
-      .toLowerCase()
-      .replace(/[^a-z0-9 ]/g, "")
-      .trim()
-      .split(/\s+/)
-      .slice(0, 3)
-      .join("-") || "topic";
-  return [
-    {
-      type: "web",
-      title:
-        q.charAt(0).toUpperCase() +
-        q.slice(1).replace(/\?$/, "") +
-        ", an overview",
-      url: "en.wikipedia.org/wiki/" + slug,
-      snippet: "Background from the open web.",
-    },
-    {
-      type: "web",
-      title: "Latest on " + q.replace(/\?$/, ""),
-      url: "docs." + (slug.split("-")[0] || "ref") + ".org",
-      snippet: "A recent reference.",
-    },
-  ];
+// No real search backend is configured, so this returns nothing rather than
+// fabricating sources. Wire a real provider here (and re-enable the toggle path in
+// the store) to bring web results back.
+export function webSearch(): WebResult[] {
+  return [];
 }
 
 // A blank starting state. Memory is built from scratch and lives in Walrus Memory

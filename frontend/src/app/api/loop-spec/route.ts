@@ -12,7 +12,7 @@ import {
   buildLoopSpecInput,
   skeletonSpec,
   type LoopSpec,
-} from "@cortex/core/loops";
+} from "@/lib/cortex/loops";
 import { complete } from "@/lib/llm/complete";
 import { modelByName } from "@/lib/llm/models";
 
