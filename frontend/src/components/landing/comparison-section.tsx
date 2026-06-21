@@ -180,8 +180,8 @@ export function ComparisonSection() {
               Cortex covers the same core memory jobs users expect, then goes
               further with an elastic brain that learns from usage, reduces
               memory bloat through consolidation sweeps, and layers
-              Sovereignity, shared memory, prompts, loops, agents, and dreams
-              on top.
+              Sovereignity, shared memory, prompts, loops, agents, and dreams on
+              top.
             </p>
           </div>
         </motion.div>
@@ -197,17 +197,17 @@ export function ComparisonSection() {
             <table className="min-w-full border-separate border-spacing-0">
               <thead>
                 <tr className="text-left">
-                  <th className="min-w-[320px] border-b border-ink/10 px-6 py-5 align-middle md:px-8" />
-                  <th className="min-w-[240px] border-b border-l border-r border-[#262626] bg-[#0A0A0A] px-6 py-5 align-middle text-white md:px-8">
+                  <th className="min-w-[150px] border-b border-ink/10 px-4 py-5 align-middle sm:min-w-[320px] sm:px-6 md:px-8" />
+                  <th className="min-w-[88px] border-b border-l border-r border-[#262626] bg-[#0A0A0A] px-4 py-5 align-middle text-white sm:min-w-[240px] sm:px-6 md:px-8">
                     <div className="flex min-h-[76px] items-center justify-center text-center">
-                      <span className="text-2xl font-semibold tracking-tight text-white md:text-[2rem]">
+                      <span className="text-lg font-semibold tracking-tight text-white sm:text-2xl md:text-[2rem]">
                         Cortex
                       </span>
                     </div>
                   </th>
-                  <th className="min-w-[220px] border-b border-ink/10 px-6 py-5 align-middle text-ink/65 md:px-8">
+                  <th className="min-w-[88px] border-b border-ink/10 px-4 py-5 align-middle text-ink/65 sm:min-w-[220px] sm:px-6 md:px-8">
                     <div className="flex min-h-[76px] items-center justify-center text-center">
-                      <span className="text-2xl font-semibold tracking-tight text-ink md:text-[2rem]">
+                      <span className="text-lg font-semibold tracking-tight text-ink sm:text-2xl md:text-[2rem]">
                         Supermemory
                       </span>
                     </div>
@@ -229,7 +229,7 @@ export function ComparisonSection() {
                       ease: [0.22, 1, 0.36, 1],
                     }}
                   >
-                    <td className="border-b border-ink/10 px-6 py-5 align-middle md:px-8">
+                    <td className="border-b border-ink/10 px-4 py-5 align-middle sm:px-6 md:px-8">
                       <div className="flex flex-col gap-1.5">
                         <span className="text-base font-medium text-ink">
                           {row.feature}
@@ -240,7 +240,7 @@ export function ComparisonSection() {
                       </div>
                     </td>
 
-                    <td className="border-b border-l border-r border-[#262626] bg-[#0A0A0A] px-6 py-5 align-middle text-white md:px-8">
+                    <td className="border-b border-l border-r border-[#262626] bg-[#0A0A0A] px-4 py-5 align-middle text-white sm:px-6 md:px-8">
                       <div className="flex min-h-[72px] items-center justify-center">
                         <CapabilityPill
                           value={row.cortex}
@@ -249,7 +249,7 @@ export function ComparisonSection() {
                       </div>
                     </td>
 
-                    <td className="border-b border-ink/10 px-6 py-5 align-middle md:px-8">
+                    <td className="border-b border-ink/10 px-4 py-5 align-middle sm:px-6 md:px-8">
                       <div className="flex min-h-[72px] items-center justify-center">
                         <CapabilityPill
                           value={row.supermemory}

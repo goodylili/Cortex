@@ -36,9 +36,10 @@ export function SponsoredBanner() {
       style={{
         position: "relative",
         width: "100%",
-        padding: "10px 44px",
+        padding: "10px 38px",
         textAlign: "center",
-        fontSize: 14,
+        fontSize: "clamp(12px, 3.4vw, 14px)",
+        lineHeight: 1.45,
         fontWeight: 600,
         color: "var(--paper, var(--canvas, #000))",
         background: "var(--ink)",
@@ -46,7 +47,7 @@ export function SponsoredBanner() {
       }}
     >
       All transactions are sponsored on testnet, no gas required. Walrus storage
-      needs WAL  -  claim it from your account, or request testnet tokens at{" "}
+      needs WAL - claim it from your account, or request testnet tokens at{" "}
       <a
         href="https://faucet.suilearn.io"
         target="_blank"
