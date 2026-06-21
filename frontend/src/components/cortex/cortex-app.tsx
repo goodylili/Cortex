@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useCortex } from "@/lib/cortex/store";
 import { forgetLocalIdentity } from "@/lib/cortex/forget";
@@ -226,6 +226,18 @@ const STUDIO_PRODUCTS: Record<
   ],
 };
 const CODE_TYPES = ["json", "xml", "yaml", "function", "multimodal", "schema"];
+const FENCED_BLOCK = /^```[\w:-]*\s*[\r\n][\s\S]*[\r\n]```$/;
+
+function renderStudioOutput(text: string, type: PromptType) {
+  if (!CODE_TYPES.includes(type)) return <Markdown text={text} />;
+
+  const trimmed = text.trim();
+  const fenced = FENCED_BLOCK.test(trimmed)
+    ? trimmed
+    : `\`\`\`${type}\n${text}\n\`\`\``;
+
+  return <Markdown text={fenced} />;
+}
 
 const ROOM_SLUG_WORDS = 3;
 const ROOM_PREVIEW_CAP = 5;
@@ -1304,7 +1316,11 @@ export function CortexApp({
     });
   }
 
-  const live = s.live();
+  // live() filters + sorts the whole memory set; memoize it (and the arrays derived
+  // from it below) on the memory list so typing in a composer  -  which only changes
+  // local `input` state  -  doesn't re-run all of this on every keystroke.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const live = useMemo(() => s.live(), [s.memories]);
   const now = Date.now();
   const cfg = s.config;
   const memState = (m: Memory): MemState => stateOf(m, now, cfg);
@@ -1577,7 +1593,7 @@ export function CortexApp({
   ];
 
   // knowledge: sources (documents) + recommendations (plain, computed after the ready gate)
-  const sources = (() => {
+  const sources = useMemo(() => {
     const by: Record<string, Memory[]> = {};
     live.forEach((m) => {
       if (
@@ -1589,11 +1605,11 @@ export function CortexApp({
         (by[m.source] ||= []).push(m);
     });
     return Object.entries(by).map(([name, mems]) => ({ name, mems }));
-  })();
+  }, [live]);
   // Files stored on Walrus (KbFile nodes synced from chain).
-  const walrusFiles = live.filter((m) => m.blobId);
+  const walrusFiles = useMemo(() => live.filter((m) => m.blobId), [live]);
   // Real memories only (KB files are not memories) for the memory counts.
-  const liveMemories = live.filter((m) => !m.blobId);
+  const liveMemories = useMemo(() => live.filter((m) => !m.blobId), [live]);
   // Overview stats (5-slide carousel) + the recent-memories carousel.
   const added24 = liveMemories.filter(
     (m) => now - (m.createdAt ?? m.ts) < 86_400_000,
@@ -1601,13 +1617,17 @@ export function CortexApp({
   const added7 = liveMemories.filter(
     (m) => now - (m.createdAt ?? m.ts) < 7 * 86_400_000,
   ).length;
-  const recentMems = [...live]
-    .sort((a, b) => (b.createdAt ?? b.ts) - (a.createdAt ?? a.ts))
-    .slice(0, 8);
+  const recentMems = useMemo(
+    () =>
+      [...live]
+        .sort((a, b) => (b.createdAt ?? b.ts) - (a.createdAt ?? a.ts))
+        .slice(0, 8),
+    [live],
+  );
   // Knowledge base cards  -  Walrus blobs + document sources, unified + filterable
   // by the general search bar in the top navigation.
   const ext = (n: string) => (n.split(".").pop() || "").toLowerCase();
-  const kbItems = [
+  const kbItems = useMemo(() => [
     ...walrusFiles.map((m) => {
       const e = (m.mime || "").toLowerCase();
       const badge = e.includes("pdf")
@@ -1704,11 +1724,17 @@ export function CortexApp({
         };
       });
     })(),
-  ];
-  const kbFiltered = kbItems.filter(
-    (it) =>
-      (kbFilter === "all" || it.key === kbFilter) &&
-      (it.title + " " + it.desc).toLowerCase().includes(query.toLowerCase()),
+  ], [walrusFiles, sources, s.sharedMemories]);
+  const kbFiltered = useMemo(
+    () =>
+      kbItems.filter(
+        (it) =>
+          (kbFilter === "all" || it.key === kbFilter) &&
+          (it.title + " " + it.desc)
+            .toLowerCase()
+            .includes(query.toLowerCase()),
+      ),
+    [kbItems, kbFilter, query],
   );
   // Trigger a browser download from in-memory bytes (a same-origin object URL,
   // unlike the cross-origin aggregator URL which the browser just opens).
@@ -2502,18 +2528,28 @@ export function CortexApp({
   // newest first, but never mingle with my own retention model (see the store).
   // The Memories view lists real memories only. KB files (blob-backed) belong to
   // the Knowledge base and the brain map, not the memory list or memory counts.
-  const brainMemories = [...live, ...s.sharedMemories]
-    .filter((m) => !m.blobId)
-    .sort((a, b) => b.ts - a.ts);
+  const brainMemories = useMemo(
+    () =>
+      [...live, ...s.sharedMemories]
+        .filter((m) => !m.blobId)
+        .sort((a, b) => b.ts - a.ts),
+    [live, s.sharedMemories],
+  );
   const q = query.trim().toLowerCase();
-  const memList = brainMemories.filter((m) => {
-    const hay = (m.text + " " + m.tags.join(" ")).toLowerCase();
-    return (
-      (memFilter === "all" ||
-        (memFilter === "__shared" ? !!m.shared : m.tags.includes(memFilter))) &&
-      hay.includes(q)
-    );
-  });
+  const memList = useMemo(
+    () =>
+      brainMemories.filter((m) => {
+        const hay = (m.text + " " + m.tags.join(" ")).toLowerCase();
+        return (
+          (memFilter === "all" ||
+            (memFilter === "__shared"
+              ? !!m.shared
+              : m.tags.includes(memFilter))) &&
+          hay.includes(q)
+        );
+      }),
+    [brainMemories, memFilter, q],
+  );
   // Cross-page fallback: how many memories / documents match the global search,
   // so an empty page can point you to where the matches actually live.
   const memMatchCount = q
@@ -4992,15 +5028,10 @@ export function CortexApp({
                       <div
                         className={
                           "st2-bubble" +
-                          (CODE_TYPES.includes(studioType) ? " mono" : "") +
                           (studioLoading ? " loading" : "")
                         }
                       >
-                        {CODE_TYPES.includes(studioType) ? (
-                          studioOut
-                        ) : (
-                          <Markdown text={studioOut} />
-                        )}
+                        {renderStudioOutput(studioOut, studioType)}
                       </div>
                       <div className="st2-actions">
                         <div className="st2-copy">
