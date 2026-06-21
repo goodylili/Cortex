@@ -168,7 +168,7 @@ export async function POST(req: Request) {
           funded: false,
           reason: "sponsor_exhausted",
           error:
-            "Gas station is low on funds; refill the executor wallet before retrying.",
+            "Gas station is empty. Request testnet SUI and WAL for your wallet at faucet.suilearn.io to keep saving.",
           sponsorSui: sponsorSui.toString(),
           sponsorWal: sponsorWal.toString(),
           suiBalance: userSui.toString(),

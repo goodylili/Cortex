@@ -1,7 +1,9 @@
-// A global notice that, on testnet, the executor wallet sponsors every user
-// transaction (gas + Walrus storage), so users never need SUI or WAL. Rendered at
-// the very top of every page from the root layout. Testnet-only and dismissible;
-// the dismissal is remembered so it does not nag on every navigation.
+// A global notice that, on testnet, each wallet pays for its own writes (gas +
+// Walrus storage), so users fund themselves from the suilearn faucet. The executor
+// tops wallets up when it can, but that is best effort; the faucet is the reliable
+// path and the fallback when the executor runs dry. Rendered at the very top of
+// every page from the root layout. Testnet-only and dismissible; the dismissal is
+// remembered so it does not nag on every navigation.
 
 "use client";
 
@@ -46,8 +48,8 @@ export function SponsoredBanner() {
         zIndex: 1000,
       }}
     >
-      All transactions are sponsored on testnet, no gas required. Walrus storage
-      needs WAL - claim it from your account, or request testnet tokens at{" "}
+      On testnet your wallet pays for its own gas and Walrus storage. Request
+      testnet SUI and WAL for your wallet at{" "}
       <a
         href="https://faucet.suilearn.io"
         target="_blank"

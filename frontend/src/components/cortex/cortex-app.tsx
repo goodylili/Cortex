@@ -1,5 +1,11 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import dynamic from "next/dynamic";
 import { useCortex } from "@/lib/cortex/store";
 import { forgetLocalIdentity } from "@/lib/cortex/forget";
@@ -119,7 +125,10 @@ import {
   sealEnabled,
 } from "@/lib/cortex/walrus/env";
 import { getSuiClient } from "@/lib/cortex/walrus/clients";
-import { hasPendingWalrusWrites } from "@/lib/cortex/walrus/inflight";
+import {
+  hasPendingWalrusWrites,
+  subscribePendingWalrusWrites,
+} from "@/lib/cortex/walrus/inflight";
 import { SponsoredBanner } from "@/components/sponsored-banner";
 import {
   type AgentRole,
@@ -642,7 +651,7 @@ export function CortexApp({
         if (funded) flash("Wallet ready", "success");
         else if (reason === "sponsor_exhausted")
           flash(
-            "Gas station is out of funds; your saves may fail until the executor wallet is refilled.",
+            "Gas station is empty. Request testnet SUI and WAL for your wallet at faucet.suilearn.io to keep saving.",
             "error",
           );
       });
@@ -1072,7 +1081,7 @@ export function CortexApp({
       } else if (data.funded) {
         flash(
           data.walShort
-            ? "Sent testnet SUI; the gas station is low on WAL, so storage writes may fail."
+            ? "Sent testnet SUI; the gas station is out of WAL, so request WAL for your wallet at faucet.suilearn.io."
             : "Sent testnet SUI and WAL to your wallet.",
           data.walShort ? "error" : "success",
           data.digest,
@@ -2392,6 +2401,16 @@ export function CortexApp({
     );
   }
   async function doSignOut() {
+    // Never sign out mid-write: tearing down the wallet between "uploaded to Walrus"
+    // and "recorded on Sui" loses the memory, and the MCP would never see it. Block
+    // until every durable write has settled.
+    if (hasPendingWalrusWrites()) {
+      flash(
+        "Saving your memory to the Sui stack. Sign out again in a moment.",
+        "info",
+      );
+      return;
+    }
     forgetLocalIdentity();
     if (walletState) await walletState.logout();
     else endSession();
@@ -2785,6 +2804,14 @@ export function CortexApp({
 
   const onHome = view === "home";
   const railOn = onHome && chatRailOpen;
+  // True whenever a durable write (memory remember, file, session) is mid-flight to
+  // Walrus/Sui. Sign-out is disabled while this holds so a memory is never stranded
+  // half-written, which would also keep it invisible to the MCP.
+  const savingToChain = useSyncExternalStore(
+    subscribePendingWalrusWrites,
+    hasPendingWalrusWrites,
+    () => false,
+  );
   return (
     <div
       className={
@@ -2990,6 +3017,12 @@ export function CortexApp({
                   {sess ? (
                     <button
                       className="tb-menu-item danger"
+                      disabled={savingToChain}
+                      title={
+                        savingToChain
+                          ? "Saving your memory to the Sui stack…"
+                          : undefined
+                      }
                       onClick={() => {
                         doSignOut();
                         setProfileOpen(false);
@@ -2999,7 +3032,7 @@ export function CortexApp({
                         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                         <path d="M16 17l5-5-5-5M21 12H9" />
                       </svg>
-                      <span>Sign out</span>
+                      <span>{savingToChain ? "Saving to Sui…" : "Sign out"}</span>
                     </button>
                   ) : privyOn ? (
                     <button
@@ -6191,8 +6224,17 @@ export function CortexApp({
                               {sess.addr.slice(0, 10)}…{sess.addr.slice(-6)}
                             </div>
                           </div>
-                          <button className="pill-btn" onClick={doSignOut}>
-                            Sign out
+                          <button
+                            className="pill-btn"
+                            onClick={doSignOut}
+                            disabled={savingToChain}
+                            title={
+                              savingToChain
+                                ? "Saving your memory to the Sui stack…"
+                                : undefined
+                            }
+                          >
+                            {savingToChain ? "Saving to Sui…" : "Sign out"}
                           </button>
                         </div>
                       ) : (
