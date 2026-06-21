@@ -26,6 +26,26 @@ interface Body {
 
 const MAX_TOKENS = 1600;
 
+// Models like to wrap the prompt in meta the user did not ask for: a leading
+// "Category:" / "Title:" / "Prompt:" label line, a "Here is the prompt" preamble,
+// code fences, or surrounding quotes. The Studio output is meant to be pasted
+// straight into an AI, so strip that scaffolding and hand back only the prompt.
+function sanitizePrompt(text: string): string {
+  let out = text.trim();
+  const fence = out.match(/^```[^\n]*\n([\s\S]*?)\n```$/);
+  if (fence) out = fence[1].trim();
+  out = out
+    .replace(
+      /^(?:category|title|prompt|output|response|here(?:'|’)?s(?: the)?[^\n:]*|here is[^\n:]*)\s*:[^\n]*\n+/i,
+      "",
+    )
+    .trim();
+  if (out.length > 1 && out.startsWith('"') && out.endsWith('"')) {
+    out = out.slice(1, -1).trim();
+  }
+  return out;
+}
+
 export async function POST(req: Request) {
   let body: Body;
   try {
@@ -41,7 +61,10 @@ export async function POST(req: Request) {
 
   const system =
     "You are an expert prompt engineer working inside Cortex, a personal memory system. " +
-    "Write ONE ready-to-use prompt and nothing else  -  no preamble, no commentary, no markdown code fences around it. " +
+    "Output ONLY the finished prompt, ready to paste into an AI - nothing else. " +
+    "Do NOT add a category, title, heading, label, or preamble (never start with lines like 'Category:', 'Title:', 'Prompt:', or 'Here is...'). " +
+    "Do NOT wrap the prompt in quotes or markdown code fences, and do NOT explain it afterward. " +
+    "Write a genuinely strong, specific prompt: name the role/persona the AI should adopt, state the concrete task, spell out the key requirements, constraints, and any structure or length expectations, and make every instruction actionable rather than a vague description. " +
     "Ground it in the user's stated memories, treat their standing preferences as non-negotiable, and keep their voice. " +
     (web
       ? "Where the memories don't cover something, you may draw on broad general knowledge. "
@@ -79,6 +102,10 @@ export async function POST(req: Request) {
     maxTokens: MAX_TOKENS,
   });
   return result.ok
-    ? Response.json({ prompt: result.text, ai: true, model: chosen.name })
+    ? Response.json({
+        prompt: sanitizePrompt(result.text),
+        ai: true,
+        model: chosen.name,
+      })
     : Response.json({ prompt: fallback, ai: false, reason: result.reason });
 }
