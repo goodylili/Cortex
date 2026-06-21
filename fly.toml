@@ -3,7 +3,7 @@
 # Secrets (delegate key, MemWal creds, Gemini key, package ids, ...) are NOT here;
 # import them from the MCP .env once with:
 #   fly secrets import < backend/mcp/.env
-app = "cortex-mcp"
+app = "cortex-mcp-usecortexai"
 primary_region = "fra"
 
 [build]
@@ -15,7 +15,7 @@ primary_region = "fra"
   MCP_TRANSPORT = "http"
   PORT = "8080"
   CORTEX_MCP_PUBLIC_URL = "https://mcp.usecortexai.xyz"
-  CORTEX_APP_URL = "https://app.usecortexai.com"
+  CORTEX_APP_URL = "https://usecortexai.xyz"
 
 [http_service]
   internal_port = 8080
