@@ -134,27 +134,58 @@ export async function getBlob(
   }
 }
 
-// Record a key -> value pointer in the Account's on-chain settings.
+// A Sui owned object is version-locked: a tx built against a stale version is
+// rejected with "unavailable for consumption" / "needs to be rebuilt". The wallet
+// tx queue (see signer.ts) serializes writes, but the fullnode that resolves object
+// versions when BUILDING the next tx can still lag the one that executed the last,
+// so a stale build occasionally slips through. The cure is to rebuild from scratch
+//  -  a fresh Transaction re-resolves the object to its current version  -  and retry.
+const REBUILD_HINTS = [
+  "unavailable for consumption",
+  "needs to be rebuilt",
+  "not available for consumption",
+  "is not available for consumption",
+];
+const POINTER_MAX_ATTEMPTS = 4;
+
+function isVersionConflict(error: unknown): boolean {
+  const message = String((error as Error)?.message ?? error).toLowerCase();
+  return REBUILD_HINTS.some((hint) => message.includes(hint));
+}
+
+// Record a key -> value pointer in the Account's on-chain settings. Rebuilds and
+// retries on a stale-object-version rejection so a returning user's timeline /
+// documents / profile writes settle instead of surfacing a scary chain error.
 async function setPointer(
   signer: PrivySuiSigner,
   accountId: string,
   key: string,
   value: string,
 ): Promise<void> {
-  const tx = new Transaction();
-  tx.moveCall({
-    target: `${CORTEX_ENV.packageId}::account::set_setting`,
-    arguments: [
-      tx.object(accountId),
-      tx.pure.string(key),
-      tx.pure.string(value),
-      tx.object(SUI_CLOCK_OBJECT_ID),
-    ],
-  });
-  await signer.signAndExecuteTransaction({
-    transaction: tx,
-    client: getSuiClient(),
-  });
+  for (let attempt = 1; ; attempt++) {
+    const tx = new Transaction();
+    tx.moveCall({
+      target: `${CORTEX_ENV.packageId}::account::set_setting`,
+      arguments: [
+        tx.object(accountId),
+        tx.pure.string(key),
+        tx.pure.string(value),
+        tx.object(SUI_CLOCK_OBJECT_ID),
+      ],
+    });
+    try {
+      await signer.signAndExecuteTransaction({
+        transaction: tx,
+        client: getSuiClient(),
+      });
+      return;
+    } catch (error) {
+      if (attempt >= POINTER_MAX_ATTEMPTS || !isVersionConflict(error)) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 350 * attempt));
+    }
+  }
 }
 
 interface SettingsJson {
