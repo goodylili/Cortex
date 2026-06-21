@@ -149,6 +149,63 @@ export async function firstEventBySender(
   return json ? (json as Record<string, unknown>) : null;
 }
 
+// Every event of a type emitted by a given sender, each decoded as JSON. Mirrors
+// EVENT_BY_SENDER_QUERY but without the `first: 1` cap, so callers can reconstruct a
+// full set (e.g. all of a user's MemoryAdded entries) from the on-chain event log.
+const EVENTS_BY_SENDER_QUERY = graphql(`
+  query EventsBySender($type: String!, $sender: SuiAddress!, $after: String) {
+    events(filter: { type: $type, sender: $sender }, after: $after) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        contents {
+          json
+        }
+      }
+    }
+  }
+`);
+
+interface PagedEventsResult {
+  events?: {
+    pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
+    nodes?: { contents?: { json?: unknown } | null }[];
+  };
+}
+
+// All events of a type by a sender, paginated to completion. Defensive: returns the
+// events gathered so far (or []) on any error, so a transient read never throws.
+export async function allEventsBySender(
+  eventType: string,
+  sender: string,
+): Promise<{ json: Record<string, unknown> }[]> {
+  const out: { json: Record<string, unknown> }[] = [];
+  let after: string | undefined;
+  let hasNext = true;
+  try {
+    while (hasNext) {
+      const res = await gql().query({
+        query: EVENTS_BY_SENDER_QUERY,
+        variables: { type: eventType, sender, after },
+      });
+      const data = res.data as PagedEventsResult | undefined;
+      const nodes = data?.events?.nodes ?? [];
+      for (const n of nodes) {
+        const json = n.contents?.json;
+        if (json) out.push({ json: json as Record<string, unknown> });
+      }
+      const page = data?.events?.pageInfo;
+      hasNext = Boolean(page?.hasNextPage && page.endCursor);
+      after = page?.endCursor ?? undefined;
+    }
+  } catch {
+    return out;
+  }
+  return out;
+}
+
 export async function moduleEvents(eventType: string): Promise<ModuleEvent[]> {
   const res = await gql().query({
     query: EVENTS_QUERY,

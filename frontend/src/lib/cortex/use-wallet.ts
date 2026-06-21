@@ -106,6 +106,10 @@ import {
   revokeMemoryDelegate,
   type RecalledMemory,
 } from "@/lib/cortex/walrus/memory";
+import {
+  listMemoriesOnChain,
+  recordMemoryOnChain,
+} from "@/lib/cortex/walrus/memory-registry";
 
 const NAMESPACE = "personal";
 const ZERO_ID = `0x${"0".repeat(64)}`;
@@ -418,6 +422,13 @@ export function useCortexWallet(): CortexWalletState {
       },
       remember: async (text: string) => {
         await ensureMemory(userKey, signer);
+        if (CORTEX_ENV.memoryModuleEnabled) {
+          void ensureCortexAccount()
+            .then((accountId) =>
+              recordMemoryOnChain(signer, accountId, text, "note", []),
+            )
+            .catch(() => {});
+        }
         return trackWalrusWrite(rememberLive(userKey, NAMESPACE, text));
       },
       recall: async (query: string) => {
@@ -425,16 +436,32 @@ export function useCortexWallet(): CortexWalletState {
         return recallLive(userKey, NAMESPACE, query);
       },
       allMemories: async () => {
+        // The on-chain memory module is an additive, best-effort overlay: when
+        // enabled, its entries are merged in alongside the MemWal set (deduped by
+        // text); any read failure falls back to MemWal alone. When disabled this is
+        // exactly the original MemWal-only flow.
+        const onChain = CORTEX_ENV.memoryModuleEnabled
+          ? listMemoriesOnChain(signer, address).catch(
+              () => [] as { blobId: string; text: string }[],
+            )
+          : Promise.resolve([] as { blobId: string; text: string }[]);
         // If not cached locally (first run, or after a sign-out cleared creds),
         // recover the durable on-chain account before giving up  -  only a user
         // who never provisioned memory truly has none. This is what makes a
         // returning user's full memory set reappear instead of looking empty.
-        if (!memoryProvisioned(userKey)) {
-          const recovered = await findMemwalAccountId(address);
-          if (!recovered) return [];
+        let memwal: RecalledMemory[] = [];
+        if (memoryProvisioned(userKey) || (await findMemwalAccountId(address))) {
+          await ensureMemory(userKey, signer);
+          memwal = await allMemoriesLive(userKey, NAMESPACE);
         }
-        await ensureMemory(userKey, signer);
-        return allMemoriesLive(userKey, NAMESPACE);
+        const merged: RecalledMemory[] = [...memwal];
+        const seenText = new Set(memwal.map((m) => m.text));
+        for (const entry of await onChain) {
+          if (seenText.has(entry.text)) continue;
+          seenText.add(entry.text);
+          merged.push({ blobId: entry.blobId, text: entry.text, distance: 0 });
+        }
+        return merged;
       },
       saveSession: async (meta: SessionMeta, chat: unknown) => {
         if (!contractsEnabled()) return [];

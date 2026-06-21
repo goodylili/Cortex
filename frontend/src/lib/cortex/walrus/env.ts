@@ -62,6 +62,7 @@ export interface CortexEnv {
   seal: { serverObjectIds: string[]; threshold: number };
   memwal: { serverUrl: string; packageId: string; registryId: string };
   suinsParent: string;
+  memoryModuleEnabled: boolean;
 }
 
 function parseIntOr(value: string | undefined, fallback: number): number {
@@ -84,6 +85,8 @@ const WALRUS_EPOCHS = parseIntOr(
   process.env.NEXT_PUBLIC_WALRUS_EPOCHS,
   DEFAULT_WALRUS_EPOCHS,
 );
+const MEMORY_MODULE_ENABLED =
+  process.env.NEXT_PUBLIC_CORTEX_MEMORY_MODULE === "1";
 
 // Per-network raw slots. Each key is a STATIC literal so Next inlines it.
 interface NetSlots {
@@ -158,6 +161,7 @@ function buildEnv(network: CortexNetwork): CortexEnv {
       registryId: s.memwalRegistryId ?? "",
     },
     suinsParent: s.suinsParent || DEFAULT_SUINS_PARENT,
+    memoryModuleEnabled: MEMORY_MODULE_ENABLED,
   };
 }
 
