@@ -38,7 +38,7 @@ export function ProblemSection() {
               Most memory tools stop at storage and search. They do not give
               you sovereign ownership, encrypted shared memory, or programmable
               workflows for prompts, loops, and agents. Your context lives in
-              someone else's product instead of on infrastructure aligned with
+              someone else&apos;s product instead of on infrastructure aligned with
               you.
             </p>
           </Reveal>

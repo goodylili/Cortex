@@ -20,8 +20,8 @@ describe("modelByName", () => {
 });
 
 describe("DEFAULT_MODEL", () => {
-  it("is Claude Sonnet 4.6", () => {
-    expect(DEFAULT_MODEL.id).toBe("claude-sonnet-4-6");
+  it("is Gemini 2.5 Flash (the free-tier default)", () => {
+    expect(DEFAULT_MODEL.id).toBe("gemini-2.5-flash");
   });
 });
 

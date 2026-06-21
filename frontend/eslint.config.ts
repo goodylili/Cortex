@@ -9,6 +9,10 @@ const eslintConfig = [
       "react-hooks/immutability": "off",
       "react-hooks/purity": "off",
       "react-hooks/set-state-in-effect": "off",
+      // The React Compiler ref rule flags helpers like flash()/saveFinding()
+      // that read a ref and are called from event handlers (the correct place);
+      // those calls don't run during render, so it is a false positive here.
+      "react-hooks/refs": "off",
     },
   },
   {
