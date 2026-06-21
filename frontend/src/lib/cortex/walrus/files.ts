@@ -149,9 +149,20 @@ export function fileUrl(blobId: string): string {
   return `${CORTEX_ENV.walrusAggregator}/v1/blobs/${blobId}`;
 }
 
-// Raw fetch straight from Walrus  -  works without Cortex, the independence check.
+// Read a blob straight from a public Walrus aggregator (CDN-style GET) - the
+// documented browser read path. This avoids the SDK's readBlob, which fans out to
+// storage nodes and decodes slivers via WASM in the browser: slow, and the source
+// of the silent "download does nothing" failures. Works without Cortex, so it also
+// doubles as the independence check. For sealed files the bytes are ciphertext that
+// fetchSealedFile then Seal-decrypts.
 export async function fetchBlob(blobId: string): Promise<Uint8Array> {
-  return getWalrusClient().readBlob({ blobId });
+  const response = await fetch(fileUrl(blobId));
+  if (!response.ok) {
+    throw new Error(
+      `Walrus aggregator returned ${response.status} for blob ${blobId}`,
+    );
+  }
+  return new Uint8Array(await response.arrayBuffer());
 }
 
 // Read + Seal-decrypt a sealed blob. Builds the seal_approve transaction the key
