@@ -39,8 +39,18 @@ import {
   executorRenewKbFile,
 } from "@cortex/core";
 import { createServer } from "node:http";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
+import {
+  authServerMetadata,
+  protectedResourceMetadata,
+  registerClient,
+  mintAuthCode,
+  exchangeToken,
+  userFromBearer,
+  verifySuiConsent,
+  type UserContext,
+} from "./auth";
 
 const DEFAULT_PERIOD = { from: "0000", to: "9999" };
 const SUMMARY_RECENT_LIMIT = 20;
@@ -57,6 +67,23 @@ const cfg = loadConfig();
 const live = isLive(cfg);
 const c = createClients(cfg);
 const cortex = openCortex(cfg);
+
+// Managed OAuth (HTTP transport only). It turns on when a public URL is set, so
+// the stdio / local-HTTP paths keep working unauthenticated against the
+// configured account. The token-signing secret is derived from the delegate key
+// unless one is provided explicitly.
+const OAUTH_PUBLIC_URL = (
+  process.env.CORTEX_MCP_PUBLIC_URL ?? ""
+).replace(/\/$/, "");
+const OAUTH_APP_URL = (
+  process.env.CORTEX_APP_URL ?? "https://app.usecortexai.com"
+).replace(/\/$/, "");
+const OAUTH_ENABLED = OAUTH_PUBLIC_URL.length > 0;
+const OAUTH_SECRET =
+  process.env.CORTEX_OAUTH_SECRET ||
+  createHash("sha256")
+    .update(`cortex-mcp-oauth:${cfg.delegateKey}`)
+    .digest("hex");
 
 async function main() {
   const { McpServer } = await importExternal(
@@ -97,9 +124,27 @@ async function main() {
 
   if (!live) await seedDemo(c, cfg);
 
+  // The configured-account clients (used for stdio / unauthenticated HTTP, and as
+  // the base each per-user session is cloned from).
+  const globalCfg = cfg;
+  const globalClients = c;
+  const globalCortex = cortex;
+
   // A fresh, fully-configured McpServer. The stdio path builds one; the hosted
   // HTTP path builds one per client session (each transport binds one server).
-  const buildServer = () => {
+  // When a session is bound to an authenticated OAuth user, cfg + clients are
+  // shadowed with that user's namespace and MemWal account, so every tool below
+  // (which closes over `cfg` and `c`) acts on the caller's own memory.
+  const buildServer = (userCtx?: UserContext) => {
+    const cfg = userCtx
+      ? {
+          ...globalCfg,
+          namespace: userCtx.namespace,
+          memwal: { ...globalCfg.memwal, accountId: userCtx.memwalAccountId },
+        }
+      : globalCfg;
+    const c = userCtx ? createClients(cfg) : globalClients;
+    const cortex = userCtx ? openCortex(cfg) : globalCortex;
     const server = new McpServer({ name: "cortex-memory", version: "0.3.0" });
 
   // ---- memory: write / consolidate / verify ----
@@ -759,6 +804,27 @@ async function main() {
       res.writeHead(status, { "content-type": "application/json" });
       res.end(JSON.stringify(body));
     };
+    // The /token endpoint receives application/x-www-form-urlencoded per OAuth;
+    // accept JSON too. Reads the raw body (do not also call readBody on the same req).
+    const readParams = (req: any): Promise<Record<string, string>> =>
+      new Promise((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        req.on("data", (chunk: Buffer) => chunks.push(chunk));
+        req.on("end", () => {
+          const raw = Buffer.concat(chunks).toString("utf8");
+          const ctype = String(req.headers["content-type"] ?? "");
+          if (ctype.includes("application/json")) {
+            try {
+              resolve(JSON.parse(raw || "{}"));
+            } catch {
+              resolve({});
+            }
+            return;
+          }
+          resolve(Object.fromEntries(new URLSearchParams(raw)));
+        });
+        req.on("error", reject);
+      });
 
     const httpServer = createServer(async (req: any, res: any) => {
       res.setHeader("Access-Control-Allow-Origin", "*");
@@ -774,9 +840,125 @@ async function main() {
         return;
       }
       const path = new URL(req.url ?? "/", "http://localhost").pathname;
+      const issuer =
+        OAUTH_PUBLIC_URL || `http://${req.headers.host ?? "localhost"}`;
+      const resourceUrl = `${issuer}${MCP_PATH}`;
+
+      // ---- OAuth 2.1 endpoints (managed, stateless; see auth.ts) ----
+      if (OAUTH_ENABLED) {
+        try {
+          if (
+            req.method === "GET" &&
+            path === "/.well-known/oauth-authorization-server"
+          ) {
+            sendJson(res, 200, authServerMetadata(issuer));
+            return;
+          }
+          if (
+            req.method === "GET" &&
+            path === "/.well-known/oauth-protected-resource"
+          ) {
+            sendJson(res, 200, protectedResourceMetadata(resourceUrl, issuer));
+            return;
+          }
+          if (req.method === "POST" && path === "/register") {
+            const body = ((await readBody(req)) ?? {}) as Record<string, unknown>;
+            sendJson(res, 201, registerClient(body));
+            return;
+          }
+          if (req.method === "GET" && path === "/authorize") {
+            // Hand the user to the Cortex web consent page (where the Privy wallet
+            // lives), preserving the OAuth request so /connect can complete it.
+            const q = new URL(req.url ?? "/", issuer).searchParams;
+            const consent = new URL(`${OAUTH_APP_URL}/connect`);
+            for (const k of [
+              "response_type",
+              "client_id",
+              "redirect_uri",
+              "code_challenge",
+              "code_challenge_method",
+              "state",
+              "scope",
+            ]) {
+              const v = q.get(k);
+              if (v) consent.searchParams.set(k, v);
+            }
+            consent.searchParams.set("mcp", resourceUrl);
+            res.writeHead(302, { location: consent.toString() });
+            res.end();
+            return;
+          }
+          if (req.method === "POST" && path === "/oauth/grant") {
+            // The consent page calls this after the user signs. The Sui signature
+            // is the authentication; on success we mint the auth code + redirect.
+            const b = ((await readBody(req)) ?? {}) as Record<string, string>;
+            const address = b.address ?? "";
+            const codeChallenge = b.code_challenge ?? "";
+            const signature = b.signature ?? "";
+            const redirectUri = b.redirect_uri ?? "";
+            const memwalAccountId = b.memwalAccountId ?? "";
+            if (!address || !codeChallenge || !signature || !redirectUri) {
+              sendJson(res, 400, { error: "invalid_request" });
+              return;
+            }
+            const ok = await verifySuiConsent(address, codeChallenge, signature);
+            if (!ok) {
+              sendJson(res, 401, { error: "invalid_consent" });
+              return;
+            }
+            const code = mintAuthCode(
+              OAUTH_SECRET,
+              {
+                address,
+                namespace: b.namespace || address,
+                memwalAccountId,
+              },
+              codeChallenge,
+              redirectUri,
+            );
+            const redirect = new URL(redirectUri);
+            redirect.searchParams.set("code", code);
+            if (b.state) redirect.searchParams.set("state", b.state);
+            sendJson(res, 200, { redirect: redirect.toString() });
+            return;
+          }
+          if (req.method === "POST" && path === "/token") {
+            const result = exchangeToken(OAUTH_SECRET, await readParams(req));
+            if (!result.ok) {
+              sendJson(res, 400, {
+                error: result.error,
+                error_description: result.description,
+              });
+              return;
+            }
+            sendJson(res, 200, result.tokens);
+            return;
+          }
+        } catch (err) {
+          if (!res.headersSent) sendJson(res, 500, { error: String(err) });
+          return;
+        }
+      }
+
       if (path !== MCP_PATH) {
         sendJson(res, 404, { error: "not found" });
         return;
+      }
+      // When OAuth is on, every MCP request must carry a valid Bearer; the 401 +
+      // WWW-Authenticate points Claude at the protected-resource metadata so it
+      // starts the OAuth flow. The resolved user scopes the session's tools.
+      let userCtx: UserContext | undefined;
+      if (OAUTH_ENABLED) {
+        userCtx =
+          userFromBearer(OAUTH_SECRET, req.headers["authorization"]) ?? undefined;
+        if (!userCtx) {
+          res.setHeader(
+            "WWW-Authenticate",
+            `Bearer resource_metadata="${issuer}/.well-known/oauth-protected-resource"`,
+          );
+          sendJson(res, 401, { error: "unauthorized" });
+          return;
+        }
       }
       const sid = req.headers["mcp-session-id"] as string | undefined;
       try {
@@ -802,7 +984,7 @@ async function main() {
             transport.onclose = () => {
               if (transport.sessionId) sessions.delete(transport.sessionId);
             };
-            await buildServer().connect(transport);
+            await buildServer(userCtx).connect(transport);
           }
           await transport.handleRequest(req, res, body);
         } else if (req.method === "GET" || req.method === "DELETE") {
