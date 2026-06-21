@@ -111,6 +111,8 @@ export function MemoryMap({
       seal: boolean;
       mem: Memory;
       blob?: string;
+      file?: boolean;
+      facet?: string;
       pinned?: boolean;
       forgotten?: boolean;
       verified?: boolean;
@@ -174,6 +176,8 @@ export function MemoryMap({
       day: i + 1,
       by: (m as unknown as { source?: string }).source || "you",
       seal: !!m.kept,
+      file: !!m.blobId,
+      facet: m.facet,
       pinned: false,
       forgotten: false,
       verified: false,
@@ -277,6 +281,16 @@ export function MemoryMap({
     RELS.forEach(([a, b]) => {
       if (byId[a]?.node && byId[b]?.node)
         links.push({ a: byId[a]!, b: byId[b]! });
+    });
+
+    // KB files are grouped under their (often generic) tag cluster, but each one
+    // belongs to a topic via its facet. Tie every file leaf to the hub of its
+    // facet so it visibly relates to its subject, when that facet is its own hub.
+    const fileLinks: { leaf: Node; hub: Node }[] = [];
+    MEM.forEach((m) => {
+      if (!m.file || !m.node || !m.facet || m.facet === m.cat) return;
+      const hub = hubs[m.facet];
+      if (hub) fileLinks.push({ leaf: m.node, hub });
     });
 
     const cam = { tx: 0, ty: 0, scale: 1 };
@@ -493,6 +507,9 @@ export function MemoryMap({
       links.forEach((l) => {
         if (vis(l.a) && vis(l.b)) spring(l.a.node!, l.b.node!, 135, 0.006);
       });
+      fileLinks.forEach((fl) => {
+        if (vis(fl.leaf.mem!)) spring(fl.hub, fl.leaf, 150, 0.004);
+      });
       vn.forEach((n) => {
         if (n.type === "center") {
           n.x = 0;
@@ -655,6 +672,22 @@ export function MemoryMap({
         ctx.stroke();
         ctx.setLineDash([]);
       });
+      fileLinks.forEach((fl) => {
+        if (!vis(fl.leaf.mem!)) return;
+        const [ax, ay] = toScreen(fl.hub.x, fl.hub.y),
+          [bx, by] = toScreen(fl.leaf.x, fl.leaf.y);
+        const fc = CATS[fl.hub.cat!]?.c ?? NEUT.link;
+        const mx = (ax + bx) / 2,
+          my = (ay + by) / 2 - Math.hypot(bx - ax, by - ay) * 0.12;
+        ctx.strokeStyle = hexA(fc, 0.16 * fl.leaf.a!);
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.quadraticCurveTo(mx, my, bx, by);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
       const anyQ = relevant.size > 0;
       links.forEach((l) => {
         if (!vis(l.a) || !vis(l.b)) return;
@@ -714,6 +747,14 @@ export function MemoryMap({
           ring(x, y, r + 7 + lf.pulse! * 12, cc, lf.pulse! * 0.6, 1.4);
         orb(x, y, r, cc, Math.max(al, 0.25));
         ring(x, y, r + 4, NEUT.spark, Math.max(al, 0.25) * 0.3, 1.3);
+        // Files read as a small square node (a document glyph) so they stand apart
+        // from regular memory orbs while still clustering with their topic.
+        if (m.file) {
+          const sq = r * 0.95;
+          ctx.strokeStyle = hexA(NEUT.spark, Math.max(al, 0.3) * 0.85);
+          ctx.lineWidth = 1.4;
+          ctx.strokeRect(x - sq, y - sq, sq * 2, sq * 2);
+        }
         if (m.pinned) ring(x, y, r + 7.5, NEUT.spark, 0.6 * al, 1);
         const showL =
           relevant.has("leaf_" + m.id) ||

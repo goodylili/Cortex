@@ -95,6 +95,7 @@ import {
   ensureMemory,
   listMemoryDelegates,
   loadMemoryCreds,
+  memoryProvisioned,
   recallLive,
   rememberLive,
   revokeMemoryDelegate,
@@ -389,6 +390,9 @@ export function useCortexWallet(): CortexWalletState {
         return recallLive(userKey, NAMESPACE, query);
       },
       allMemories: async () => {
+        // Don't provision (sign + create the MemWal account) just to list
+        // memories; a brand-new user has none. Only recall once provisioned.
+        if (!memoryProvisioned(userKey)) return [];
         await ensureMemory(userKey, signer);
         return allMemoriesLive(userKey, NAMESPACE);
       },
