@@ -53,6 +53,31 @@ export function isFileNode(m: Memory): boolean {
   return !!(m.blobId || m.mime) && m.source !== "memwal";
 }
 
+// "Recall everything" style questions: the user wants their whole memory set, not
+// the top few semantic matches. These should bypass focused top-K recall (which is
+// distance-filtered and capped low) and read the full set instead. Phrases that are
+// ambiguous between broad and specific ("what do you know about ___") only count
+// when they end at "me"/"us" or the question itself, so "what do you know about my
+// car" stays a focused recall.
+const RECALL_ALL_RE = new RegExp(
+  [
+    "\\beverything\\b",
+    "\\bevery memory\\b",
+    "\\ball (of )?(my |the )?memories\\b",
+    "\\blist (all|my|every|everything)\\b",
+    "\\brecall (all|everything)\\b",
+    "\\bshow (me )?(all|everything)\\b",
+    "\\bwhat have i (told|said)\\b",
+    "\\bwhat do you have on me\\b",
+    "what do you (know|remember)( about (me|us))?\\s*\\??$",
+  ].join("|"),
+  "i",
+);
+
+export function isRecallAllIntent(query: string): boolean {
+  return RECALL_ALL_RE.test(query.trim());
+}
+
 export interface CortexEvent {
   id: string;
   ts: number;

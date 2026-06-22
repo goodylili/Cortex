@@ -15,6 +15,7 @@ import {
   fmtMoney,
   fmtTokens,
   isFileNode,
+  isRecallAllIntent,
   MODELS,
   type Memory,
 } from "@/lib/cortex/logic";
@@ -1634,6 +1635,16 @@ export function CortexApp({
     s.setMode("ask");
     if (!wallet) {
       s.ask(query);
+      return;
+    }
+    // "Recall everything" questions want the whole memory set, not the focused,
+    // distance-filtered top-K. Read the full MemWal set directly so the model can
+    // actually list it all.
+    if (isRecallAllIntent(query)) {
+      wallet
+        .allMemories()
+        .then((all) => s.ask(query, all))
+        .catch(() => s.ask(query));
       return;
     }
     wallet

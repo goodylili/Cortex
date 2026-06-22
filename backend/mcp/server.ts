@@ -62,6 +62,27 @@ const MCP_PATH = "/mcp";
 const HTTP_PORT = 8787;
 const ENV_FILE = process.env.CORTEX_ENV_FILE ?? ".env";
 
+// "Recall everything / what do you know about me" intent: such questions want the
+// whole memory set, not the top-K semantic matches, so memory_recall returns the
+// full namespace instead. Mirrors isRecallAllIntent in the frontend's logic.ts.
+const RECALL_ALL_RE = new RegExp(
+  [
+    "\\beverything\\b",
+    "\\bevery memory\\b",
+    "\\ball (of )?(my |the )?memories\\b",
+    "\\blist (all|my|every|everything)\\b",
+    "\\brecall (all|everything)\\b",
+    "\\bshow (me )?(all|everything)\\b",
+    "\\bwhat have i (told|said)\\b",
+    "\\bwhat do you have on me\\b",
+    "what do you (know|remember)( about (me|us))?\\s*\\??$",
+  ].join("|"),
+  "i",
+);
+function isRecallAllIntent(query: string): boolean {
+  return RECALL_ALL_RE.test(query.trim());
+}
+
 // Load the MCP's own .env (CORTEX_ENV_FILE to point elsewhere) before reading config.
 if (existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE);
 
@@ -191,10 +212,17 @@ async function main() {
   // ---- memory: write / consolidate / verify ----
   server.tool(
     "memory_recall",
-    "Recall memories from the namespace (verified-first).",
+    "Recall memories from the namespace (verified-first). For 'everything / what do you know about me' style questions, returns the full set instead of the top matches.",
     { query: z.string().optional(), limit: z.number().optional() },
     async ({ query, limit }: any) => {
-      const recs = await c.memwal.recall(cfg.namespace, query ?? "", { limit });
+      const q = query ?? "";
+      // "Recall everything" intent wants the whole set, not focused top-K. Read the
+      // full namespace (restore = broad recall) so nothing is dropped to a low limit.
+      if (isRecallAllIntent(q)) {
+        const all = await cortex.memories();
+        return json(all);
+      }
+      const recs = await c.memwal.recall(cfg.namespace, q, { limit });
       return json(recs);
     },
   );
