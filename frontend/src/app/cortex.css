@@ -10858,3 +10858,26 @@ body.dev .dev-switch::after {
     overflow-x: clip;
   }
 }
+
+/* ============================================================
+   Mobile fix: the floating "Chat History" rail overlapped the composer.
+   Hide the collapsed bar, and present the OPEN rail as a full-screen sheet
+   above everything (opened from the hamburger menu, dismissed by its chevron),
+   so it never collides with the fixed bottom composer.
+   ============================================================ */
+@media (max-width: 760px) {
+  .chat-rail.on-home:not(.open) {
+    display: none;
+  }
+  .chat-rail.on-home.open {
+    inset: 0;
+    width: auto;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    padding: calc(env(safe-area-inset-top) + 12px) 14px
+      calc(env(safe-area-inset-bottom) + 14px);
+    z-index: 1001;
+    overflow-y: auto;
+  }
+}
