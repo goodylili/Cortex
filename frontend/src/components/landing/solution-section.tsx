@@ -52,7 +52,10 @@ const STEPS: SolutionStep[] = [
     description:
       "Cortex turns memory into insights. Recall facts, surface patterns, and generate dreams that synthesize what your graph has been telling you.",
     icon: <Sparkles className="h-5 w-5" />,
-    image: "/images/recall-memwal.png",
+    // Width capped at 1600 (the slot is ~640px, 2x for retina) so the Unsplash CDN
+    // serves a light image instead of the source 3376px asset.
+    image:
+      "https://plus.unsplash.com/premium_photo-1711987351245-6b048554813b?q=80&w=1600&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
 ];
 

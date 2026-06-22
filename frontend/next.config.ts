@@ -27,6 +27,9 @@ const nextConfig: NextConfig = {
     // The marketing assets ship pre-sized in /public, so Next's optimizer is
     // not needed and would otherwise require a configured loader at runtime.
     unoptimized: true,
+    // The landing "Dream" visual is served from Unsplash's CDN (sized via its own
+    // query params), so allow that host for next/image.
+    remotePatterns: [{ protocol: "https", hostname: "plus.unsplash.com" }],
   },
   // Turbopack (dev) equivalent of the webpack tweak below: point the optional
   // Privy peers we don't use at an empty module so they resolve cleanly.
