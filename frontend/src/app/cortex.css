@@ -9855,26 +9855,164 @@ body.dev .dev-switch::after {
 /* Top bar: flexible, scrollable centre column so the brand mark and
    profile never get clipped when the nav can't fit on one row. */
 @media (max-width: 760px) {
+  .app {
+    zoom: 1;
+    min-height: 100dvh;
+  }
+  .wrap {
+    padding: 28px 16px 196px;
+  }
+  .ov-hero {
+    margin-top: 20px;
+    padding-top: 0;
+  }
+  .ov-sub {
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .topbar {
+    padding-top: env(safe-area-inset-top);
+  }
   .topbar-inner {
     grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 10px;
-    padding: 0 14px;
+    min-height: 64px;
+    height: auto;
+    padding: 8px 14px;
   }
   .tb-center {
     justify-self: stretch;
     min-width: 0;
     gap: 6px;
   }
+  .tb-right {
+    gap: 8px;
+  }
+  .tb-menu,
+  .tb-note-menu {
+    max-width: calc(100vw - 24px);
+  }
+}
+
+/* Very small phones: split the header into two rows so the nav can scroll
+   independently without crushing the brand, CTA, or account controls. */
+@media (max-width: 560px) {
+  .topbar-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .tb-left {
+    order: 1;
+  }
+  .tb-right {
+    order: 2;
+    margin-left: auto;
+  }
+  .tb-center {
+    order: 3;
+    width: 100%;
+    justify-self: auto;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .tb-brand .mark {
+    width: 32px;
+    height: 32px;
+  }
+  .tb-nav {
+    flex: 1;
+    min-width: max-content;
+  }
+  .tb-right > span {
+    display: none;
+  }
+  .tb-add {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+    font-size: 0;
+  }
+  .tb-add svg {
+    width: 18px;
+    height: 18px;
+  }
+  .tb-icon,
+  .tb-add {
+    height: 40px;
+  }
+  .tb-menu,
+  .tb-note-menu {
+    width: min(320px, calc(100vw - 24px));
+  }
 }
 
 /* Composer: wrap the toolbar instead of pushing Send/model off-screen. */
 @media (max-width: 640px) {
+  .composer-dock {
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+  .capture {
+    margin-top: 14px;
+    padding: 6px;
+  }
+  .capture textarea {
+    font-size: 16px;
+    padding: 14px 12px 4px;
+  }
   .capture-bar {
     flex-wrap: wrap;
+    align-items: center;
     row-gap: 10px;
+    padding: 4px 4px 6px 0;
+  }
+  .mode-toggle {
+    order: 2;
+    width: 100%;
+  }
+  .mode-toggle button {
+    flex: 1;
+    justify-content: center;
+    padding: 9px 10px;
   }
   .cap-tail {
-    margin-left: auto;
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .cap-tail .model-anchor,
+  .cap-tail .imp-anchor {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .model-chip,
+  .imp-chip {
+    max-width: 100%;
+  }
+  .model-chip span:nth-child(2) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .speak-tool {
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+    font-size: 0;
+  }
+  .chat-rail {
+    bottom: calc(150px + env(safe-area-inset-bottom));
+    max-height: min(360px, 40vh);
+  }
+  .docs-fab {
+    right: 12px;
+    bottom: calc(112px + env(safe-area-inset-bottom));
   }
 }
 
@@ -9924,8 +10062,8 @@ body.dev .dev-switch::after {
    composer rather than swallowing the whole viewport. */
 @media (max-width: 640px) {
   .chat-rail {
-    bottom: 132px;
-    max-height: 42vh;
+    bottom: calc(150px + env(safe-area-inset-bottom));
+    max-height: min(360px, 40vh);
   }
 }
 
@@ -9954,6 +10092,48 @@ body.dev .dev-switch::after {
   }
 }
 @media (max-width: 480px) {
+  .wrap {
+    padding: 20px 12px 188px;
+  }
+  .ov-hero {
+    margin-top: 8px;
+  }
+  .ov-hello {
+    font-size: clamp(24px, 9vw, 40px);
+  }
+  .ov-sub {
+    font-size: 14px;
+    max-width: 30ch;
+  }
+  .tb-nav {
+    gap: 3px;
+    padding: 4px;
+  }
+  .tb-item {
+    padding: 8px;
+  }
+  .tb-item,
+  .tb-icon {
+    height: 40px;
+  }
+  .cap-tool {
+    height: 36px;
+    padding: 0 12px;
+    font-size: 12.5px;
+  }
+  .cap-tool.icon,
+  .web-chip,
+  .speak-tool {
+    width: 36px;
+  }
+  .cap-send {
+    width: 40px;
+    height: 40px;
+  }
+  .docs-fab {
+    width: 36px;
+    height: 36px;
+  }
   .brain-stats {
     grid-template-columns: 1fr;
   }

@@ -5,6 +5,15 @@ import type { NextConfig } from "next";
 const PRIVY_OPTIONAL_PEERS = ["@stripe/crypto", "@farcaster/mini-app-solana"];
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/pitch",
+        destination: "/",
+        permanent: true,
+      },
+    ];
+  },
   images: {
     // The marketing assets ship pre-sized in /public, so Next's optimizer is
     // not needed and would otherwise require a configured loader at runtime.
