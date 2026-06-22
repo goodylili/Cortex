@@ -436,23 +436,14 @@ export function useCortexWallet(): CortexWalletState {
         return fetchBlob(file.blobId);
       },
       remember: async (text: string) => {
-        await ensureMemory(userKey, signer);
-        // MemWal is the primary durable write; await it on its own so the composer's
-        // "kept" confirmation reflects a real persist and returns fast.
-        const result = await trackWalrusWrite(
-          rememberLive(userKey, NAMESPACE, text),
-        );
-        // Then record the memory on chain (cortex::memory) so it survives a refresh
-        // and feeds the AI, independent of MemWal. This is kicked off only AFTER the
-        // MemWal write has settled, never concurrently with it: both sign from the
-        // same wallet, and two in-flight transactions race for the same gas coin, so
-        // the old parallel version silently lost and the backup never landed on Sui.
-        // Runs detached so the UI isn't blocked; failures are logged, never swallowed,
-        // and never undo the successful MemWal write.
+        // Record on chain (cortex::memory) INDEPENDENTLY of MemWal: this is the
+        // durable copy that survives a refresh and feeds the AI, and it must land
+        // even when the MemWal relayer is unreachable (e.g. CORS / DNS), which is
+        // exactly when the old MemWal-first ordering skipped it. Detached so the UI
+        // isn't blocked; the wallet tx queue (see signer.ts) serializes it with any
+        // MemWal provisioning tx, so they don't race for the gas coin. Failures are
+        // logged, never swallowed, and never undo the MemWal write below.
         if (CORTEX_ENV.memoryModuleEnabled) {
-          // Tracked as an in-flight write across the WHOLE sequence (account resolve
-          // + record), not just recordMemoryOnChain's own write, so sign-out stays
-          // disabled until the backup truly lands and the memory can't be stranded.
           void trackWalrusWrite(
             (async () => {
               try {
@@ -464,7 +455,20 @@ export function useCortexWallet(): CortexWalletState {
             })(),
           );
         }
-        return result;
+        // MemWal is the recall engine (vector search powering recall / the AI). Treat
+        // it as best-effort: a relayer outage must not throw out of remember and
+        // abort the on-chain record above, nor surface a scary "failed to save" for a
+        // memory that IS being recorded on chain. Log and report no MemWal blob.
+        try {
+          await ensureMemory(userKey, signer);
+          return await trackWalrusWrite(rememberLive(userKey, NAMESPACE, text));
+        } catch (err) {
+          console.error(
+            "MemWal remember failed (on-chain copy still recorded):",
+            err,
+          );
+          return null;
+        }
       },
       recall: async (query: string) => {
         await ensureMemory(userKey, signer);
