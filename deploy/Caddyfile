@@ -1,0 +1,3 @@
+mcp.usecortexai.xyz {
+	reverse_proxy mcp:8080
+}

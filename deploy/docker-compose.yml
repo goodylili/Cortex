@@ -1,0 +1,32 @@
+services:
+  mcp:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../backend/mcp/.env
+    environment:
+      MCP_TRANSPORT: http
+      PORT: "8080"
+      CORTEX_MCP_PUBLIC_URL: https://mcp.usecortexai.xyz
+      CORTEX_APP_URL: https://www.usecortexai.xyz
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - mcp
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

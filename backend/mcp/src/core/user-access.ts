@@ -1,13 +1,16 @@
 // Reads an authorized user's on-chain Account object. The MCP holds its own admin
 // wallet (cfg.delegateKey); once a user grants it via account::grant_admin, the MCP
 // can read that user's public profile, the MemWal account pointer, and the durable
-// context pointers stored in the account's settings VecMap. Loosely typed + lazily
-// imported (the Sui SDK is an optional peer); degrades to null rather than crashing.
+// context pointers stored in the account's settings VecMap. The read goes straight
+// to the fullnode over JSON-RPC (no SDK client): @mysten/sui v2 dropped the
+// `SuiClient` constructor from `@mysten/sui/client`, so the old `new SuiClient()`
+// path threw and silently degraded every account read to null. Degrades to null
+// rather than crashing.
 
 import type { Config } from "./config";
-import { importExternal } from "./external";
 
 const ACCOUNT_STRUCT_SUFFIX = "::account::Account";
+const OWNED_PAGE_LIMIT = 50;
 
 export interface UserAccount {
   accountId: string;
@@ -23,16 +26,30 @@ export async function readUserAccount(
 ): Promise<UserAccount | null> {
   if (!cfg.seal.policyPackage) return null;
   try {
-    const sui: any = await importExternal("@mysten/sui/client");
-    const client = new sui.SuiClient({ url: cfg.sui.rpc });
-    const owned = await client.getOwnedObjects({
-      owner,
-      filter: {
-        StructType: `${cfg.seal.policyPackage}${ACCOUNT_STRUCT_SUFFIX}`,
-      },
-      options: { showContent: true },
+    const res = await fetch(cfg.sui.rpc, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "suix_getOwnedObjects",
+        params: [
+          owner,
+          {
+            filter: {
+              StructType: `${cfg.seal.policyPackage}${ACCOUNT_STRUCT_SUFFIX}`,
+            },
+            options: { showContent: true },
+          },
+          null,
+          OWNED_PAGE_LIMIT,
+        ],
+      }),
     });
-    const entries: any[] = owned?.data ?? [];
+    const body = (await res.json()) as {
+      result?: { data?: any[] };
+    };
+    const entries: any[] = body?.result?.data ?? [];
     const first = entries.find((e) => e?.data?.content?.fields);
     if (!first) return null;
     const data = first.data;
@@ -54,7 +71,7 @@ export async function readUserAccount(
         handle: profileFields?.handle ?? "",
         bio: profileFields?.bio ?? "",
       },
-      memwalAccountId: fields?.memwalAccountId ?? "",
+      memwalAccountId: fields?.memwal_account_id ?? "",
       settings,
     };
   } catch {
