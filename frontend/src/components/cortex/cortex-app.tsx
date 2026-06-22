@@ -14,6 +14,7 @@ import {
   computeSavings,
   fmtMoney,
   fmtTokens,
+  isFileNode,
   MODELS,
   type Memory,
 } from "@/lib/cortex/logic";
@@ -1889,16 +1890,17 @@ export function CortexApp({
         m.source &&
         m.source !== "note" &&
         m.source !== "reflection" &&
-        !m.blobId
+        m.source !== "memwal" &&
+        !isFileNode(m)
       )
         (by[m.source] ||= []).push(m);
     });
     return Object.entries(by).map(([name, mems]) => ({ name, mems }));
   }, [live]);
   // Files stored on Walrus (KbFile nodes synced from chain).
-  const walrusFiles = useMemo(() => live.filter((m) => m.blobId), [live]);
+  const walrusFiles = useMemo(() => live.filter(isFileNode), [live]);
   // Real memories only (KB files are not memories) for the memory counts.
-  const liveMemories = useMemo(() => live.filter((m) => !m.blobId), [live]);
+  const liveMemories = useMemo(() => live.filter((m) => !isFileNode(m)), [live]);
   // Overview stats (5-slide carousel) + the recent-memories carousel.
   const added24 = liveMemories.filter(
     (m) => now - (m.createdAt ?? m.ts) < 86_400_000,
@@ -2863,7 +2865,7 @@ export function CortexApp({
   const brainMemories = useMemo(
     () =>
       [...live, ...s.sharedMemories]
-        .filter((m) => !m.blobId)
+        .filter((m) => !isFileNode(m))
         .sort((a, b) => b.ts - a.ts),
     [live, s.sharedMemories],
   );
@@ -3598,7 +3600,7 @@ export function CortexApp({
                     <div className="hc-grid">
                       {recentMems.map((m) => {
                         const pinned = !!(m.kept || m.lock === "pinned");
-                        const isFile = !!(m.blobId || m.mime);
+                        const isFile = isFileNode(m);
                         const cat = pinned
                           ? "Pinned"
                           : m.tags[0]

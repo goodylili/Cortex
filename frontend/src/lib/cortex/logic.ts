@@ -45,6 +45,14 @@ export interface Memory {
   sharedFrom?: string; // the MemoryShare object id this came from
 }
 
+// A memory node that actually backs a Walrus KbFile (a real file): it belongs in
+// the Files/Knowledge view, not the Memories list. MemWal recall copies carry a
+// relayer blob id too, but they are memories, not files  -  exclude them explicitly
+// (they always carry source "memwal", which no real KbFile node uses).
+export function isFileNode(m: Memory): boolean {
+  return !!(m.blobId || m.mime) && m.source !== "memwal";
+}
+
 export interface CortexEvent {
   id: string;
   ts: number;
