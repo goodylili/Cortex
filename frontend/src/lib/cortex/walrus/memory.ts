@@ -123,46 +123,6 @@ export function memoryProvisioned(userKey: string): boolean {
   return loadMemoryCreds(userKey) !== null;
 }
 
-// Neither memory plane upserts: MemWal is append-only, and recording the same text
-// on chain again would mint a duplicate MemoryEntry. So when mirroring memories from
-// one plane to the other, persist the set of normalized texts this device has
-// already mirrored (per direction) so a repeated login is a cheap no-op instead of
-// duplicating every entry. Best-effort: storage failures just make the next pass
-// recompute from the live sets. The keys share the KEYSTORE_PREFIX so sign-out
-// clears them with the rest of the MemWal creds.
-type MirrorDirection = "backfilled" | "mirrored";
-
-function mirrorKey(userKey: string, direction: MirrorDirection): string {
-  return `${KEYSTORE_PREFIX}${direction}.${userKey}`;
-}
-
-export function loadMirroredTexts(
-  userKey: string,
-  direction: MirrorDirection,
-): Set<string> {
-  try {
-    const raw = localStorage.getItem(mirrorKey(userKey, direction));
-    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-    return new Set(Array.isArray(parsed) ? (parsed as string[]) : []);
-  } catch {
-    return new Set();
-  }
-}
-
-export function saveMirroredTexts(
-  userKey: string,
-  direction: MirrorDirection,
-  texts: Set<string>,
-): void {
-  try {
-    localStorage.setItem(
-      mirrorKey(userKey, direction),
-      JSON.stringify([...texts]),
-    );
-  } catch {
-    /* storage unavailable  -  the next pass recomputes from the live sets */
-  }
-}
 
 // Build an Ed25519 delegate key from a deterministic per-device seed. The seed is
 // SHA-256(signer.sign(label)), where the label salts in a non-secret device id so

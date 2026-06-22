@@ -69,12 +69,6 @@ export interface CortexEnv {
   seal: { serverObjectIds: string[]; threshold: number };
   memwal: { serverUrl: string; packageId: string; registryId: string };
   suinsParent: string;
-  memoryModuleEnabled: boolean;
-  // The package version whose code is CALLED for the cortex::memory module. After a
-  // package upgrade that adds memory, new modules only exist at the upgraded id, but
-  // type tags (objects, events) keep the ORIGINAL packageId. So move-call targets use
-  // this; type/event filters keep `packageId`. Falls back to `packageId` when unset.
-  memoryPackageId: string;
 }
 
 function parseIntOr(value: string | undefined, fallback: number): number {
@@ -98,13 +92,10 @@ const WALRUS_EPOCHS = parseIntOr(
   process.env.NEXT_PUBLIC_WALRUS_EPOCHS,
   DEFAULT_WALRUS_EPOCHS,
 );
-const MEMORY_MODULE_ENABLED =
-  process.env.NEXT_PUBLIC_CORTEX_MEMORY_MODULE === "1";
 
 // Per-network raw slots. Each key is a STATIC literal so Next inlines it.
 interface NetSlots {
   packageId?: string;
-  memoryPackageId?: string;
   registryId?: string;
   accessRegistryId?: string;
   executorCapId?: string;
@@ -120,7 +111,6 @@ interface NetSlots {
 const SLOTS: Record<CortexNetwork, NetSlots> = {
   mainnet: {
     packageId: process.env.NEXT_PUBLIC_CORTEX_PACKAGE_ID_MAINNET,
-    memoryPackageId: process.env.NEXT_PUBLIC_CORTEX_MEMORY_PACKAGE_ID_MAINNET,
     registryId: process.env.NEXT_PUBLIC_CORTEX_REGISTRY_ID_MAINNET,
     accessRegistryId: process.env.NEXT_PUBLIC_CORTEX_ACCESS_REGISTRY_MAINNET,
     executorCapId: process.env.NEXT_PUBLIC_CORTEX_EXECUTOR_CAP_MAINNET,
@@ -134,7 +124,6 @@ const SLOTS: Record<CortexNetwork, NetSlots> = {
   },
   testnet: {
     packageId: process.env.NEXT_PUBLIC_CORTEX_PACKAGE_ID_TESTNET,
-    memoryPackageId: process.env.NEXT_PUBLIC_CORTEX_MEMORY_PACKAGE_ID_TESTNET,
     registryId: process.env.NEXT_PUBLIC_CORTEX_REGISTRY_ID_TESTNET,
     accessRegistryId: process.env.NEXT_PUBLIC_CORTEX_ACCESS_REGISTRY_TESTNET,
     executorCapId: process.env.NEXT_PUBLIC_CORTEX_EXECUTOR_CAP_TESTNET,
@@ -178,8 +167,6 @@ function buildEnv(network: CortexNetwork): CortexEnv {
       registryId: s.memwalRegistryId ?? "",
     },
     suinsParent: s.suinsParent || DEFAULT_SUINS_PARENT,
-    memoryModuleEnabled: MEMORY_MODULE_ENABLED,
-    memoryPackageId: s.memoryPackageId || (s.packageId ?? ""),
   };
 }
 

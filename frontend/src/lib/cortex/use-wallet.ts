@@ -102,25 +102,15 @@ import {
   findMemwalAccountId,
   listMemoryDelegates,
   loadMemoryCreds,
-  loadMirroredTexts,
   memoryProvisioned,
   recallLive,
   rememberLive,
   revokeMemoryDelegate,
-  saveMirroredTexts,
   type RecalledMemory,
 } from "@/lib/cortex/walrus/memory";
-import {
-  listMemoriesOnChain,
-  recordMemoryOnChain,
-} from "@/lib/cortex/walrus/memory-registry";
 
 const NAMESPACE = "personal";
 const ZERO_ID = `0x${"0".repeat(64)}`;
-// Mirroring a memory across planes costs a write (a relayer/Walrus write one way, a
-// Seal-encrypt + Walrus write + tx the other), so a single pass moves at most this
-// many entries; the persisted record means later logins resume rather than redo.
-const MEMWAL_MIRROR_LIMIT = 100;
 
 interface SuiAccount {
   address: string;
@@ -140,8 +130,6 @@ export interface CortexWallet {
   recall: (query: string) => Promise<RecalledMemory[]>;
   allMemories: () => Promise<RecalledMemory[]>;
   syncMemwal: () => Promise<RecalledMemory[]>;
-  backfillMemwal: () => Promise<number>;
-  mirrorMemwalToChain: () => Promise<number>;
   saveSession: (meta: SessionMeta, chat: unknown) => Promise<SessionMeta[]>;
   listSessions: () => Promise<SessionMeta[]>;
   loadSession: (blobId: string) => Promise<unknown | null>;
@@ -445,37 +433,15 @@ export function useCortexWallet(): CortexWalletState {
         return fetchBlob(file.blobId);
       },
       remember: async (text: string) => {
-        // Record on chain (cortex::memory) INDEPENDENTLY of MemWal: this is the
-        // durable copy that survives a refresh and feeds the AI, and it must land
-        // even when the MemWal relayer is unreachable (e.g. CORS / DNS), which is
-        // exactly when the old MemWal-first ordering skipped it. Detached so the UI
-        // isn't blocked; the wallet tx queue (see signer.ts) serializes it with any
-        // MemWal provisioning tx, so they don't race for the gas coin. Failures are
-        // logged, never swallowed, and never undo the MemWal write below.
-        if (CORTEX_ENV.memoryModuleEnabled) {
-          void trackWalrusWrite(
-            (async () => {
-              try {
-                const accountId = await ensureCortexAccount();
-                await recordMemoryOnChain(signer, accountId, text, "note", []);
-              } catch (err) {
-                console.error("cortex::memory backup failed:", err);
-              }
-            })(),
-          );
-        }
-        // MemWal is the recall engine (vector search powering recall / the AI). Treat
-        // it as best-effort: a relayer outage must not throw out of remember and
-        // abort the on-chain record above, nor surface a scary "failed to save" for a
-        // memory that IS being recorded on chain. Log and report no MemWal blob.
+        // MemWal is the only memory plane (the on-chain cortex::memory module was
+        // dropped). The relayer handles vector search, Seal encryption, and the
+        // durable Walrus copy. Best-effort: a relayer outage logs rather than throws
+        // so the capture flow (which holds the local copy) isn't blocked.
         try {
           await ensureMemory(userKey, signer);
           return await trackWalrusWrite(rememberLive(userKey, NAMESPACE, text));
         } catch (err) {
-          console.error(
-            "MemWal remember failed (on-chain copy still recorded):",
-            err,
-          );
+          console.error("MemWal remember failed:", err);
           return null;
         }
       },
@@ -484,34 +450,10 @@ export function useCortexWallet(): CortexWalletState {
         return recallLive(userKey, NAMESPACE, query);
       },
       allMemories: async () => {
-        // Every remember() writes to BOTH MemWal and the on-chain cortex::memory
-        // module. MemWal is the recall engine (its vector search powers `recall` /
-        // the AI), but it has no way to enumerate a user's full set - so the
-        // "view all memories" list reads on-chain, where MemoryAdded/Removed events
-        // enumerate the entries (then Walrus blob -> Seal decrypt), the same way
-        // chat history reads back from the chain. On-chain entries are authoritative
-        // here, so on-chain removals are honored. A failed read is logged, never
-        // silently swallowed; MemWal is a best-effort safety net only when the
-        // module is disabled or the chain read fails / returns nothing, so a
-        // transient error doesn't blank the view.
-        if (CORTEX_ENV.memoryModuleEnabled) {
-          try {
-            const onChain = await listMemoriesOnChain(signer, address);
-            if (onChain.length) {
-              return onChain.map((e) => ({
-                blobId: e.blobId,
-                text: e.text,
-                distance: 0,
-              }));
-            }
-          } catch (err) {
-            console.error("cortex::memory read failed:", err);
-          }
-        }
-        // Safety net: read MemWal so a disabled module or a transient chain error
-        // doesn't blank the view. If not cached locally (first run, or after a
-        // sign-out cleared creds), recover the durable account before giving up -
-        // only a user who never provisioned memory truly has none.
+        // Pure MemWal: restore() rebuilds the relayer index from the durable Walrus
+        // blobs, then a broad recall returns the full set (bounded by RECALL_LIMIT).
+        // Recover the durable account first so a returning device with cleared creds
+        // still resolves its memories; only a user who never provisioned has none.
         if (memoryProvisioned(userKey) || (await findMemwalAccountId(address))) {
           await ensureMemory(userKey, signer);
           return allMemoriesLive(userKey, NAMESPACE);
@@ -519,105 +461,15 @@ export function useCortexWallet(): CortexWalletState {
         return [];
       },
       syncMemwal: async () => {
-        // The MemWal plane (NOT on-chain) is what the MCP and other connected apps
-        // write to, so cross-surface sync must read MemWal directly  -  unlike
-        // allMemories(), which prefers on-chain and would never surface a memory the
-        // MCP stored without an on-chain copy. Recover the durable account first so a
-        // returning device with cleared creds still resolves its memories.
+        // Cross-surface sync reads MemWal directly: it is the shared plane the MCP
+        // and other connected apps write to. Same path as allMemories() now that the
+        // on-chain plane is gone, kept as a distinct method for the explicit Sync
+        // action and the on-login merge.
         if (!(memoryProvisioned(userKey) || (await findMemwalAccountId(address)))) {
           return [];
         }
         await ensureMemory(userKey, signer);
         return allMemoriesLive(userKey, NAMESPACE);
-      },
-      backfillMemwal: async () => {
-        // Memories the user created on the web live on-chain (cortex::memory) but
-        // their MemWal copy may be missing  -  every write made while the browser
-        // could not reach the relayer (CORS) landed on-chain only. The MCP and other
-        // connected apps read MemWal, not the chain, so those memories are invisible
-        // to them until mirrored across. Push the on-chain entries that aren't in
-        // MemWal yet, deduped by normalized text against both the live MemWal set and
-        // a persisted per-device record (MemWal is append-only, so a re-push would
-        // duplicate). Bounded and best-effort: a single failed write is skipped.
-        if (!CORTEX_ENV.memoryModuleEnabled) return 0;
-        if (!(memoryProvisioned(userKey) || (await findMemwalAccountId(address)))) {
-          return 0;
-        }
-        await ensureMemory(userKey, signer);
-        const [onChain, inMemwal] = await Promise.all([
-          listMemoriesOnChain(signer, address).catch(() => []),
-          allMemoriesLive(userKey, NAMESPACE).catch(() => []),
-        ]);
-        if (!onChain.length) return 0;
-        const norm = (t: string) => t.trim().replace(/\s+/g, " ").toLowerCase();
-        const have = new Set(inMemwal.map((m) => norm(m.text)));
-        const pushed = loadMirroredTexts(userKey, "backfilled");
-        const missing = onChain
-          .filter((m) => {
-            const n = norm(m.text);
-            return n.length > 0 && !have.has(n) && !pushed.has(n);
-          })
-          .slice(0, MEMWAL_MIRROR_LIMIT);
-        let count = 0;
-        for (const m of missing) {
-          try {
-            await rememberLive(userKey, NAMESPACE, m.text);
-            pushed.add(norm(m.text));
-            count += 1;
-          } catch {
-            /* skip this entry, keep going  -  best effort */
-          }
-        }
-        saveMirroredTexts(userKey, "backfilled", pushed);
-        return count;
-      },
-      mirrorMemwalToChain: async () => {
-        // The mirror image of backfillMemwal: memories the user added from the MCP or
-        // another connected app land in MemWal only, so they never get the durable,
-        // per-entry on-chain copy (cortex::memory) that web-created memories have, and
-        // they don't appear in the on-chain-first allMemories() view. The MCP can't
-        // write the entry itself (the Account is an owned object, so only the owner's
-        // wallet can reference it in add_memory), so the owner's client records it
-        // here. Deduped by normalized text against the on-chain set and a persisted
-        // per-device record (recording again would mint a duplicate entry), bounded.
-        if (!CORTEX_ENV.memoryModuleEnabled) return 0;
-        if (!(memoryProvisioned(userKey) || (await findMemwalAccountId(address)))) {
-          return 0;
-        }
-        await ensureMemory(userKey, signer);
-        const [onChain, inMemwal] = await Promise.all([
-          listMemoriesOnChain(signer, address).catch(() => []),
-          allMemoriesLive(userKey, NAMESPACE).catch(() => []),
-        ]);
-        if (!inMemwal.length) return 0;
-        const norm = (t: string) => t.trim().replace(/\s+/g, " ").toLowerCase();
-        const onChainText = new Set(onChain.map((m) => norm(m.text)));
-        const recorded = loadMirroredTexts(userKey, "mirrored");
-        const missing = inMemwal
-          .filter((m) => {
-            const n = norm(m.text);
-            return (
-              n.length > 0 &&
-              !m.text.startsWith("__") &&
-              !onChainText.has(n) &&
-              !recorded.has(n)
-            );
-          })
-          .slice(0, MEMWAL_MIRROR_LIMIT);
-        if (!missing.length) return 0;
-        const accountId = await ensureCortexAccount();
-        let count = 0;
-        for (const m of missing) {
-          try {
-            await recordMemoryOnChain(signer, accountId, m.text, "note", []);
-            recorded.add(norm(m.text));
-            count += 1;
-          } catch {
-            /* skip this entry, keep going  -  best effort */
-          }
-        }
-        saveMirroredTexts(userKey, "mirrored", recorded);
-        return count;
       },
       saveSession: async (meta: SessionMeta, chat: unknown) => {
         if (!contractsEnabled()) return [];
