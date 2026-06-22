@@ -123,6 +123,34 @@ export function memoryProvisioned(userKey: string): boolean {
   return loadMemoryCreds(userKey) !== null;
 }
 
+// MemWal is append-only (no upsert), so backfilling an on-chain memory into it
+// must never re-push text already written. Persist the set of normalized texts this
+// device has pushed so a repeated login is a cheap no-op instead of duplicating
+// every memory in the relayer. Best-effort: storage failures just make the next
+// backfill recompute from the live MemWal set.
+const BACKFILL_PREFIX = "cortex.memwal.backfilled.";
+
+export function loadBackfilledTexts(userKey: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(BACKFILL_PREFIX + userKey);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return new Set(Array.isArray(parsed) ? (parsed as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function saveBackfilledTexts(userKey: string, texts: Set<string>): void {
+  try {
+    localStorage.setItem(
+      BACKFILL_PREFIX + userKey,
+      JSON.stringify([...texts]),
+    );
+  } catch {
+    /* storage unavailable  -  backfill recomputes next time */
+  }
+}
+
 // Build an Ed25519 delegate key from a deterministic per-device seed. The seed is
 // SHA-256(signer.sign(label)), where the label salts in a non-secret device id so
 // each device gets a distinct key. Same wallet + device => same key, so the key is

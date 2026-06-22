@@ -101,11 +101,13 @@ import {
   ensureMemory,
   findMemwalAccountId,
   listMemoryDelegates,
+  loadBackfilledTexts,
   loadMemoryCreds,
   memoryProvisioned,
   recallLive,
   rememberLive,
   revokeMemoryDelegate,
+  saveBackfilledTexts,
   type RecalledMemory,
 } from "@/lib/cortex/walrus/memory";
 import {
@@ -115,6 +117,10 @@ import {
 
 const NAMESPACE = "personal";
 const ZERO_ID = `0x${"0".repeat(64)}`;
+// Each backfilled memory is one relayer write (Walrus storage cost), so a single
+// pass mirrors at most this many on-chain entries into MemWal; the persisted record
+// means later logins resume where this left off rather than re-pushing.
+const MEMWAL_BACKFILL_LIMIT = 100;
 
 interface SuiAccount {
   address: string;
@@ -134,6 +140,7 @@ export interface CortexWallet {
   recall: (query: string) => Promise<RecalledMemory[]>;
   allMemories: () => Promise<RecalledMemory[]>;
   syncMemwal: () => Promise<RecalledMemory[]>;
+  backfillMemwal: () => Promise<number>;
   saveSession: (meta: SessionMeta, chat: unknown) => Promise<SessionMeta[]>;
   listSessions: () => Promise<SessionMeta[]>;
   loadSession: (blobId: string) => Promise<unknown | null>;
@@ -521,6 +528,47 @@ export function useCortexWallet(): CortexWalletState {
         }
         await ensureMemory(userKey, signer);
         return allMemoriesLive(userKey, NAMESPACE);
+      },
+      backfillMemwal: async () => {
+        // Memories the user created on the web live on-chain (cortex::memory) but
+        // their MemWal copy may be missing  -  every write made while the browser
+        // could not reach the relayer (CORS) landed on-chain only. The MCP and other
+        // connected apps read MemWal, not the chain, so those memories are invisible
+        // to them until mirrored across. Push the on-chain entries that aren't in
+        // MemWal yet, deduped by normalized text against both the live MemWal set and
+        // a persisted per-device record (MemWal is append-only, so a re-push would
+        // duplicate). Bounded and best-effort: a single failed write is skipped.
+        if (!CORTEX_ENV.memoryModuleEnabled) return 0;
+        if (!(memoryProvisioned(userKey) || (await findMemwalAccountId(address)))) {
+          return 0;
+        }
+        await ensureMemory(userKey, signer);
+        const [onChain, inMemwal] = await Promise.all([
+          listMemoriesOnChain(signer, address).catch(() => []),
+          allMemoriesLive(userKey, NAMESPACE).catch(() => []),
+        ]);
+        if (!onChain.length) return 0;
+        const norm = (t: string) => t.trim().replace(/\s+/g, " ").toLowerCase();
+        const have = new Set(inMemwal.map((m) => norm(m.text)));
+        const pushed = loadBackfilledTexts(userKey);
+        const missing = onChain
+          .filter((m) => {
+            const n = norm(m.text);
+            return n.length > 0 && !have.has(n) && !pushed.has(n);
+          })
+          .slice(0, MEMWAL_BACKFILL_LIMIT);
+        let count = 0;
+        for (const m of missing) {
+          try {
+            await rememberLive(userKey, NAMESPACE, m.text);
+            pushed.add(norm(m.text));
+            count += 1;
+          } catch {
+            /* skip this entry, keep going  -  best effort */
+          }
+        }
+        saveBackfilledTexts(userKey, pushed);
+        return count;
       },
       saveSession: async (meta: SessionMeta, chat: unknown) => {
         if (!contractsEnabled()) return [];
