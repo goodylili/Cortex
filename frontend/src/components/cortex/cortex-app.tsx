@@ -475,6 +475,7 @@ export function CortexApp({
     setHydrate((h) => (h[key] === status ? h : { ...h, [key]: status }));
   const [theme, setTheme] = useState<Theme>("system");
   const [profileOpen, setProfileOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const [dev, setDev] = useState(false);
   const [onboardOpen, setOnboardOpen] = useState(false);
@@ -3080,6 +3081,17 @@ export function CortexApp({
       <header className="topbar">
         <div className="topbar-inner">
           <div className="tb-left">
+            <button
+              className="tb-burger"
+              onClick={() => setNavOpen(true)}
+              aria-label="Open menu"
+              aria-expanded={navOpen}
+              title="Menu"
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M3 6h18M3 12h18M3 18h18" />
+              </svg>
+            </button>
             <a
               className="tb-brand"
               href="#home"
@@ -3411,6 +3423,95 @@ export function CortexApp({
           </div>
         </div>
       </header>
+
+      <div
+        className={"nav-scrim" + (navOpen ? " show" : "")}
+        onClick={() => setNavOpen(false)}
+        aria-hidden="true"
+      />
+      <aside
+        className={"nav-drawer" + (navOpen ? " show" : "")}
+        aria-label="Navigation"
+        aria-hidden={!navOpen}
+      >
+        <div className="nav-drawer-head">
+          <a
+            className="tb-brand"
+            href="#home"
+            onClick={() => {
+              setView("home");
+              setNavOpen(false);
+            }}
+          >
+            <span className="mark">{MARK}</span>
+            <b>Cortex</b>
+          </a>
+          <button
+            className="nav-drawer-close"
+            onClick={() => setNavOpen(false)}
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <nav className="nav-drawer-list" aria-label="Primary">
+          {NAV.map(([v, label, icon]) => (
+            <button
+              key={v}
+              className={"nav-drawer-item" + (view === v ? " on" : "")}
+              onClick={() => {
+                setView(v);
+                setNavOpen(false);
+              }}
+            >
+              <svg viewBox="0 0 24 24">{icon}</svg>
+              <span>{label}</span>
+            </button>
+          ))}
+          <button
+            className="nav-drawer-item"
+            onClick={() => {
+              if (!onHome) setView("home");
+              toggleChatRail();
+              setNavOpen(false);
+            }}
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            <span>Chat history</span>
+          </button>
+        </nav>
+        <div className="nav-drawer-foot">
+          <button
+            className="nav-drawer-action primary"
+            onClick={() => {
+              setNavOpen(false);
+              if (gate()) setCaptureOpen(true);
+            }}
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            <span>Add memory</span>
+          </button>
+          <button
+            className="nav-drawer-action"
+            onClick={() => {
+              setNavOpen(false);
+              openSettings("account");
+            }}
+          >
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            <span>Settings</span>
+          </button>
+        </div>
+      </aside>
 
       <aside
         className={

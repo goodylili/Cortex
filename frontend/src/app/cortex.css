@@ -10660,3 +10660,201 @@ body.dev .dev-switch::after {
 .conn-empty {
   margin-top: 10px;
 }
+
+/* ============================================================
+   Mobile app shell: hamburger + slide-in nav drawer, safe areas.
+   Appended last so it overrides the older scattered breakpoints.
+   ============================================================ */
+
+/* Burger lives in the topbar; only shown at the mobile breakpoint. */
+.tb-burger {
+  display: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r);
+  background: var(--surface);
+  border: 1px solid var(--line2);
+  color: var(--ink);
+  cursor: pointer;
+}
+.tb-burger svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* Left slide-in navigation drawer + scrim. Hidden above the mobile breakpoint. */
+.nav-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(3px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.nav-scrim.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.nav-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  width: min(84vw, 320px);
+  height: 100dvh;
+  padding: calc(14px + env(safe-area-inset-top)) 12px
+    calc(14px + env(safe-area-inset-bottom))
+    calc(12px + env(safe-area-inset-left));
+  background: var(--paper);
+  border-right: 1px solid var(--line2);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1);
+  overscroll-behavior: contain;
+}
+.nav-drawer.show {
+  transform: translateX(0);
+}
+.nav-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.nav-drawer-close {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r);
+  background: transparent;
+  border: 1px solid var(--line2);
+  color: var(--ink);
+  cursor: pointer;
+}
+.nav-drawer-close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.nav-drawer-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 10px;
+  overflow-y: auto;
+}
+.nav-drawer-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.nav-drawer-item:active {
+  background: var(--surface);
+}
+.nav-drawer-item.on {
+  background: var(--ink);
+  color: var(--paper);
+}
+.nav-drawer-item svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+.nav-drawer-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.nav-drawer-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--r);
+  border: 1px solid var(--line2);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.nav-drawer-action svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+.nav-drawer-action.primary {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+/* Keep the nav drawer out of the layout on desktop, even mid-resize. */
+@media (min-width: 761px) {
+  .nav-drawer,
+  .nav-scrim {
+    display: none;
+  }
+}
+
+/* The mobile shell: swap the topbar's inline nav for the burger + drawer,
+   and make the existing right-side detail drawer respect the dynamic viewport
+   and the notch. 16px inputs stop iOS zooming the page on focus. */
+@media (max-width: 760px) {
+  .tb-burger {
+    display: grid;
+  }
+  .topbar-inner .tb-center {
+    display: none;
+  }
+  .drawer {
+    height: 100dvh;
+    padding-top: env(safe-area-inset-top);
+  }
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+  /* clip (not hidden) so a stray fixed-width child can't scroll the page
+     sideways without turning body into a scroll container and breaking the
+     sticky topbar. */
+  html,
+  body {
+    overflow-x: clip;
+  }
+}

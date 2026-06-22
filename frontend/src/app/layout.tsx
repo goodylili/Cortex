@@ -1,7 +1,22 @@
 import type React from "react";
 import { Suspense } from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+
+// viewport-fit=cover lets the app extend under the notch/home indicator so the
+// env(safe-area-inset-*) padding in the app shell actually takes effect; without
+// it iOS ignores those insets. Pinch-zoom is left enabled (accessibility); the
+// iOS "zoom on input focus" jump is avoided by keeping mobile inputs >= 16px.
+// themeColor tints the browser chrome so the app reads as a single surface.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://usecortexai.com"),
