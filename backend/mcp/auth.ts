@@ -285,10 +285,17 @@ export function userFromBearer(
   if (!match || !match[1]) return null;
   const claims = verifyJwt(secret, match[1]);
   if (!claims || claims.typ !== "access") return null;
+  const memwalAccountId = String(claims.acct ?? "");
+  const namespace = String(claims.ns ?? "");
+  // Fail closed: a token without a concrete MemWal account (or namespace) cannot be
+  // safely scoped to one user. Serving it would collapse the request onto whatever
+  // account the relayer resolves for the MCP's shared delegate key, mixing distinct
+  // users' memory. Reject it instead.
+  if (!memwalAccountId || !namespace) return null;
   return {
     address: String(claims.sub),
-    namespace: String(claims.ns),
-    memwalAccountId: String(claims.acct),
+    namespace,
+    memwalAccountId,
     connectionId: String(claims.cid ?? ""),
   };
 }

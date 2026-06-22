@@ -977,6 +977,12 @@ async function main() {
               sendJson(res, 400, { error: "invalid_request" });
               return;
             }
+            // Refuse to mint a token that can't be scoped to one MemWal account;
+            // an empty account would let this connection share memory with others.
+            if (!memwalAccountId) {
+              sendJson(res, 400, { error: "memwal_account_required" });
+              return;
+            }
             const ok = await verifySuiConsent(address, codeChallenge, signature);
             if (!ok) {
               sendJson(res, 401, { error: "invalid_consent" });
@@ -1008,8 +1014,13 @@ async function main() {
             const codeChallenge = b.code_challenge ?? "";
             const signature = b.signature ?? "";
             const connectionId = b.connectionId ?? "";
+            const memwalAccountId = b.memwalAccountId ?? "";
             if (!address || !codeChallenge || !signature || !connectionId) {
               sendJson(res, 400, { error: "invalid_request" });
+              return;
+            }
+            if (!memwalAccountId) {
+              sendJson(res, 400, { error: "memwal_account_required" });
               return;
             }
             const ok = await verifySuiConsent(address, codeChallenge, signature);
@@ -1023,7 +1034,7 @@ async function main() {
               personalAccessToken(OAUTH_SECRET, {
                 address,
                 namespace: b.namespace || address,
-                memwalAccountId: b.memwalAccountId ?? "",
+                memwalAccountId,
                 connectionId,
               }),
             );

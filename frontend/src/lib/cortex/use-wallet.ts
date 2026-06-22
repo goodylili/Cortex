@@ -365,21 +365,36 @@ export function useCortexWallet(): CortexWalletState {
     const revokeMcpGrants = async (
       accountId: string,
     ): Promise<string | undefined> => {
-      if (!CORTEX_ENV.mcpAddress) return undefined;
       let digest: string | undefined;
-      const revocations: Promise<unknown>[] = [
-        accountRevokeAdmin({
-          signer,
-          accountId,
-          delegate: CORTEX_ENV.mcpAddress,
-        }).then((r) => {
-          digest = r.digest;
-        }),
-      ];
-      if (sealEnabled()) {
-        const workspaceId = await ensureWorkspaceId(accountId);
+      const revocations: Promise<unknown>[] = [];
+      if (CORTEX_ENV.mcpAddress) {
         revocations.push(
-          revokeWorkspaceDelegate(signer, workspaceId, CORTEX_ENV.mcpAddress),
+          accountRevokeAdmin({
+            signer,
+            accountId,
+            delegate: CORTEX_ENV.mcpAddress,
+          }).then((r) => {
+            digest = r.digest;
+          }),
+        );
+        if (sealEnabled()) {
+          const workspaceId = await ensureWorkspaceId(accountId);
+          revocations.push(
+            revokeWorkspaceDelegate(signer, workspaceId, CORTEX_ENV.mcpAddress),
+          );
+        }
+      }
+      // The MCP reads/writes memory through its MemWal delegate key, so revoking the
+      // on-chain admin alone leaves memory access fully intact (memory is pure
+      // MemWal). Revoke the MemWal delegate too, which is what actually cuts the MCP
+      // off at the relayer  -  this was the missing half that made "revoke" a no-op.
+      if (CORTEX_ENV.mcpMemwalPubkey) {
+        revocations.push(
+          revokeMemoryDelegate({
+            userKey,
+            signer,
+            publicKey: CORTEX_ENV.mcpMemwalPubkey,
+          }),
         );
       }
       await Promise.all(revocations);
@@ -700,6 +715,13 @@ export function useCortexWallet(): CortexWalletState {
         if (!CORTEX_ENV.mcpUrl)
           throw new Error("Set NEXT_PUBLIC_CORTEX_MCP_URL to mint a token");
         await ensureMemory(userKey, signer);
+        const memwalAccountId = loadMemoryCreds(userKey)?.accountId ?? "";
+        // Never mint a token without a concrete MemWal account: the MCP would fall
+        // back to a shared pool and mix this user's memory with others'.
+        if (!memwalAccountId)
+          throw new Error(
+            "Your memory account isn't ready yet. Try again in a moment.",
+          );
         const accountId = await ensureCortexAccount();
         await grantMcpAccess(accountId);
         const connectionId = crypto.randomUUID();
@@ -720,7 +742,7 @@ export function useCortexWallet(): CortexWalletState {
           body: JSON.stringify({
             address,
             namespace: NAMESPACE,
-            memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? "",
+            memwalAccountId,
             connectionId,
             signature,
             code_challenge: challenge,
@@ -731,7 +753,7 @@ export function useCortexWallet(): CortexWalletState {
         return access_token;
       },
       revokeMcpAccess: async () => {
-        if (!contractsEnabled() || !CORTEX_ENV.mcpAddress) return undefined;
+        if (!contractsEnabled()) return undefined;
         const accountId = await ensureCortexAccount();
         const digest = await revokeMcpGrants(accountId);
         await clearConnections(signer, accountId);
@@ -742,6 +764,13 @@ export function useCortexWallet(): CortexWalletState {
       // signature is the proof of address ownership the MCP verifies.
       connectMcp: async (codeChallenge: string, clientId?: string) => {
         await ensureMemory(userKey, signer);
+        const memwalAccountId = loadMemoryCreds(userKey)?.accountId ?? "";
+        // Never authorize a connection without a concrete MemWal account: the MCP
+        // would fall back to a shared pool and mix this user's memory with others'.
+        if (!memwalAccountId)
+          throw new Error(
+            "Your memory account isn't ready yet. Try again in a moment.",
+          );
         const accountId = await ensureCortexAccount();
         await grantMcpAccess(accountId);
         const connectionId = crypto.randomUUID();
@@ -758,7 +787,7 @@ export function useCortexWallet(): CortexWalletState {
         return {
           address,
           namespace: NAMESPACE,
-          memwalAccountId: loadMemoryCreds(userKey)?.accountId ?? "",
+          memwalAccountId,
           connectionId,
           signature,
         };
