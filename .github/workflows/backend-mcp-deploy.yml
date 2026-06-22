@@ -52,6 +52,16 @@ jobs:
             --exclude='.vercel' \
             ./ "${VPS_USER}@${VPS_HOST}:~/cortex/"
 
+      - name: Write MCP env file
+        env:
+          VPS_HOST: ${{ secrets.MCP_VPS_HOST }}
+          VPS_USER: ${{ secrets.MCP_VPS_USER }}
+          MCP_ENV_FILE: ${{ secrets.MCP_ENV_FILE }}
+        run: |
+          printf '%s' "$MCP_ENV_FILE" | ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "${VPS_USER}@${VPS_HOST}" \
+            'mkdir -p ~/cortex/backend/mcp && cat > ~/cortex/backend/mcp/.env && chmod 600 ~/cortex/backend/mcp/.env && wc -l < ~/cortex/backend/mcp/.env'
+
       - name: Rebuild and restart MCP container
         env:
           VPS_HOST: ${{ secrets.MCP_VPS_HOST }}
