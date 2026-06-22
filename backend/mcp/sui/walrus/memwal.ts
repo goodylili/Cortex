@@ -86,21 +86,24 @@ class LiveMemWal implements MemWalClient {
   constructor(private cfg: Config) {}
   private clientP?: Promise<any>;
   private indexed = new Set<string>();
-  // recall() searches only the relayer's local vector index, which is cold for a
-  // namespace the relayer has not seen this session  -  e.g. a user who connected
-  // from Claude whose memories were all written from the web. The SDK restore()
-  // rebuilds that index from the durable Walrus blobs. Run it once per namespace so
-  // the first recall after connecting sees the user's whole history, not a partial
-  // set. Idempotent and best-effort: a failure leaves recall to do its best.
-  private async ensureIndex(ns: string): Promise<void> {
+  // recall() searches only the relayer's local vector index, which can be cold
+  // for a namespace after a relayer restart or for writes made from another
+  // device. The SDK restore() rebuilds that index from the durable Walrus blobs,
+  // but it runs in seconds-per-blob, so doing it inline would block  -  and can
+  // time out  -  the first recall/list for a user with many memories. Kick it off
+  // once per namespace in the background and let the current call run against
+  // whatever is already indexed; the next call picks up the rest. Best-effort.
+  private warmIndex(ns: string): void {
     if (this.indexed.has(ns)) return;
     this.indexed.add(ns);
-    try {
-      const c = await this.client();
-      await c.restore(ns, 100);
-    } catch {
-      this.indexed.delete(ns);
-    }
+    void (async () => {
+      try {
+        const c = await this.client();
+        await c.restore(ns, 100);
+      } catch {
+        this.indexed.delete(ns);
+      }
+    })();
   }
   private async client(): Promise<any> {
     if (!this.clientP) {
@@ -141,7 +144,7 @@ class LiveMemWal implements MemWalClient {
     };
   }
   async recall(ns: string, query: string, opts?: { limit?: number }) {
-    await this.ensureIndex(ns);
+    this.warmIndex(ns);
     const c = await this.client();
     // The relayer rejects an empty query ("Query cannot be empty"), so a blank
     // query (recall everything / no specific question) becomes a broad " " search,
@@ -151,7 +154,7 @@ class LiveMemWal implements MemWalClient {
     return ((r?.results ?? []) as any[]).map((m) => this.toMemory(ns, m));
   }
   async restore(ns: string) {
-    await this.ensureIndex(ns);
+    this.warmIndex(ns);
     // The relayer exposes no enumerate API; approximate the full set with a broad
     // recall. Bounded by the limit, so this is best-effort, not an exhaustive list.
     const c = await this.client();
