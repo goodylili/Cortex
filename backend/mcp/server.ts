@@ -107,8 +107,22 @@ function hasConnectionRecord(raw: string | undefined, connectionId: string): boo
 async function isConnectionActive(userCtx: UserContext): Promise<boolean> {
   // Allow legacy tokens with no connection id to keep working until they expire.
   if (!userCtx.connectionId) return true;
-  const account = await readUserAccount(cfg, userCtx.address);
-  return hasConnectionRecord(account?.settings["mcp:connections"], userCtx.connectionId);
+  // The connection record is written on-chain during consent; the server's read
+  // node can lag that write by a few seconds, so a token minted moments ago would
+  // look "revoked". Re-read once after a short delay before denying. A genuinely
+  // revoked connection stays absent and is still rejected.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 2500));
+    const account = await readUserAccount(cfg, userCtx.address);
+    const raw = account?.settings["mcp:connections"];
+    if (hasConnectionRecord(raw, userCtx.connectionId)) return true;
+    console.error(
+      `[mcp-auth] connection miss attempt=${attempt} addr=${userCtx.address.slice(0, 12)} ` +
+        `account=${account ? account.accountId.slice(0, 12) : "NULL"} ` +
+        `connections=${raw ? raw.slice(0, 160) : "none"} cid=${userCtx.connectionId.slice(0, 10)}`,
+    );
+  }
+  return false;
 }
 
 async function main() {

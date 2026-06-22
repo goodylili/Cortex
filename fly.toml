@@ -15,7 +15,7 @@ primary_region = "fra"
   MCP_TRANSPORT = "http"
   PORT = "8080"
   CORTEX_MCP_PUBLIC_URL = "https://mcps.usecortexai.xyz"
-  CORTEX_APP_URL = "https://usecortexai.xyz"
+  CORTEX_APP_URL = "https://www.usecortexai.xyz"
 
 [http_service]
   internal_port = 8080
