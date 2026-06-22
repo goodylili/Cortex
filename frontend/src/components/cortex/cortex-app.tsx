@@ -498,6 +498,7 @@ export function CortexApp({
   const [input, setInput] = useState("");
   const [memFilter, setMemFilter] = useState("all");
   const [memTab, setMemTab] = useState<"cards" | "timeline">("cards");
+  const [memSyncBusy, setMemSyncBusy] = useState(false);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [agentAssignee, setAgentAssignee] = useState<string>("");
   const [roomTaskId, setRoomTaskId] = useState<string | null>(null);
@@ -1162,6 +1163,33 @@ export function CortexApp({
     !!walletState?.wallet &&
     contractsEnabled() &&
     CORTEX_ENV.mcpAddress.length > 0;
+
+  // Pull memories the user added from another surface (the MCP server on Claude,
+  // etc.) into this view on demand, without waiting for the next sign-in. Same
+  // path as the on-login merge: restore + recall MemWal, fold in by text, and let
+  // the debounced save persist the additions into the durable Sui blob.
+  async function syncFromMemwal() {
+    if (!gate()) return;
+    const w = walletState?.wallet;
+    if (!w) return;
+    setMemSyncBusy(true);
+    try {
+      const before = useCortex.getState().memories.length;
+      const recalled = await w.allMemories();
+      useCortex.getState().mergeRecalledMemories(recalled);
+      const added = useCortex.getState().memories.length - before;
+      flash(
+        added > 0
+          ? `Synced ${added} ${added === 1 ? "memory" : "memories"} from your other apps.`
+          : "Your memories are already up to date.",
+        "success",
+      );
+    } catch (err) {
+      flash(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setMemSyncBusy(false);
+    }
+  }
 
   async function authorizeMcp() {
     const w = walletState?.wallet;
@@ -3859,6 +3887,14 @@ export function CortexApp({
                     Timeline
                   </button>
                 </div>
+                <button
+                  className="pill-btn"
+                  onClick={syncFromMemwal}
+                  disabled={memSyncBusy}
+                  title="Pull in memories you added from Claude or other connected apps"
+                >
+                  {memSyncBusy ? "Syncing…" : "Sync"}
+                </button>
                 <button
                   className="pill-btn keep"
                   onClick={() => gate() && setCaptureOpen(true)}
