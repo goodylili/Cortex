@@ -101,13 +101,13 @@ import {
   ensureMemory,
   findMemwalAccountId,
   listMemoryDelegates,
-  loadBackfilledTexts,
   loadMemoryCreds,
+  loadMirroredTexts,
   memoryProvisioned,
   recallLive,
   rememberLive,
   revokeMemoryDelegate,
-  saveBackfilledTexts,
+  saveMirroredTexts,
   type RecalledMemory,
 } from "@/lib/cortex/walrus/memory";
 import {
@@ -117,10 +117,10 @@ import {
 
 const NAMESPACE = "personal";
 const ZERO_ID = `0x${"0".repeat(64)}`;
-// Each backfilled memory is one relayer write (Walrus storage cost), so a single
-// pass mirrors at most this many on-chain entries into MemWal; the persisted record
-// means later logins resume where this left off rather than re-pushing.
-const MEMWAL_BACKFILL_LIMIT = 100;
+// Mirroring a memory across planes costs a write (a relayer/Walrus write one way, a
+// Seal-encrypt + Walrus write + tx the other), so a single pass moves at most this
+// many entries; the persisted record means later logins resume rather than redo.
+const MEMWAL_MIRROR_LIMIT = 100;
 
 interface SuiAccount {
   address: string;
@@ -141,6 +141,7 @@ export interface CortexWallet {
   allMemories: () => Promise<RecalledMemory[]>;
   syncMemwal: () => Promise<RecalledMemory[]>;
   backfillMemwal: () => Promise<number>;
+  mirrorMemwalToChain: () => Promise<number>;
   saveSession: (meta: SessionMeta, chat: unknown) => Promise<SessionMeta[]>;
   listSessions: () => Promise<SessionMeta[]>;
   loadSession: (blobId: string) => Promise<unknown | null>;
@@ -550,13 +551,13 @@ export function useCortexWallet(): CortexWalletState {
         if (!onChain.length) return 0;
         const norm = (t: string) => t.trim().replace(/\s+/g, " ").toLowerCase();
         const have = new Set(inMemwal.map((m) => norm(m.text)));
-        const pushed = loadBackfilledTexts(userKey);
+        const pushed = loadMirroredTexts(userKey, "backfilled");
         const missing = onChain
           .filter((m) => {
             const n = norm(m.text);
             return n.length > 0 && !have.has(n) && !pushed.has(n);
           })
-          .slice(0, MEMWAL_BACKFILL_LIMIT);
+          .slice(0, MEMWAL_MIRROR_LIMIT);
         let count = 0;
         for (const m of missing) {
           try {
@@ -567,7 +568,55 @@ export function useCortexWallet(): CortexWalletState {
             /* skip this entry, keep going  -  best effort */
           }
         }
-        saveBackfilledTexts(userKey, pushed);
+        saveMirroredTexts(userKey, "backfilled", pushed);
+        return count;
+      },
+      mirrorMemwalToChain: async () => {
+        // The mirror image of backfillMemwal: memories the user added from the MCP or
+        // another connected app land in MemWal only, so they never get the durable,
+        // per-entry on-chain copy (cortex::memory) that web-created memories have, and
+        // they don't appear in the on-chain-first allMemories() view. The MCP can't
+        // write the entry itself (the Account is an owned object, so only the owner's
+        // wallet can reference it in add_memory), so the owner's client records it
+        // here. Deduped by normalized text against the on-chain set and a persisted
+        // per-device record (recording again would mint a duplicate entry), bounded.
+        if (!CORTEX_ENV.memoryModuleEnabled) return 0;
+        if (!(memoryProvisioned(userKey) || (await findMemwalAccountId(address)))) {
+          return 0;
+        }
+        await ensureMemory(userKey, signer);
+        const [onChain, inMemwal] = await Promise.all([
+          listMemoriesOnChain(signer, address).catch(() => []),
+          allMemoriesLive(userKey, NAMESPACE).catch(() => []),
+        ]);
+        if (!inMemwal.length) return 0;
+        const norm = (t: string) => t.trim().replace(/\s+/g, " ").toLowerCase();
+        const onChainText = new Set(onChain.map((m) => norm(m.text)));
+        const recorded = loadMirroredTexts(userKey, "mirrored");
+        const missing = inMemwal
+          .filter((m) => {
+            const n = norm(m.text);
+            return (
+              n.length > 0 &&
+              !m.text.startsWith("__") &&
+              !onChainText.has(n) &&
+              !recorded.has(n)
+            );
+          })
+          .slice(0, MEMWAL_MIRROR_LIMIT);
+        if (!missing.length) return 0;
+        const accountId = await ensureCortexAccount();
+        let count = 0;
+        for (const m of missing) {
+          try {
+            await recordMemoryOnChain(signer, accountId, m.text, "note", []);
+            recorded.add(norm(m.text));
+            count += 1;
+          } catch {
+            /* skip this entry, keep going  -  best effort */
+          }
+        }
+        saveMirroredTexts(userKey, "mirrored", recorded);
         return count;
       },
       saveSession: async (meta: SessionMeta, chat: unknown) => {

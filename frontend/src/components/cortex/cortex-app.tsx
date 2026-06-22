@@ -878,8 +878,11 @@ export function CortexApp({
             .then((recalled) => s.mergeRecalledMemories(recalled))
             .catch(() => {});
           // Mirror any web-only (on-chain) memories into MemWal so the MCP and other
-          // connected apps, which read MemWal, can see the user's full history.
+          // connected apps, which read MemWal, can see the user's full history; and
+          // mirror MemWal-only memories (added from the MCP) onto the chain so they
+          // get the same durable per-entry copy web memories have.
           void w.backfillMemwal().catch(() => {});
+          void w.mirrorMemwalToChain().catch(() => {});
           return;
         }
         // No durable blob yet (null pointer): seed from MemWal so the debounced
@@ -1178,7 +1181,7 @@ export function CortexApp({
     setMemSyncBusy(true);
     try {
       const before = useCortex.getState().memories.length;
-      await w.backfillMemwal();
+      await Promise.all([w.backfillMemwal(), w.mirrorMemwalToChain()]);
       const recalled = await w.syncMemwal();
       useCortex.getState().mergeRecalledMemories(recalled);
       const added = useCortex.getState().memories.length - before;

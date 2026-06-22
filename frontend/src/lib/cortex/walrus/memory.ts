@@ -123,16 +123,25 @@ export function memoryProvisioned(userKey: string): boolean {
   return loadMemoryCreds(userKey) !== null;
 }
 
-// MemWal is append-only (no upsert), so backfilling an on-chain memory into it
-// must never re-push text already written. Persist the set of normalized texts this
-// device has pushed so a repeated login is a cheap no-op instead of duplicating
-// every memory in the relayer. Best-effort: storage failures just make the next
-// backfill recompute from the live MemWal set.
-const BACKFILL_PREFIX = "cortex.memwal.backfilled.";
+// Neither memory plane upserts: MemWal is append-only, and recording the same text
+// on chain again would mint a duplicate MemoryEntry. So when mirroring memories from
+// one plane to the other, persist the set of normalized texts this device has
+// already mirrored (per direction) so a repeated login is a cheap no-op instead of
+// duplicating every entry. Best-effort: storage failures just make the next pass
+// recompute from the live sets. The keys share the KEYSTORE_PREFIX so sign-out
+// clears them with the rest of the MemWal creds.
+type MirrorDirection = "backfilled" | "mirrored";
 
-export function loadBackfilledTexts(userKey: string): Set<string> {
+function mirrorKey(userKey: string, direction: MirrorDirection): string {
+  return `${KEYSTORE_PREFIX}${direction}.${userKey}`;
+}
+
+export function loadMirroredTexts(
+  userKey: string,
+  direction: MirrorDirection,
+): Set<string> {
   try {
-    const raw = localStorage.getItem(BACKFILL_PREFIX + userKey);
+    const raw = localStorage.getItem(mirrorKey(userKey, direction));
     const parsed = raw ? (JSON.parse(raw) as unknown) : [];
     return new Set(Array.isArray(parsed) ? (parsed as string[]) : []);
   } catch {
@@ -140,14 +149,18 @@ export function loadBackfilledTexts(userKey: string): Set<string> {
   }
 }
 
-export function saveBackfilledTexts(userKey: string, texts: Set<string>): void {
+export function saveMirroredTexts(
+  userKey: string,
+  direction: MirrorDirection,
+  texts: Set<string>,
+): void {
   try {
     localStorage.setItem(
-      BACKFILL_PREFIX + userKey,
+      mirrorKey(userKey, direction),
       JSON.stringify([...texts]),
     );
   } catch {
-    /* storage unavailable  -  backfill recomputes next time */
+    /* storage unavailable  -  the next pass recomputes from the live sets */
   }
 }
 
