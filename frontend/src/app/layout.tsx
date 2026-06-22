@@ -20,7 +20,10 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://usecortexai.com"),
+  // Canonical live host. This MUST match the deployed domain: og:image / twitter:image
+  // are emitted as absolute URLs against it, and the old usecortexai.com host does not
+  // resolve, so previews 404'd. The apex .xyz 308-redirects to www, so use www.
+  metadataBase: new URL("https://www.usecortexai.xyz"),
   title: "Cortex, sovereign memory for AI on Sui",
   description:
     "Cortex is a decentralized sovereign memory layer built on Sui, Walrus, and Seal, with shared memory, prompt generation, loop generation, multi-agent workflows, and dreams.",
