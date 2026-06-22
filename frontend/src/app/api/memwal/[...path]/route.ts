@@ -5,14 +5,22 @@
 // request to the real relayer server-side, where CORS does not apply, and return
 // its response verbatim. The delegate private key never reaches the server  -  the
 // SDK signs in the browser and ships only SEAL session bytes + signature headers,
-// which we pass through untouched. The relayer host is resolved from server config
-// per network (never from the caller), so this is not an open proxy.
-
-import { CORTEX_NETWORKS, cortexEnvFor } from "@/lib/cortex/walrus/env";
-import type { CortexNetwork } from "@/lib/cortex/walrus/env";
+// which we pass through untouched. The relayer host is resolved here from server
+// env per network (never from the caller), so this is not an open proxy. NOTE: the
+// per-network URL is read with STATIC literal keys and the env module is NOT
+// imported  -  that module is "use client", so importing it into this server route
+// would yield client-reference stubs that throw when used server-side.
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const DEFAULT_RELAYER = "https://relayer.memory.walrus.xyz";
+const RELAYERS: Record<string, string> = {
+  testnet:
+    process.env.NEXT_PUBLIC_MEMWAL_SERVER_URL_TESTNET || DEFAULT_RELAYER,
+  mainnet:
+    process.env.NEXT_PUBLIC_MEMWAL_SERVER_URL_MAINNET || DEFAULT_RELAYER,
+};
 
 const HOP_BY_HOP = new Set([
   "host",
@@ -20,10 +28,6 @@ const HOP_BY_HOP = new Set([
   "content-length",
   "accept-encoding",
 ]);
-
-function isNetwork(value: string): value is CortexNetwork {
-  return (CORTEX_NETWORKS as string[]).includes(value);
-}
 
 function forwardHeaders(src: Headers): Headers {
   const out = new Headers();
@@ -35,19 +39,20 @@ function forwardHeaders(src: Headers): Headers {
 
 async function proxy(req: Request, path: string[]): Promise<Response> {
   const [network, ...rest] = path;
-  if (!network || !isNetwork(network)) {
+  const relayer = network ? RELAYERS[network] : undefined;
+  if (!relayer) {
     return new Response(JSON.stringify({ error: "unknown network" }), {
       status: 400,
       headers: { "content-type": "application/json" },
     });
   }
-  const relayer = cortexEnvFor(network).memwal.serverUrl.replace(/\/$/, "");
   const search = new URL(req.url).search;
-  const target = `${relayer}/${rest.join("/")}${search}`;
+  const target = `${relayer.replace(/\/$/, "")}/${rest.join("/")}${search}`;
 
   const init: RequestInit = {
     method: req.method,
     headers: forwardHeaders(req.headers),
+    cache: "no-store",
   };
   if (req.method !== "GET" && req.method !== "HEAD") {
     init.body = await req.arrayBuffer();
