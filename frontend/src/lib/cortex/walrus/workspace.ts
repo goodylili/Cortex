@@ -6,7 +6,9 @@
 // gates decryption. A free-form scope suffix ("tasks"/"bus") namespaces the two blobs
 // under the one workspace id. Unlike the session path in ./sessions, these blobs are
 // workspace-scoped Seal (keyed to the shared object), not wallet-scoped, so we run our
-// own encrypt -> writeBlob and readBlob -> decrypt rather than reusing putBlob/getBlob.
+// own encrypt -> writeBlob and aggregator fetch -> decrypt rather than reusing
+// putBlob/getBlob. Reads go through the aggregator GET (see files.ts fetchBlob), not
+// the SDK's readBlob, which fans out per-sliver requests and exhausts the browser.
 
 "use client";
 
@@ -18,6 +20,7 @@ import type { AgentMessage, AgentTask } from "../agents";
 import { getSealClient, getSuiClient, getWalrusClient } from "./clients";
 import { withWalrusWrite } from "./write-lock";
 import { CORTEX_ENV } from "./env";
+import { fetchBlob } from "./files";
 import { objectJson } from "./graphql";
 import { loadSettingValue, saveSettingValue } from "./sessions";
 import type { PrivySuiSigner } from "./signer";
@@ -224,7 +227,7 @@ async function loadBlob<T>(
   const blobId = json?.[blobField];
   if (typeof blobId !== "string" || blobId.length === 0) return null;
 
-  const blob = await getWalrusClient().readBlob({ blobId });
+  const blob = await fetchBlob(blobId);
   const plaintext = await decryptScoped(signer, workspaceId, scope, blob);
   const parsed: unknown = JSON.parse(plaintext);
   if (!Array.isArray(parsed)) {

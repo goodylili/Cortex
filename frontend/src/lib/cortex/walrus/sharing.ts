@@ -6,8 +6,9 @@
 //
 // Write path: create_share (DRAFT, surfaces the share object id) -> derive the Seal
 // identity from that id -> sha256 + Seal-encrypt the bundle -> Walrus writeBlob ->
-// set_bundle (DRAFT -> ACTIVE). Read path: objectJson(share) -> Walrus readBlob ->
-// rebuild the identity -> SessionKey + seal_approve -> decrypt -> JSON.parse.
+// set_bundle (DRAFT -> ACTIVE). Read path: objectJson(share) -> aggregator GET (see
+// files.ts fetchBlob, not the SDK's sliver-fan-out readBlob) -> rebuild the identity ->
+// SessionKey + seal_approve -> decrypt -> JSON.parse.
 //
 // Scoping is the security boundary: the encryption identity is
 // id_bytes(shareId) ‖ utf8(RESOURCE), byte-identical to the contract's
@@ -24,6 +25,7 @@ import { blobIdFromInt, blobIdToInt } from "@mysten/walrus";
 import { getSealClient, getSuiClient, getWalrusClient } from "./clients";
 import { withWalrusWrite } from "./write-lock";
 import { CORTEX_ENV } from "./env";
+import { fetchBlob } from "./files";
 import { moduleEvents, objectJson } from "./graphql";
 import type { PrivySuiSigner } from "./signer";
 
@@ -398,7 +400,7 @@ export async function decryptShareBundle(
     throw new Error(`Share ${shareId} has no bundle attached yet`);
   }
   const blobId = blobIdFromInt(String(blobInt));
-  const data = await getWalrusClient().readBlob({ blobId });
+  const data = await fetchBlob(blobId);
 
   const suiClient = getSuiClient();
   const sessionKey = await SessionKey.create({

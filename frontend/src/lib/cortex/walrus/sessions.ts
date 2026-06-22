@@ -16,6 +16,7 @@ import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { CORTEX_ENV, sealEnabled } from "./env";
 import { getSuiClient, getWalrusClient } from "./clients";
 import { withWalrusWrite } from "./write-lock";
+import { fetchBlob } from "./files";
 import { objectJson } from "./graphql";
 import { sealDecrypt, sealEncrypt } from "./seal";
 import type { PrivySuiSigner } from "./signer";
@@ -126,16 +127,18 @@ export async function putBlob(
   return blobId;
 }
 
+// Read via the public aggregator's CDN-style GET (see files.ts fetchBlob), NOT the
+// SDK's readBlob: the latter fans hundreds of sliver requests per blob out to the
+// storage nodes from the browser, exhausting the connection pool (ERR_INSUFFICIENT
+// _RESOURCES) and starving concurrent writes. A read failure THROWS rather than
+// resolving null so the caller can tell "no durable copy" (null pointer) apart from
+// "couldn't fetch this time" and never overwrite an intact blob from a failed load.
 export async function getBlob(
   signer: PrivySuiSigner,
   blobId: string,
-): Promise<unknown | null> {
-  try {
-    const blob = await getWalrusClient().readBlob({ blobId });
-    return JSON.parse(await decrypt(signer, blob));
-  } catch {
-    return null;
-  }
+): Promise<unknown> {
+  const blob = await fetchBlob(blobId);
+  return JSON.parse(await decrypt(signer, blob));
 }
 
 // A Sui owned object is version-locked: a tx built against a stale version is

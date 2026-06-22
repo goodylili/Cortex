@@ -10234,6 +10234,56 @@ body.dev .dev-switch::after {
   height: auto;
   filter: saturate(0.85) blur(0.4px);
 }
+.sk {
+  background: linear-gradient(
+    100deg,
+    var(--surface2) 30%,
+    var(--line) 50%,
+    var(--surface2) 70%
+  );
+  background-size: 200% 100%;
+  animation: media-shine 1.3s ease-in-out infinite;
+  border-radius: 7px;
+}
+.sk-card {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  min-height: 132px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface2);
+}
+.sk-line {
+  height: 11px;
+}
+.sk-line.lg {
+  height: 15px;
+  width: 62%;
+}
+.sk-line.sm {
+  width: 38%;
+}
+.sk-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 15px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.sk-dot {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+.sk-row .sk-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
 .media-gen-foot {
   display: flex;
   align-items: center;

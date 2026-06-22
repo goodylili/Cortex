@@ -185,6 +185,15 @@ type View =
   | "studio"
   | "knowledge"
   | "integrations";
+// Durable sources restored on sign-in and backed up by the debounced sync; each
+// tracks its own restore status (see the `hydrate` state).
+type HydrateKey =
+  | "chat"
+  | "events"
+  | "documents"
+  | "agents"
+  | "loops"
+  | "memories";
 type Theme = "light" | "dark" | "system";
 type SettingsSection =
   | "account"
@@ -345,6 +354,39 @@ const dataUrlToFile = async (url: string, name: string): Promise<File> => {
   const blob = await (await fetch(url)).blob();
   return new File([blob], name, { type: blob.type });
 };
+// Placeholder card grid shown while a data-backed view restores from Walrus/Sui, so
+// a fresh page paints structure immediately instead of an empty state that then
+// fills in. Decorative only (aria-hidden); the live content replaces it on arrival.
+function SkeletonCards({ count = 6 }: { count?: number }) {
+  return (
+    <>
+      {Array.from({ length: count }, (_, i) => (
+        <div className="sk-card" key={i} aria-hidden="true">
+          <div className="sk sk-line lg" />
+          <div className="sk sk-line" />
+          <div className="sk sk-line" />
+          <div className="sk sk-line sm" />
+        </div>
+      ))}
+    </>
+  );
+}
+// Placeholder rows for list/timeline layouts (see SkeletonCards).
+function SkeletonRows({ count = 5 }: { count?: number }) {
+  return (
+    <>
+      {Array.from({ length: count }, (_, i) => (
+        <div className="sk-row" key={i} aria-hidden="true">
+          <div className="sk sk-dot" />
+          <div className="sk-col">
+            <div className="sk sk-line lg" />
+            <div className="sk sk-line sm" />
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
 // A fresh Privy embedded wallet holds no SUI or WAL, so every on-chain write and
 // every Walrus blob write would revert for lack of gas. The gas station (POST
 // /api/gas) tops the wallet up from the executor wallet. Called once per address
@@ -409,6 +451,26 @@ export function CortexApp({
 }) {
   const s = useCortex();
   const [view, setView] = useState<View>("home");
+  // Per-source restore status, driving skeletons (loading) and the save gate
+  // (only "ready" sources may be backed up, so a failed restore never overwrites an
+  // intact on-chain blob with an empty/partial local copy). Sources start "loading"
+  // for an already-signed-in user so a fresh page paints skeletons, "ready" in mock
+  // mode where there is nothing to restore.
+  const [hydrate, setHydrate] = useState<
+    Record<HydrateKey, "loading" | "ready" | "failed">
+  >(() => {
+    const init = walletState?.wallet ? "loading" : "ready";
+    return {
+      chat: init,
+      events: init,
+      documents: init,
+      agents: init,
+      loops: init,
+      memories: init,
+    };
+  });
+  const markHydrate = (key: HydrateKey, status: "ready" | "failed") =>
+    setHydrate((h) => (h[key] === status ? h : { ...h, [key]: status }));
   const [theme, setTheme] = useState<Theme>("system");
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -675,6 +737,14 @@ export function CortexApp({
   useEffect(() => {
     const w = walletState?.wallet;
     if (!w) return;
+    setHydrate({
+      chat: "loading",
+      events: "loading",
+      documents: "loading",
+      agents: "loading",
+      loops: "loading",
+      memories: "loading",
+    });
     // Fund the embedded wallet first so the writes triggered below (account
     // register, session/timeline/doc/agent/loop blobs, KB files) have gas. Loads
     // don't need gas, so this runs alongside them rather than blocking them; the
@@ -706,7 +776,8 @@ export function CortexApp({
           });
         }
       })
-      .catch(() => {});
+      .then(() => markHydrate("chat", "ready"))
+      .catch(() => markHydrate("chat", "failed"));
     // Profile + handle live on the Sui stack, not the browser. Hydrate them on
     // sign-in so the Settings profile form is prefilled. There is no auto
     // onboarding; the profile is set and edited from Settings only.
@@ -741,15 +812,17 @@ export function CortexApp({
       .then((t) => {
         if (Array.isArray(t) && t.length)
           s.setEvents(t as Parameters<typeof s.setEvents>[0]);
+        markHydrate("events", "ready");
       })
-      .catch(() => {});
+      .catch(() => markHydrate("events", "failed"));
     void w
       .loadDocuments()
       .then((d) => {
         if (Array.isArray(d) && d.length)
           s.setDocuments(d as Parameters<typeof s.setDocuments>[0]);
+        markHydrate("documents", "ready");
       })
-      .catch(() => {});
+      .catch(() => markHydrate("documents", "failed"));
     void w
       .loadAgents()
       .then((a) => {
@@ -761,8 +834,9 @@ export function CortexApp({
           );
         if (a?.roster?.length)
           s.setAgents(a.roster as Parameters<typeof s.setAgents>[0]);
+        markHydrate("agents", "ready");
       })
-      .catch(() => {});
+      .catch(() => markHydrate("agents", "failed"));
     // Restore the full memory set from Sui on sign-in, exactly like chats: read the
     // durable Walrus blob the account points to. Any memory created locally but not
     // yet in the blob (added within the last debounce window) is kept so a quick
@@ -777,13 +851,23 @@ export function CortexApp({
             .getState()
             .memories.filter((m) => !inBlob.has(m.id));
           s.setMemories([...localOnly, ...(mems as Memory[])]);
+          markHydrate("memories", "ready");
           return;
         }
+        // No durable blob yet (null pointer): seed from MemWal so the debounced
+        // save can write the first backup. This is a legitimate empty start, so
+        // the source is "ready".
+        markHydrate("memories", "ready");
         return w
           .allMemories()
           .then((recalled) => s.loadMemoriesFromRecall(recalled));
       })
       .catch(() => {
+        // The durable read FAILED (the blob exists but couldn't be fetched). Show
+        // what MemWal can recall, but keep the source "failed" so the debounced
+        // save is suppressed and never overwrites the intact blob with a partial
+        // recall set.
+        markHydrate("memories", "failed");
         void w
           .allMemories()
           .then((recalled) => s.loadMemoriesFromRecall(recalled))
@@ -794,8 +878,9 @@ export function CortexApp({
       .then((loops) => {
         if (Array.isArray(loops) && loops.length)
           s.setLoops(loops as Parameters<typeof s.setLoops>[0]);
+        markHydrate("loops", "ready");
       })
-      .catch(() => {});
+      .catch(() => markHydrate("loops", "failed"));
     // Memories others shared with me (read-only) + the shares I created.
     void w
       .loadSharedWithMe()
@@ -825,8 +910,18 @@ export function CortexApp({
         throw e;
       };
       const writes: Promise<unknown>[] = [];
+      // Each source is backed up only once its restore is "ready". A source whose
+      // restore is still loading or "failed" (the durable blob exists but couldn't
+      // be fetched this session) is skipped, so a failed/partial load can never
+      // overwrite the intact on-chain blob. The length checks keep an empty source
+      // from writing a no-op blob.
       const active = s.sessions.find((x) => x.id === s.activeId);
-      if (active && s.chat.length && !s.chat.some((m) => m.streaming)) {
+      if (
+        hydrate.chat === "ready" &&
+        active &&
+        s.chat.length &&
+        !s.chat.some((m) => m.streaming)
+      ) {
         writes.push(
           w
             .saveSession(
@@ -840,22 +935,22 @@ export function CortexApp({
             .catch(fail("chat")),
         );
       }
-      if (s.events.length)
+      if (hydrate.events === "ready" && s.events.length)
         writes.push(w.saveTimeline(s.events).catch(fail("timeline")));
-      if (s.documents.length)
+      if (hydrate.documents === "ready" && s.documents.length)
         writes.push(w.saveDocuments(s.documents).catch(fail("documents")));
-      if (s.tasks.length || s.agentMessages.length || s.agents.length)
+      if (
+        hydrate.agents === "ready" &&
+        (s.tasks.length || s.agentMessages.length || s.agents.length)
+      )
         writes.push(
           w
             .saveAgents(s.tasks, s.agentMessages, s.agents)
             .catch(fail("agents")),
         );
-      if (s.loops.length)
+      if (hydrate.loops === "ready" && s.loops.length)
         writes.push(w.saveLoops(s.loops).catch(fail("loops")));
-      // Back the full memory list up to Sui (one blob + pointer), same as chats and
-      // timeline. Guarded on length so the initial empty mount never overwrites the
-      // durable blob before sign-in hydration has restored it.
-      if (s.memories.length)
+      if (hydrate.memories === "ready" && s.memories.length)
         writes.push(w.saveMemories(s.memories).catch(fail("memories")));
       if (!writes.length) return;
       setSaveState("saving");
@@ -869,6 +964,7 @@ export function CortexApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     walletState?.wallet,
+    hydrate,
     s.chat,
     s.events,
     s.documents,
@@ -3352,6 +3448,16 @@ export function CortexApp({
                   </p>
                 </div>
 
+                {hydrate.memories === "loading" && !liveMemories.length && (
+                  <>
+                    <div className="hc-recent-head">
+                      <h2 className="hc-recent-title">Recent Memories</h2>
+                    </div>
+                    <div className="hc-grid">
+                      <SkeletonCards count={4} />
+                    </div>
+                  </>
+                )}
                 {liveMemories.length > 0 && (
                   <>
                     <div className="hc-duo">
@@ -3780,7 +3886,9 @@ export function CortexApp({
                   )}
                 </div>
                 <div className="cards">
-                  {memList.length ? (
+                  {hydrate.memories === "loading" && !memList.length ? (
+                    <SkeletonCards />
+                  ) : memList.length ? (
                     memList.map(memCard)
                   ) : q ? (
                     <div className="empty">
@@ -3817,9 +3925,12 @@ export function CortexApp({
               </>
             ) : (
               <div className="story" style={{ marginTop: 8 }}>
-                {[...s.events]
-                  .sort((a, b) => b.ts - a.ts)
-                  .map((ev) => (
+                {hydrate.events === "loading" && !s.events.length ? (
+                  <SkeletonRows />
+                ) : (
+                  [...s.events]
+                    .sort((a, b) => b.ts - a.ts)
+                    .map((ev) => (
                     <div
                       key={ev.id}
                       className={
@@ -3835,7 +3946,8 @@ export function CortexApp({
                         {ev.sub && <div className="ssub">{ev.sub}</div>}
                       </div>
                     </div>
-                  ))}
+                    ))
+                )}
               </div>
             )}
           </section>
