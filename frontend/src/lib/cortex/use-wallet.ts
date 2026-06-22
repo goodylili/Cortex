@@ -133,6 +133,7 @@ export interface CortexWallet {
   remember: (text: string) => Promise<{ blobId: string } | null>;
   recall: (query: string) => Promise<RecalledMemory[]>;
   allMemories: () => Promise<RecalledMemory[]>;
+  syncMemwal: () => Promise<RecalledMemory[]>;
   saveSession: (meta: SessionMeta, chat: unknown) => Promise<SessionMeta[]>;
   listSessions: () => Promise<SessionMeta[]>;
   loadSession: (blobId: string) => Promise<unknown | null>;
@@ -508,6 +509,18 @@ export function useCortexWallet(): CortexWalletState {
           return allMemoriesLive(userKey, NAMESPACE);
         }
         return [];
+      },
+      syncMemwal: async () => {
+        // The MemWal plane (NOT on-chain) is what the MCP and other connected apps
+        // write to, so cross-surface sync must read MemWal directly  -  unlike
+        // allMemories(), which prefers on-chain and would never surface a memory the
+        // MCP stored without an on-chain copy. Recover the durable account first so a
+        // returning device with cleared creds still resolves its memories.
+        if (!(memoryProvisioned(userKey) || (await findMemwalAccountId(address)))) {
+          return [];
+        }
+        await ensureMemory(userKey, signer);
+        return allMemoriesLive(userKey, NAMESPACE);
       },
       saveSession: async (meta: SessionMeta, chat: unknown) => {
         if (!contractsEnabled()) return [];

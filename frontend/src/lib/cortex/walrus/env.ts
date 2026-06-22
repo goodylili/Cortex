@@ -25,6 +25,12 @@ const DEFAULT_GRAPHQL: Record<CortexNetwork, string> = {
 const DEFAULT_WALRUS_EPOCHS = 5;
 const DEFAULT_SEAL_THRESHOLD = 1;
 const DEFAULT_MEMWAL_SERVER = "https://relayer.memory.walrus.xyz";
+// The managed MemWal relayer only sends CORS headers for its own dashboard origin,
+// so the browser blocks direct calls from the app ("Failed to fetch"). The browser
+// SDK is pointed at this same-origin proxy instead (see memwalProxyUrl); the
+// /api/memwal/<network> route forwards the already-signed request to the real
+// relayer server-side, where CORS does not apply.
+const MEMWAL_PROXY_BASE = "/api/memwal";
 const DEFAULT_UPLOAD_RELAY: Record<CortexNetwork, string> = {
   testnet: "https://upload-relay.testnet.walrus.space",
   mainnet: "https://upload-relay.mainnet.walrus.space",
@@ -185,6 +191,13 @@ const ENV_BY_NETWORK: Record<CortexNetwork, CortexEnv> = {
 // Resolved config for a given network.
 export function cortexEnvFor(network: CortexNetwork): CortexEnv {
   return ENV_BY_NETWORK[network];
+}
+
+// Same-origin base the browser MemWal SDK should use as its serverUrl, encoding the
+// target network in the path so the proxy route can resolve the right relayer. The
+// real relayer URL stays on `memwal.serverUrl` for the server-side proxy to read.
+export function memwalProxyUrl(network: CortexNetwork): string {
+  return `${MEMWAL_PROXY_BASE}/${network}`;
 }
 
 // A network is offered in the UI once its core live path is in place: contracts +

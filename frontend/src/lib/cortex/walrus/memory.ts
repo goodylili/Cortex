@@ -12,7 +12,7 @@
 import { MemWal } from "@mysten-incubation/memwal";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { fromBase64, toHex } from "@mysten/sui/utils";
-import { CORTEX_ENV } from "./env";
+import { CORTEX_ENV, memwalProxyUrl } from "./env";
 import { isMeaningfulMemory } from "../logic";
 import { objectJson, firstEventBySender } from "./graphql";
 import type { PrivySuiSigner } from "./signer";
@@ -170,7 +170,7 @@ export function getMemoryClient(
   return MemWal.create({
     key: device.privateKey,
     accountId: creds.accountId,
-    serverUrl: CORTEX_ENV.memwal.serverUrl,
+    serverUrl: memwalProxyUrl(CORTEX_ENV.network),
     namespace,
   });
 }

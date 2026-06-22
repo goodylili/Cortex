@@ -874,7 +874,7 @@ export function CortexApp({
           // namespace. Pull those in and merge by text so they show up here too; the
           // debounced save then folds them into the durable blob.
           void w
-            .allMemories()
+            .syncMemwal()
             .then((recalled) => s.mergeRecalledMemories(recalled))
             .catch(() => {});
           return;
@@ -1175,7 +1175,7 @@ export function CortexApp({
     setMemSyncBusy(true);
     try {
       const before = useCortex.getState().memories.length;
-      const recalled = await w.allMemories();
+      const recalled = await w.syncMemwal();
       useCortex.getState().mergeRecalledMemories(recalled);
       const added = useCortex.getState().memories.length - before;
       flash(
