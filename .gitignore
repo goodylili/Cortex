@@ -64,3 +64,7 @@ test-results/
 /*.md
 !/README.md
 .vercel
+
+# Demo video is hosted off-platform (see /demo redirect); keep the 463MB file out of git
+frontend/public/demo.mp4
+*.mp4

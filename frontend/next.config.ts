@@ -12,6 +12,15 @@ const nextConfig: NextConfig = {
         destination: "/",
         permanent: true,
       },
+      // The demo video is hosted off-platform (Google Drive) so the 463MB file
+      // never enters the repo or a deploy. Temporary (307) so the target can be
+      // swapped without fighting a permanently cached redirect.
+      {
+        source: "/demo",
+        destination:
+          "https://drive.google.com/file/d/1IVO_uX0zjbKjWS4eUYUWQDeAFg-2UJqa/view?usp=sharing",
+        permanent: false,
+      },
     ];
   },
   images: {
