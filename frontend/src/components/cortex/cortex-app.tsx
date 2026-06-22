@@ -868,6 +868,14 @@ export function CortexApp({
             .memories.filter((m) => !inBlob.has(m.id));
           s.setMemories([...localOnly, ...(mems as Memory[])]);
           markHydrate("memories", "ready");
+          // The blob is the web's own backup; memories the user added from another
+          // surface (the MCP server on Claude, etc.) live only in the shared MemWal
+          // namespace. Pull those in and merge by text so they show up here too; the
+          // debounced save then folds them into the durable blob.
+          void w
+            .allMemories()
+            .then((recalled) => s.mergeRecalledMemories(recalled))
+            .catch(() => {});
           return;
         }
         // No durable blob yet (null pointer): seed from MemWal so the debounced

@@ -428,6 +428,10 @@ interface State {
   setShares: (shares: ShareSummary[]) => void;
   // hydrate the store's memories from a MemWal recall on sign-in (display + brain)
   loadMemoriesFromRecall: (recalled: RecalledMemory[]) => void;
+  // merge MemWal recall results into the existing set, deduping by normalized text
+  // (not blob id) so memories written from another surface  -  e.g. the MCP server
+  // on Claude  -  surface in the web view even after the durable blob has loaded
+  mergeRecalledMemories: (recalled: RecalledMemory[]) => void;
   // replace the store's memories with the durable set restored from Sui on sign-in
   setMemories: (memories: Memory[]) => void;
   // profile + onboarding
@@ -2094,6 +2098,42 @@ export const useCortex = create<State>((set, get) => ({
             !r.text.startsWith("__") &&
             isMeaningfulMemory(r.text) &&
             !have.has(r.blobId),
+        )
+        .map((r) =>
+          newMemory(
+            {
+              id: r.blobId,
+              text: r.text,
+              tags: autoTags(r.text),
+              ts: now,
+              createdAt: now,
+              source: "memwal",
+              blobId: r.blobId,
+            },
+            "normal",
+            "stated",
+          ),
+        );
+      if (!fresh.length) return {};
+      const memories = [...fresh, ...s.memories];
+      persist({ memories, events: s.events, cost: s.cost, config: s.config });
+      return { memories };
+    }),
+  mergeRecalledMemories: (recalled) =>
+    set((s) => {
+      const now = Date.now();
+      const norm = (t: string) => t.trim().replace(/\s+/g, " ").toLowerCase();
+      // Dedup against what the durable blob already holds, by content not id: a
+      // memory written on the web and its MemWal copy share text but not ids, so
+      // an id-only check would duplicate every web memory.
+      const seen = new Set(s.memories.map((m) => norm(m.text)));
+      const fresh = recalled
+        .filter(
+          (r) =>
+            r.text.trim() &&
+            !r.text.startsWith("__") &&
+            isMeaningfulMemory(r.text) &&
+            !seen.has(norm(r.text)),
         )
         .map((r) =>
           newMemory(
