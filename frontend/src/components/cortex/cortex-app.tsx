@@ -132,7 +132,6 @@ import {
   hasPendingWalrusWrites,
   subscribePendingWalrusWrites,
 } from "@/lib/cortex/walrus/inflight";
-import { SponsoredBanner } from "@/components/sponsored-banner";
 import {
   type AgentRole,
   ACCENTS,
@@ -1321,10 +1320,17 @@ export function CortexApp({
         error?: string;
       };
       if (!res.ok) {
+        // When the executor gas station isn't set up (or is empty), auto-funding
+        // can't help; point the user at the manual faucet, which always works.
+        const unfunded =
+          res.status === 503 ||
+          /not configured|empty/i.test(data.error ?? "");
         flash(
-          data.error
-            ? `Couldn't get tokens: ${data.error}`
-            : "Couldn't get tokens right now.",
+          unfunded
+            ? "Auto-funding is unavailable. Copy your address from your profile and request WAL and SUI test tokens at faucet.suilearn.io."
+            : data.error
+              ? `Couldn't get tokens: ${data.error}`
+              : "Couldn't get tokens right now.",
           "error",
         );
       } else if (data.funded) {
@@ -3081,7 +3087,6 @@ export function CortexApp({
         "app" + (onHome ? " home-rail" : "") + (railOn ? " rail-expanded" : "")
       }
     >
-      <SponsoredBanner />
       <header className="topbar">
         <div className="topbar-inner">
           <div className="tb-left">

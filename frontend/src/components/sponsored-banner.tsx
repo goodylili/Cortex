@@ -48,8 +48,8 @@ export function SponsoredBanner() {
         zIndex: 1000,
       }}
     >
-      On testnet your wallet pays for its own gas and Walrus storage. Request
-      testnet SUI and WAL for your wallet at{" "}
+      Cortex is currently on Testnet. Please head to your profile, copy your
+      address, and request WAL and SUI test tokens at{" "}
       <a
         href="https://faucet.suilearn.io"
         target="_blank"

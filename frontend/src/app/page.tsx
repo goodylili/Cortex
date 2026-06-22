@@ -11,12 +11,9 @@ import { Footer } from "@/components/landing/footer";
 import { MarqueeBand } from "@/components/landing/marquee-band";
 import { LandingThemeProvider } from "@/components/landing/theme-provider";
 import { ThemeToggle } from "@/components/landing/theme-toggle";
-import { SponsoredBanner } from "@/components/sponsored-banner";
-
 export default function Home() {
   return (
     <LandingThemeProvider>
-      <SponsoredBanner />
       <div className="pointer-events-none fixed inset-0 z-50 hidden md:block">
         <div className="mx-auto h-full max-w-7xl">
           <div className="relative h-full">

@@ -2,6 +2,7 @@ import type React from "react";
 import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { SponsoredBanner } from "@/components/sponsored-banner";
 
 // viewport-fit=cover lets the app extend under the notch/home indicator so the
 // env(safe-area-inset-*) padding in the app shell actually takes effect; without
@@ -84,6 +85,7 @@ export default function RootLayout({
         />
       </head>
       <body suppressHydrationWarning>
+        <SponsoredBanner />
         <Suspense fallback={null}>{children}</Suspense>
       </body>
     </html>
