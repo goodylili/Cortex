@@ -1,0 +1,76 @@
+name: Backend MCP Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/backend-mcp-deploy.yml"
+      - "backend/mcp/**"
+      - "backend/core/**"
+      - "Dockerfile"
+      - "deploy/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+  workflow_dispatch:
+
+concurrency:
+  group: mcp-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.MCP_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.MCP_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Sync repo to VPS
+        env:
+          VPS_HOST: ${{ secrets.MCP_VPS_HOST }}
+          VPS_USER: ${{ secrets.MCP_VPS_USER }}
+        run: |
+          rsync -az --human-readable \
+            -e "ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts" \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='**/node_modules' \
+            --exclude='.env' \
+            --exclude='**/.env' \
+            --exclude='.next' \
+            --exclude='**/.next' \
+            --exclude='.vercel' \
+            ./ "${VPS_USER}@${VPS_HOST}:~/cortex/"
+
+      - name: Rebuild and restart MCP container
+        env:
+          VPS_HOST: ${{ secrets.MCP_VPS_HOST }}
+          VPS_USER: ${{ secrets.MCP_VPS_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "${VPS_USER}@${VPS_HOST}" \
+            'cd ~/cortex/deploy && docker compose up -d --build mcp && docker compose ps mcp'
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://mcp.usecortexai.xyz/mcp || echo 000)
+            echo "attempt $i: HTTP $code"
+            if [ "$code" != "000" ]; then
+              echo "MCP endpoint is responding."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "MCP endpoint did not respond in time."
+          exit 1
