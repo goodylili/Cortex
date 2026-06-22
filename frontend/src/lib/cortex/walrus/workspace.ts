@@ -21,6 +21,7 @@ import { getSealClient, getSuiClient, getWalrusClient } from "./clients";
 import { withWalrusWrite } from "./write-lock";
 import { CORTEX_ENV } from "./env";
 import { fetchBlob } from "./files";
+import { getCachedBlob, setCachedBlob } from "./cache";
 import { objectJson } from "./graphql";
 import { loadSettingValue, saveSettingValue } from "./sessions";
 import type { PrivySuiSigner } from "./signer";
@@ -227,6 +228,9 @@ async function loadBlob<T>(
   const blobId = json?.[blobField];
   if (typeof blobId !== "string" || blobId.length === 0) return null;
 
+  const cached = getCachedBlob(blobId);
+  if (Array.isArray(cached)) return cached as T[];
+
   const blob = await fetchBlob(blobId);
   const plaintext = await decryptScoped(signer, workspaceId, scope, blob);
   const parsed: unknown = JSON.parse(plaintext);
@@ -235,6 +239,7 @@ async function loadBlob<T>(
       `Workspace ${blobField} did not decode to an array of items`,
     );
   }
+  setCachedBlob(blobId, parsed);
   return parsed as T[];
 }
 

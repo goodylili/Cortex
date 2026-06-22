@@ -26,6 +26,7 @@ import { getSealClient, getSuiClient, getWalrusClient } from "./clients";
 import { withWalrusWrite } from "./write-lock";
 import { CORTEX_ENV } from "./env";
 import { fetchBlob } from "./files";
+import { getCachedBlob, setCachedBlob } from "./cache";
 import { moduleEvents, objectJson } from "./graphql";
 import type { PrivySuiSigner } from "./signer";
 
@@ -400,6 +401,8 @@ export async function decryptShareBundle(
     throw new Error(`Share ${shareId} has no bundle attached yet`);
   }
   const blobId = blobIdFromInt(String(blobInt));
+  const cached = getCachedBlob(blobId);
+  if (Array.isArray(cached)) return cached as SharedMemoryItem[];
   const data = await fetchBlob(blobId);
 
   const suiClient = getSuiClient();
@@ -431,5 +434,6 @@ export async function decryptShareBundle(
   if (!Array.isArray(parsed)) {
     throw new Error(`Share ${shareId} bundle did not decode to an array`);
   }
+  setCachedBlob(blobId, parsed);
   return parsed as SharedMemoryItem[];
 }

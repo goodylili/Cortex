@@ -995,8 +995,16 @@ export const useCortex = create<State>((set, get) => ({
       activeId: get().activeId,
     });
 
+    // Reveal the answer progressively, but cap the work: each store write
+    // re-renders the whole app tree (the top-level view subscribes to the store),
+    // so a per-word/30ms tick meant ~33 full re-renders per second. Reveal several
+    // words per tick and bound the run to STREAM_MAX_TICKS updates regardless of
+    // length, keeping the typewriter feel at a fraction of the render cost.
+    const STREAM_MAX_TICKS = 24;
+    const STREAM_INTERVAL_MS = 55;
     const stream = (text: string) => {
       const words = text.split(" ");
+      const perTick = Math.max(1, Math.ceil(words.length / STREAM_MAX_TICKS));
       let i = 0;
       const tick = setInterval(() => {
         if (i >= words.length) {
@@ -1020,14 +1028,15 @@ export const useCortex = create<State>((set, get) => ({
           });
           return;
         }
-        const tokWord = words[i++];
+        i = Math.min(words.length, i + perTick);
+        const partial = words.slice(0, i).join(" ");
         set((s) => {
           const chat = [...s.chat];
           const last = chat[chat.length - 1];
-          if (last) last.a = (last.a ? last.a + " " : "") + tokWord;
+          if (last) last.a = partial;
           return { chat };
         });
-      }, 30);
+      }, STREAM_INTERVAL_MS);
     };
 
     // Answer with the selected model, grounded in the retrieved memories.

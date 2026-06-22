@@ -17,6 +17,7 @@ import { CORTEX_ENV, sealEnabled } from "./env";
 import { getSuiClient, getWalrusClient } from "./clients";
 import { withWalrusWrite } from "./write-lock";
 import { fetchBlob } from "./files";
+import { getCachedBlob, setCachedBlob } from "./cache";
 import { objectJson } from "./graphql";
 import { sealDecrypt, sealEncrypt } from "./seal";
 import type { PrivySuiSigner } from "./signer";
@@ -137,8 +138,14 @@ export async function getBlob(
   signer: PrivySuiSigner,
   blobId: string,
 ): Promise<unknown> {
+  // The blob id is content-addressed, so a cache hit is always valid: skip the
+  // aggregator GET and the decrypt. A miss fetches, decrypts, and caches.
+  const cached = getCachedBlob(blobId);
+  if (cached !== undefined) return cached;
   const blob = await fetchBlob(blobId);
-  return JSON.parse(await decrypt(signer, blob));
+  const data = JSON.parse(await decrypt(signer, blob));
+  setCachedBlob(blobId, data);
+  return data;
 }
 
 // A Sui owned object is version-locked: a tx built against a stale version is

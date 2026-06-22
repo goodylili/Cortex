@@ -125,6 +125,7 @@ import {
   sealEnabled,
 } from "@/lib/cortex/walrus/env";
 import { getSuiClient } from "@/lib/cortex/walrus/clients";
+import { getCachedState, setCachedState } from "@/lib/cortex/walrus/cache";
 import {
   hasPendingWalrusWrites,
   subscribePendingWalrusWrites,
@@ -745,6 +746,21 @@ export function CortexApp({
       loops: "loading",
       memories: "loading",
     });
+    // Paint the last cached snapshot for this address immediately so a fresh reload
+    // shows real content (not a skeleton) while the durable loads below reconcile it
+    // against the chain. Only fills a source the store hasn't already populated.
+    {
+      const live = useCortex.getState();
+      const cm = getCachedState(w.address, "memories");
+      if (Array.isArray(cm) && cm.length && !live.memories.length)
+        s.setMemories(cm as Parameters<typeof s.setMemories>[0]);
+      const ce = getCachedState(w.address, "events");
+      if (Array.isArray(ce) && ce.length && !live.events.length)
+        s.setEvents(ce as Parameters<typeof s.setEvents>[0]);
+      const cd = getCachedState(w.address, "documents");
+      if (Array.isArray(cd) && cd.length && !live.documents.length)
+        s.setDocuments(cd as Parameters<typeof s.setDocuments>[0]);
+    }
     // Fund the embedded wallet first so the writes triggered below (account
     // register, session/timeline/doc/agent/loop blobs, KB files) have gas. Loads
     // don't need gas, so this runs alongside them rather than blocking them; the
@@ -903,6 +919,13 @@ export function CortexApp({
     const w = walletState?.wallet;
     if (!w) return;
     const t = setTimeout(() => {
+      // Mirror the current state to the local snapshot (keyed by address) so the
+      // next reload paints instantly. This is a paint cache only and is always
+      // reconciled against the chain, so it is written regardless of the durable
+      // save gate below.
+      setCachedState(w.address, "memories", s.memories);
+      setCachedState(w.address, "events", s.events);
+      setCachedState(w.address, "documents", s.documents);
       // Each write surfaces its own failure (a swallowed write is data loss the
       // user never sees), and the batch drives the toolbar save indicator.
       const fail = (label: string) => (e: unknown) => {
@@ -1675,7 +1698,7 @@ export function CortexApp({
   }
 
   const hasChat = s.chat.length > 0 && s.mode === "ask";
-  const sav = computeSavings(live, s.cost);
+  const sav = useMemo(() => computeSavings(live, s.cost), [live, s.cost]);
 
   const SETTINGS_NAV: [SettingsSection, string, React.ReactNode][] = [
     [
@@ -2829,7 +2852,10 @@ export function CortexApp({
       ).length
     : 0;
   const sharedCount = brainMemories.filter((m) => m.shared).length;
-  const tags = [...new Set(brainMemories.flatMap((m) => m.tags))];
+  const tags = useMemo(
+    () => [...new Set(brainMemories.flatMap((m) => m.tags))],
+    [brainMemories],
+  );
   const byokPickerModels = s.customModels.map((m) => ({
     name: m.label,
     prov: providerInfo(m.provider).label,
