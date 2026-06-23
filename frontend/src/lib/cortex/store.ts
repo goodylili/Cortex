@@ -1,5 +1,6 @@
 "use client";
 import { create } from "zustand";
+import { useStreamStore } from "./stream-store";
 import {
   type Memory,
   type CortexEvent,
@@ -999,16 +1000,17 @@ export const useCortex = create<State>((set, get) => ({
       activeId: get().activeId,
     });
 
-    // Reveal the answer progressively, but cap the work: each store write
-    // re-renders the whole app tree (the top-level view subscribes to the store),
-    // so a per-word/30ms tick meant ~33 full re-renders per second. Reveal several
-    // words per tick and bound the run to STREAM_MAX_TICKS updates regardless of
-    // length, keeping the typewriter feel at a fraction of the render cost.
+    // Reveal the answer progressively. Each per-tick partial goes into the dedicated
+    // stream store (see stream-store.ts), NOT the main store, so only the small
+    // <StreamingAnswer /> node re-renders per tick instead of the whole app tree
+    // (the top-level view subscribes to the entire main store). The final text is
+    // committed back to the chat ONCE, which is the only main-store write of the run.
     const STREAM_MAX_TICKS = 24;
     const STREAM_INTERVAL_MS = 55;
     const stream = (text: string) => {
       const words = text.split(" ");
       const perTick = Math.max(1, Math.ceil(words.length / STREAM_MAX_TICKS));
+      useStreamStore.getState().setText("");
       let i = 0;
       const tick = setInterval(() => {
         if (i >= words.length) {
@@ -1022,6 +1024,7 @@ export const useCortex = create<State>((set, get) => ({
             }
             return { chat };
           });
+          useStreamStore.getState().setText("");
           persist({
             memories: get().memories,
             events: get().events,
@@ -1033,13 +1036,7 @@ export const useCortex = create<State>((set, get) => ({
           return;
         }
         i = Math.min(words.length, i + perTick);
-        const partial = words.slice(0, i).join(" ");
-        set((s) => {
-          const chat = [...s.chat];
-          const last = chat[chat.length - 1];
-          if (last) last.a = partial;
-          return { chat };
-        });
+        useStreamStore.getState().setText(words.slice(0, i).join(" "));
       }, STREAM_INTERVAL_MS);
     };
 

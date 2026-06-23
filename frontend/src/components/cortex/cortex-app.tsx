@@ -150,6 +150,7 @@ import {
 import { Onboarding } from "./onboarding";
 import { CaptureModal } from "./capture";
 import { Markdown } from "./markdown";
+import { StreamingAnswer } from "./streaming-answer";
 import { MediaBlock } from "./media-block";
 import { SourceChips, type SourceItem } from "./sources";
 
@@ -3885,7 +3886,11 @@ export function CortexApp({
                             <MediaBlock media={m.media} />
                           ) : (
                             <div className="atext">
-                              {m.streaming ? m.a : <Markdown text={m.a} />}
+                              {m.streaming ? (
+                                <StreamingAnswer />
+                              ) : (
+                                <Markdown text={m.a} />
+                              )}
                             </div>
                           )}
                           {!m.streaming && !m.media && (
