@@ -1,5 +1,6 @@
 "use client";
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -926,10 +927,12 @@ export function CortexApp({
   }, [walletState?.wallet]);
   // Debounced background sync of the active session + timeline + documents to
   // Walrus + Sui (local stays instant; the chain copy catches up after a settle).
-  useEffect(() => {
+  // The durable save, callable directly (the toolbar "Save failed" retry) as well as
+  // from the debounced effect below.
+  const runSave = useCallback(() => {
     const w = walletState?.wallet;
     if (!w) return;
-    const t = setTimeout(() => {
+    {
       // Mirror the current state to the local snapshot (keyed by address) so the
       // next reload paints instantly. This is a paint cache only and is always
       // reconciled against the chain, so it is written regardless of the durable
@@ -993,8 +996,7 @@ export function CortexApp({
           results.some((r) => r.status === "rejected") ? "error" : "saved",
         );
       });
-    }, 6000);
-    return () => clearTimeout(t);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     walletState?.wallet,
@@ -1008,6 +1010,12 @@ export function CortexApp({
     s.loops,
     s.memories,
   ]);
+  // Debounced background save: settle 6s after the last change, then persist.
+  useEffect(() => {
+    if (!walletState?.wallet) return;
+    const t = setTimeout(runSave, 6000);
+    return () => clearTimeout(t);
+  }, [runSave, walletState?.wallet]);
   useEffect(() => {
     const w = walletState?.wallet;
     if (!w) return;
@@ -3149,20 +3157,32 @@ export function CortexApp({
             </button>
           </div>
           <div className="tb-right">
-            {saveState === "saving" || saveState === "error" ? (
-              <span
-                title={
-                  saveState === "error"
-                    ? "A background save to Walrus failed"
-                    : "Saving to Walrus"
-                }
+            {saveState === "error" ? (
+              <button
+                type="button"
+                onClick={runSave}
+                title="A background save to Walrus failed. Tap to retry."
                 style={{
                   fontSize: 12,
-                  opacity: 0.7,
-                  color: saveState === "error" ? "#e5484d" : "inherit",
+                  fontWeight: 600,
+                  color: "#e5484d",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 0,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
                 }}
               >
-                {saveState === "error" ? "Save failed" : "Saving…"}
+                Save failed · Retry
+              </button>
+            ) : saveState === "saving" ? (
+              <span
+                title="Saving to Walrus"
+                style={{ fontSize: 12, opacity: 0.7 }}
+              >
+                Saving…
               </span>
             ) : null}
             <button
