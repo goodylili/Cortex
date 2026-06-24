@@ -10897,3 +10897,18 @@ body.dev .dev-switch::after {
     padding-top: 0;
   }
 }
+
+/* Mobile: the model picker is anchored right:0 to its chip. On desktop the chip
+   sits at the right of the composer so the menu stays on-screen, but below 640px
+   the composer wraps and the chip moves left, so right:0 pushed the menu off the
+   left edge (model names cut off). Anchor it to the chip's left edge, keep it
+   within the viewport, and let it scroll if it's taller than the space. */
+@media (max-width: 640px) {
+  .model-pop {
+    left: 0;
+    right: auto;
+    width: min(380px, calc(100vw - 24px));
+    max-height: min(70vh, calc(100dvh - 230px));
+    overflow-y: auto;
+  }
+}
