@@ -3619,7 +3619,14 @@ export function CortexApp({
           {/* HOME */}
           <section className={"view" + (view === "home" ? " on" : "")}>
             {!hasChat ? (
-              <div className="home-intro">
+              <div
+                className={
+                  "home-intro" +
+                  (!liveMemories.length && hydrate.memories !== "loading"
+                    ? " empty"
+                    : "")
+                }
+              >
                 <div className="ov-hero">
                   <h1 className="ov-hello">
                     Hello,{" "}

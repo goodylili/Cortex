@@ -10881,3 +10881,19 @@ body.dev .dev-switch::after {
     overflow-y: auto;
   }
 }
+
+/* Mobile: an empty Home (no memories yet) stranded the greeting at the top with a
+   large void down to the fixed composer. Center it in the space above the composer
+   so the first-run screen reads intentionally instead of broken. */
+@media (max-width: 760px) {
+  .home-intro.empty {
+    min-height: calc(100dvh - 250px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .home-intro.empty .ov-hero {
+    margin-top: 0;
+    padding-top: 0;
+  }
+}
