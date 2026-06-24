@@ -40,7 +40,17 @@ export async function getClaimedHandle(owner: string): Promise<string | null> {
   const accountId = await getAccountId(owner);
   if (!accountId) return null;
   const json = await objectJson(accountId);
-  const handle = typeof json?.handle === "string" ? json.handle : "";
+  // The handle lives on the nested Profile struct (account.profile.handle), so read
+  // it there; older callers that looked at a top-level `handle` always saw null,
+  // which made a claimed username re-prompt on every fresh sign-in. Fall back to the
+  // top-level field defensively in case the object shape ever flattens it.
+  const profile = json?.profile as { handle?: unknown } | undefined;
+  const handle =
+    typeof profile?.handle === "string"
+      ? profile.handle
+      : typeof json?.handle === "string"
+        ? json.handle
+        : "";
   return handle && handle !== autoHandle(owner) ? handle : null;
 }
 
