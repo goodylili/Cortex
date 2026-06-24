@@ -44,23 +44,13 @@ export function Hero() {
       <div className="relative z-10 flex min-h-screen flex-col">
         <nav className="relative z-50 py-6">
           <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-6 md:px-12 lg:px-16">
-            <div className="flex items-center gap-2 justify-self-start">
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="text-ink lg:hidden"
-                aria-label="Toggle menu"
-              >
-                {mobileMenuOpen ? (
-                  <X className="h-6 w-6" />
-                ) : (
-                  <Menu className="h-6 w-6" />
-                )}
-              </button>
-              <Link href="/" className="flex items-center gap-3 text-ink">
-                <Logo variant="current" className="h-10 w-10" />
-                <span className="text-xl font-medium">Cortex</span>
-              </Link>
-            </div>
+            <Link
+              href="/"
+              className="flex items-center gap-3 justify-self-start text-ink"
+            >
+              <Logo variant="current" className="h-10 w-10" />
+              <span className="text-xl font-medium">Cortex</span>
+            </Link>
 
             <div className="hidden items-center gap-8 justify-self-center text-base text-ink/60 lg:flex">
               {NAV_LINKS.map((link) => (
@@ -81,6 +71,18 @@ export function Hero() {
               >
                 Launch App
               </Link>
+
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="text-ink lg:hidden"
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? (
+                  <X className="h-6 w-6" />
+                ) : (
+                  <Menu className="h-6 w-6" />
+                )}
+              </button>
             </div>
           </div>
 
