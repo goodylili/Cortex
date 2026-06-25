@@ -10714,7 +10714,7 @@ body.dev .dev-switch::after {
 .nav-drawer {
   position: fixed;
   top: 0;
-  left: 0;
+  right: 0;
   z-index: 90;
   display: flex;
   flex-direction: column;
@@ -10722,11 +10722,11 @@ body.dev .dev-switch::after {
   height: 100dvh;
   padding: calc(14px + env(safe-area-inset-top)) 12px
     calc(14px + env(safe-area-inset-bottom))
-    calc(12px + env(safe-area-inset-left));
+    calc(12px + env(safe-area-inset-right));
   background: var(--paper);
-  border-right: 1px solid var(--line2);
+  border-left: 1px solid var(--line2);
   box-shadow: var(--shadow-lg);
-  transform: translateX(-100%);
+  transform: translateX(100%);
   transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1);
   overscroll-behavior: contain;
 }
@@ -10986,4 +10986,38 @@ body.dev .dev-switch::after {
   padding: 6px 10px;
   border-left: 2px solid var(--line2);
   margin-bottom: 4px;
+}
+
+/* Agents (Pipeline Room) on mobile: the room header used wide desktop padding and
+   a secondary topic that overflowed a phone, and the body/composer were over-padded.
+   Tighten them and drop the topic so the channel name and tools fit. */
+@media (max-width: 640px) {
+  .pr-chan-head {
+    padding: 0 12px;
+    height: 52px;
+    gap: 8px;
+  }
+  .pr-chan-topic {
+    display: none;
+  }
+  .pr-chan-id b {
+    font-size: 14px;
+  }
+  .pr-chan-tools {
+    gap: 4px;
+  }
+  .pr-feed {
+    padding: 8px 12px 12px;
+  }
+  .pr-setup {
+    padding: 12px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .pr-setup-btn {
+    width: 100%;
+  }
+  .pr-thread-reply {
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+  }
 }

@@ -3115,17 +3115,6 @@ export function CortexApp({
       <header className="topbar">
         <div className="topbar-inner">
           <div className="tb-left">
-            <button
-              className="tb-burger"
-              onClick={() => setNavOpen(true)}
-              aria-label="Open menu"
-              aria-expanded={navOpen}
-              title="Menu"
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M3 6h18M3 12h18M3 18h18" />
-              </svg>
-            </button>
             <a
               className="tb-brand"
               href="#home"
@@ -3466,6 +3455,17 @@ export function CortexApp({
                 </div>
               )}
             </div>
+            <button
+              className="tb-burger"
+              onClick={() => setNavOpen(true)}
+              aria-label="Open menu"
+              aria-expanded={navOpen}
+              title="Menu"
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M3 6h18M3 12h18M3 18h18" />
+              </svg>
+            </button>
           </div>
         </div>
       </header>
