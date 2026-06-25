@@ -320,6 +320,7 @@ interface State {
   model: Model;
   web: boolean;
   gifMode: boolean;
+  memoryOn: boolean;
   docs: string[];
   chat: ChatMsg[];
   ready: boolean;
@@ -363,9 +364,14 @@ interface State {
   enrollByokPasskey: () => Promise<boolean>;
   toggleWeb: () => void;
   toggleGifMode: () => void;
+  toggleMemory: () => void;
   attachDoc: (name: string) => void;
   removeDoc: (i: number) => void;
-  ask: (q: string, recalled?: RecalledMemory[]) => void;
+  ask: (
+    q: string,
+    recalled?: RecalledMemory[],
+    opts?: { useMemory?: boolean },
+  ) => void;
   appendChatToken: (text: string) => void;
   keepClose: (id: string) => void;
   unkeep: (id: string) => void;
@@ -533,6 +539,7 @@ export const useCortex = create<State>((set, get) => ({
   model: MODELS.find((m) => m.name === DEFAULT_MODEL.name) ?? MODELS[1]!,
   web: false,
   gifMode: false,
+  memoryOn: true,
   docs: [],
   chat: [],
   ready: false,
@@ -889,10 +896,11 @@ export const useCortex = create<State>((set, get) => ({
   },
   toggleWeb: () => set((s) => ({ web: !s.web })),
   toggleGifMode: () => set((s) => ({ gifMode: !s.gifMode })),
+  toggleMemory: () => set((s) => ({ memoryOn: !s.memoryOn })),
   attachDoc: (name) => set((s) => ({ docs: [...s.docs, name] })),
   removeDoc: (i) => set((s) => ({ docs: s.docs.filter((_, j) => j !== i) })),
 
-  ask: (q, recalled) => {
+  ask: (q, recalled, opts) => {
     q = q.trim();
     if (!q) return;
     const now = Date.now();
@@ -900,17 +908,22 @@ export const useCortex = create<State>((set, get) => ({
     const live = get()
       .live()
       .filter((m) => isRetrievable(m, now, cfg));
+    // Memory toggle: when off, the assistant answers from general knowledge alone
+    // (no recalled memories, no local retrieve), so nothing personal grounds it.
+    const useMemory = opts?.useMemory !== false;
     // Prefer the durable MemWal recall (passed in when signed in); otherwise fall
     // back to the local heuristic retrieve over the in-app store.
-    const fromMemwal = !!(recalled && recalled.length);
-    const memCites = fromMemwal
-      ? recalled!.map((m) => ({
-          id: m.blobId,
-          text: m.text,
-          tags: [] as string[],
-          ts: now,
-        }))
-      : retrieve(q, live);
+    const fromMemwal = useMemory && !!(recalled && recalled.length);
+    const memCites = !useMemory
+      ? []
+      : fromMemwal
+        ? recalled!.map((m) => ({
+            id: m.blobId,
+            text: m.text,
+            tags: [] as string[],
+            ts: now,
+          }))
+        : retrieve(q, live);
     // rehearsal: accessing a local memory strengthens its trace. MemWal-recalled
     // items aren't in the in-app store, so there's nothing to strengthen.
     if (!fromMemwal && memCites.length) {

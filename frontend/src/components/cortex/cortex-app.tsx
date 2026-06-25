@@ -173,6 +173,16 @@ const MARK = (
   </svg>
 );
 
+// The app's brain glyph (same as the Brain view) for the composer Memory toggle.
+const BRAIN_ICON = (
+  <svg viewBox="0 0 24 24">
+    <circle cx="6" cy="7" r="2.2" />
+    <circle cx="18" cy="8" r="2.2" />
+    <circle cx="12" cy="17.5" r="2.2" />
+    <path d="M8 7.6l8 .8M7.4 9l3.6 6.6M16.4 9.6l-3.4 6" />
+  </svg>
+);
+
 const MemoryMap = dynamic(
   () => import("./memory-map").then((m) => m.MemoryMap),
   {
@@ -1648,6 +1658,12 @@ export function CortexApp({
     if (!query) return;
     if (!gate()) return;
     s.setMode("ask");
+    // Memory toggle off: answer from the model's general knowledge alone, skipping
+    // recall entirely so nothing personal is read or sent.
+    if (!s.memoryOn) {
+      s.ask(query, undefined, { useMemory: false });
+      return;
+    }
     if (!wallet) {
       s.ask(query);
       return;
@@ -5102,6 +5118,27 @@ export function CortexApp({
                             {agMode !== "remember" && (
                               <button
                                 className={
+                                  "cap-tool memory-chip" +
+                                  (s.memoryOn ? " on" : "")
+                                }
+                                onClick={() => s.toggleMemory()}
+                                title={
+                                  s.memoryOn
+                                    ? "Memory on  -  answers draw on your saved memories"
+                                    : "Memory off  -  answers ignore your memories"
+                                }
+                                aria-pressed={s.memoryOn}
+                                aria-label="Toggle memory"
+                              >
+                                {BRAIN_ICON}
+                                <span>
+                                  {s.memoryOn ? "Memory on" : "Memory"}
+                                </span>
+                              </button>
+                            )}
+                            {agMode !== "remember" && (
+                              <button
+                                className={
                                   "cap-tool icon web-chip" +
                                   (s.web ? " on" : "")
                                 }
@@ -7727,6 +7764,22 @@ export function CortexApp({
                       </div>
                     )}
                   </div>
+                  <button
+                    className={
+                      "cap-tool memory-chip ask-only" + (s.memoryOn ? " on" : "")
+                    }
+                    onClick={() => s.toggleMemory()}
+                    title={
+                      s.memoryOn
+                        ? "Memory on  -  answers draw on your saved memories"
+                        : "Memory off  -  answers ignore your memories"
+                    }
+                    aria-pressed={s.memoryOn}
+                    aria-label="Toggle memory"
+                  >
+                    {BRAIN_ICON}
+                    <span>{s.memoryOn ? "Memory on" : "Memory"}</span>
+                  </button>
                   <button
                     className={
                       "cap-tool icon web-chip ask-only" + (s.web ? " on" : "")

@@ -940,6 +940,15 @@ body.mode-ask .remember-only {
   color: var(--accent-ink);
   background: var(--accent-soft);
 }
+.memory-chip svg {
+  width: 16px;
+  height: 16px;
+}
+.memory-chip.on {
+  color: var(--ink);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
 .gif-chip {
   font-size: 12px;
   font-weight: 600;
