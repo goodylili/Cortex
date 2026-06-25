@@ -3905,6 +3905,51 @@ export function CortexApp({
                           );
                         })()}
                         <div className="cmsg-card">
+                          {!m.media &&
+                            (() => {
+                              const memUsed = m.sources.filter(
+                                (src) => src.type === "memory",
+                              );
+                              if (!m.thinking && !memUsed.length) return null;
+                              return (
+                                <details className="think">
+                                  <summary className="think-sum">
+                                    <span className="think-ic">
+                                      {BRAIN_ICON}
+                                    </span>
+                                    <span>
+                                      {m.streaming ? "Thinking…" : "Thinking"}
+                                    </span>
+                                    <span className="think-chev">▾</span>
+                                  </summary>
+                                  <div className="think-body">
+                                    {m.thinking && (
+                                      <p className="think-reason">
+                                        {m.thinking}
+                                      </p>
+                                    )}
+                                    {memUsed.length > 0 && (
+                                      <div className="think-mem">
+                                        <div className="think-mem-h">
+                                          Accessed {memUsed.length}{" "}
+                                          {memUsed.length === 1
+                                            ? "memory"
+                                            : "memories"}
+                                        </div>
+                                        {memUsed.map((src, mi) => (
+                                          <div
+                                            key={mi}
+                                            className="think-mem-item"
+                                          >
+                                            {src.text}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </details>
+                              );
+                            })()}
                           {m.media ? (
                             <MediaBlock media={m.media} />
                           ) : (

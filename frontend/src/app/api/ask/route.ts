@@ -11,6 +11,7 @@ import {
   askFallback,
   askSystem,
   askUser,
+  splitThinking,
   type AskMemory,
   type AskTurn,
 } from "@/lib/llm/ask-prompt";
@@ -40,7 +41,14 @@ export async function POST(req: Request) {
     user: askUser(question, memories, history),
     maxTokens: ASK_MAX_TOKENS,
   });
-  return result.ok
-    ? Response.json({ answer: result.text, ai: true, model: chosen.name })
-    : Response.json({ answer: fallback, ai: false, reason: result.reason });
+  if (!result.ok) {
+    return Response.json({ answer: fallback, ai: false, reason: result.reason });
+  }
+  const { thinking, answer } = splitThinking(result.text);
+  return Response.json({
+    answer: answer || fallback,
+    thinking,
+    ai: true,
+    model: chosen.name,
+  });
 }

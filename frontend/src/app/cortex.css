@@ -10921,3 +10921,69 @@ body.dev .dev-switch::after {
     overflow-y: auto;
   }
 }
+
+/* Thinking panel: a collapsible disclosure above the answer showing the model's
+   reasoning note and which memories it accessed. */
+.think {
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  overflow: hidden;
+}
+.think-sum {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--muted);
+  font-size: 13.5px;
+  user-select: none;
+}
+.think-sum::-webkit-details-marker {
+  display: none;
+}
+.think-ic svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  display: block;
+}
+.think-chev {
+  margin-left: auto;
+  font-size: 11px;
+  transition: transform 0.2s ease;
+}
+.think[open] .think-chev {
+  transform: rotate(180deg);
+}
+.think-body {
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.think-reason {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.think-mem-h {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.think-mem-item {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  padding: 6px 10px;
+  border-left: 2px solid var(--line2);
+  margin-bottom: 4px;
+}

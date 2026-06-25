@@ -29,7 +29,23 @@ export const askSystem = (web?: boolean): string =>
   "When memories are relevant, weave them into the answer naturally and cite them inline by number, [1], [2]. " +
   "Write at a length that genuinely serves the request, and never cut a response off mid-thought. Match depth to the question: greetings and simple lookups stay short, but anything open-ended  -  'who am I', 'what do you know about me', 'write a thread about X', 'help me plan ___'  -  deserves a complete, well-structured, expressive answer. When several memories are relevant, synthesize ACROSS the whole set: draw on every memory that fits, group related details into real sentences, and cite each one you use; never reduce a rich set to a single line or cherry-pick one or two, and don't dump a bare list. " +
   "For greetings or small talk, respond warmly and naturally. " +
-  "Do not pad answers with remarks about memories when they are not relevant.";
+  "Do not pad answers with remarks about memories when they are not relevant. " +
+  "ALWAYS begin your reply with a short first-person reasoning note wrapped in <thinking> and </thinking> tags: 1-3 sentences on how you're approaching the question and which of the provided memories (by number) are relevant and why. Then, AFTER the closing </thinking> tag, write the actual answer. Keep the thinking brief and never mention the tags themselves in the answer.";
+
+// Split a model reply into its <thinking> note and the answer that follows. Falls
+// back to treating the whole text as the answer when the model omits the tags.
+export function splitThinking(text: string): {
+  thinking: string;
+  answer: string;
+} {
+  const match = text.match(/<thinking>([\s\S]*?)<\/thinking>/i);
+  if (!match || match.index === undefined) {
+    return { thinking: "", answer: text.trim() };
+  }
+  const thinking = match[1].trim();
+  const answer = text.slice(match.index + match[0].length).trim();
+  return { thinking, answer: answer || text.replace(match[0], "").trim() };
+}
 
 const askContext = (memories: AskMemory[]): string =>
   memories.length

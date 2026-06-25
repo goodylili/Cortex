@@ -36,7 +36,12 @@ import {
   type MediaOutput,
 } from "@/lib/llm/generate";
 import { modelKind, DEFAULT_MODEL } from "@/lib/llm/models";
-import { ASK_MAX_TOKENS, askSystem, askUser } from "@/lib/llm/ask-prompt";
+import {
+  ASK_MAX_TOKENS,
+  askSystem,
+  askUser,
+  splitThinking,
+} from "@/lib/llm/ask-prompt";
 import {
   type MemoryConfig,
   DEFAULT_CONFIG,
@@ -259,6 +264,8 @@ export interface ChatMsg {
   streaming?: boolean;
   rating?: "up" | "down";
   media?: MediaState;
+  // The model's brief reasoning note (shown in the collapsible Thinking panel).
+  thinking?: string;
 }
 
 type Mode = "remember" | "ask";
@@ -1018,6 +1025,17 @@ export const useCortex = create<State>((set, get) => ({
     // <StreamingAnswer /> node re-renders per tick instead of the whole app tree
     // (the top-level view subscribes to the entire main store). The final text is
     // committed back to the chat ONCE, which is the only main-store write of the run.
+    // Attach the model's reasoning note to the current message before the answer
+    // streams, so the Thinking panel is ready as the answer types out.
+    const setThinking = (thinking: string) => {
+      if (!thinking) return;
+      set((s) => {
+        const chat = [...s.chat];
+        const last = chat[chat.length - 1];
+        if (last) last.thinking = thinking;
+        return { chat };
+      });
+    };
     const STREAM_MAX_TICKS = 24;
     const STREAM_INTERVAL_MS = 55;
     const stream = (text: string) => {
@@ -1165,7 +1183,11 @@ export const useCortex = create<State>((set, get) => ({
         user: askUser(q, askMems, askHist),
         maxTokens: ASK_MAX_TOKENS,
       })
-        .then((r) => stream(r.ok ? r.text : fallback))
+        .then((r) => {
+          const { thinking, answer } = splitThinking(r.ok ? r.text : fallback);
+          setThinking(thinking);
+          stream(answer || fallback);
+        })
         .catch(() => stream(fallback));
       return;
     }
@@ -1181,9 +1203,10 @@ export const useCortex = create<State>((set, get) => ({
       }),
     })
       .then((r) => r.json())
-      .then((d) =>
-        stream(typeof d.answer === "string" && d.answer ? d.answer : fallback),
-      )
+      .then((d) => {
+        setThinking(typeof d.thinking === "string" ? d.thinking : "");
+        stream(typeof d.answer === "string" && d.answer ? d.answer : fallback);
+      })
       .catch(() => stream(fallback));
   },
   appendChatToken: () => {},
