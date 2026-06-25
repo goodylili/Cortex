@@ -43,7 +43,7 @@ export function Hero() {
 
       <div className="relative z-10 flex min-h-screen flex-col">
         <nav className="relative z-50 py-6">
-          <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-6 md:px-12 lg:px-16">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 md:px-12 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:px-16">
             <Link
               href="/"
               className="flex items-center gap-3 justify-self-start text-ink"
