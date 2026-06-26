@@ -10869,12 +10869,13 @@ body.dev .dev-switch::after {
 }
 
 /* ============================================================
-   Mobile fix: the floating "Chat History" rail overlapped the composer.
-   Hide the collapsed bar, and present the OPEN rail as a full-screen sheet
-   above everything (opened from the hamburger menu, dismissed by its chevron),
-   so it never collides with the fixed bottom composer.
+   The floating "Chat History" rail must never sit on top of content.
+   - Up to 1023px: present the OPEN rail as a full-screen sheet (collapsed bar
+     hidden) so it can't collide with the feed or the fixed composer.
+   - 1024px and up: keep it floating but push the content right while it's open,
+     so it reads as a real sidebar instead of overlapping the chat.
    ============================================================ */
-@media (max-width: 760px) {
+@media (max-width: 1023px) {
   .chat-rail.on-home:not(.open) {
     display: none;
   }
@@ -10888,6 +10889,16 @@ body.dev .dev-switch::after {
       calc(env(safe-area-inset-bottom) + 14px);
     z-index: 1001;
     overflow-y: auto;
+  }
+}
+@media (min-width: 1024px) {
+  .wrap,
+  .composer-dock {
+    transition: padding-left 0.22s ease;
+  }
+  .app.home-rail.rail-expanded .wrap,
+  .app.home-rail.rail-expanded .composer-dock {
+    padding-left: 336px;
   }
 }
 
@@ -11019,5 +11030,16 @@ body.dev .dev-switch::after {
   }
   .pr-thread-reply {
     padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Agents roster rail: same principle as the chat rail. On desktop, push the room
+   content right while the rail is open so the floating rail never overlaps it. */
+@media (min-width: 1024px) {
+  .pr-main {
+    transition: padding-left 0.22s ease;
+  }
+  .pr-shell.rail-open .pr-main {
+    padding-left: 328px;
   }
 }

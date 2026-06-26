@@ -4280,7 +4280,7 @@ export function CortexApp({
                   )
                 : [];
               return (
-                <div className="pr-shell">
+                <div className={"pr-shell" + (roomRailOpen ? " rail-open" : "")}>
                   <aside className={"pr-rail" + (roomRailOpen ? " open" : "")}>
                     <div className="pr-rail-body">
                       <button
