@@ -155,6 +155,12 @@ async function ensureDeviceKey(
   signer: PrivySuiSigner,
   deviceId: string,
 ): Promise<DeviceKey> {
+  // The key is deterministic (same wallet + device), so reuse the in-memory cache
+  // instead of re-deriving on every call. Re-deriving meant a wallet signature on
+  // every recall/remember, which added a slow, sometimes-prompting round-trip to
+  // each message. Cleared on sign-out via clearMemoryCreds().
+  const cached = deviceKeyCache.get(userKey);
+  if (cached) return cached;
   const derived = await deriveDelegateKey(signer, deviceId);
   deviceKeyCache.set(userKey, derived);
   return derived;

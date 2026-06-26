@@ -379,6 +379,7 @@ interface State {
     recalled?: RecalledMemory[],
     opts?: { useMemory?: boolean },
   ) => void;
+  pushAskPlaceholder: (q: string) => void;
   appendChatToken: (text: string) => void;
   keepClose: (id: string) => void;
   unkeep: (id: string) => void;
@@ -907,6 +908,50 @@ export const useCortex = create<State>((set, get) => ({
   attachDoc: (name) => set((s) => ({ docs: [...s.docs, name] })),
   removeDoc: (i) => set((s) => ({ docs: s.docs.filter((_, j) => j !== i) })),
 
+  // Push an empty streaming assistant message immediately on send, so the question
+  // and a "Thinking…" state appear instantly instead of waiting for the (slow)
+  // recall. ask() then reuses this placeholder once the memories come back.
+  pushAskPlaceholder: (q) => {
+    q = q.trim();
+    if (!q) return;
+    set((s) => {
+      const msg: ChatMsg = {
+        q,
+        a: "",
+        sources: [],
+        model: s.model.name,
+        web: s.web,
+        savedNote: "",
+        docs: s.docs,
+        streaming: true,
+      };
+      const sessions = s.sessions.map((se) =>
+        se.id === s.activeId
+          ? {
+              ...se,
+              title:
+                se.title === "New chat" ? q.slice(0, 40) || "New chat" : se.title,
+              updatedAt: Date.now(),
+            }
+          : se,
+      );
+      return {
+        chat: [...s.chat, msg],
+        docs: [],
+        sessions,
+        cost: { ...s.cost, asks: s.cost.asks + 1 },
+      };
+    });
+    persist({
+      memories: get().memories,
+      events: get().events,
+      cost: get().cost,
+      chat: get().chat,
+      sessions: get().sessions,
+      activeId: get().activeId,
+    });
+  },
+
   ask: (q, recalled, opts) => {
     q = q.trim();
     if (!q) return;
@@ -979,17 +1024,38 @@ export const useCortex = create<State>((set, get) => ({
         );
       fallback = parts.join(". ") + ".";
     }
-    const msg: ChatMsg = {
-      q,
-      a: "",
-      sources,
-      model: get().model.name,
-      web: get().web,
-      savedNote,
-      docs: get().docs,
-      streaming: true,
-    };
     set((s) => {
+      const last = s.chat[s.chat.length - 1];
+      // Reuse the instant placeholder askGrounded pushed (so the message appeared
+      // immediately, before the slow recall) instead of adding a second message:
+      // just fill in the sources it found.
+      if (
+        last &&
+        last.streaming &&
+        last.a === "" &&
+        last.q === q &&
+        last.sources.length === 0
+      ) {
+        const chat = [...s.chat];
+        chat[chat.length - 1] = { ...last, sources, savedNote };
+        return {
+          chat,
+          cost: {
+            ...s.cost,
+            retrievalTokens: s.cost.retrievalTokens + savedTok,
+          },
+        };
+      }
+      const msg: ChatMsg = {
+        q,
+        a: "",
+        sources,
+        model: s.model.name,
+        web: s.web,
+        savedNote,
+        docs: s.docs,
+        streaming: true,
+      };
       const sessions = s.sessions.map((se) =>
         se.id === s.activeId
           ? {

@@ -1668,6 +1668,9 @@ export function CortexApp({
       s.ask(query);
       return;
     }
+    // Show the message + a Thinking state instantly; the (slow) recall + answer
+    // then fill into this same placeholder.
+    s.pushAskPlaceholder(query);
     // "Recall everything" questions want the whole memory set, not the focused,
     // distance-filtered top-K. Read the full MemWal set directly so the model can
     // actually list it all.
@@ -3910,7 +3913,8 @@ export function CortexApp({
                               const memUsed = m.sources.filter(
                                 (src) => src.type === "memory",
                               );
-                              if (!m.thinking && !memUsed.length) return null;
+                              if (!m.streaming && !m.thinking && !memUsed.length)
+                                return null;
                               return (
                                 <details className="think">
                                   <summary className="think-sum">
