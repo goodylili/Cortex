@@ -1,7 +1,7 @@
 "use client";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCortex } from "@/lib/cortex/store";
-import { fullHandle, type TeamRole } from "@/lib/cortex/teams";
+import { fullHandle, teamSlug, type TeamRole } from "@/lib/cortex/teams";
 import { ago } from "@/lib/cortex/logic";
 import { GenAvatar } from "./gen-avatar";
 
@@ -20,12 +20,17 @@ export function TeamsView() {
     postTeamMessage,
     archiveTeam,
     deleteTeam,
+    joinTeamByInvite,
+    removeTeamMemory,
     memories,
+    profile,
   } = s;
 
   const ta = useRef<HTMLTextAreaElement>(null);
   const [railOpen, setRailOpen] = useState(true);
   const [threadOpen, setThreadOpen] = useState(false);
+  const [origin, setOrigin] = useState("");
+  const [copied, setCopied] = useState(false);
   const [secTeams, setSecTeams] = useState(true);
   const [secMembers, setSecMembers] = useState(true);
   const [newTeamName, setNewTeamName] = useState("");
@@ -49,6 +54,29 @@ export function TeamsView() {
         .slice(0, 40),
     [memories],
   );
+
+  // Opening an invite link (?join=<token>) joins the current user to that team,
+  // then strips the param so a refresh does not re-trigger it.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("join");
+    if (!token) return;
+    const id = joinTeamByInvite(token);
+    if (id) setActiveTeam(id);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("join");
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+  }, [joinTeamByInvite, setActiveTeam]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") setOrigin(window.location.origin);
+  }, []);
+
+  // Who "I" am within a team: matched by my profile handle. Admins (owner + any
+  // admin) manage the whole team; everyone else can still manage their own
+  // contributions.
+  const myHandle = teamSlug(profile.handle || profile.name || "you");
 
   const grow = (el: HTMLTextAreaElement) => {
     el.style.height = "auto";
@@ -118,6 +146,19 @@ export function TeamsView() {
   }
 
   const memberCount = active?.members.length ?? 0;
+  const myMember = active?.members.find((m) => m.handle === myHandle) ?? null;
+  const canManage = myMember?.role === "admin";
+  const inviteUrl = active
+    ? `${origin}/app?join=${active.invite ?? active.id}#teams`
+    : "";
+  const copyInvite = () => {
+    if (!inviteUrl) return;
+    void navigator.clipboard?.writeText(inviteUrl);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  };
+  const canRemoveRef = (byId: string) =>
+    canManage || (myMember != null && byId === myMember.id);
 
   return (
     <div className={"pr-shell" + (railOpen ? " rail-open" : "")}>
@@ -222,10 +263,13 @@ export function TeamsView() {
                           <div className="pr-member-acts">
                             {isOwner ? (
                               <span className="pr-status active">owner</span>
-                            ) : (
+                            ) : canManage ? (
                               <>
                                 <button
-                                  className="pr-member-ic"
+                                  className={
+                                    "tm-role-pick" +
+                                    (m.role === "admin" ? " admin" : "")
+                                  }
                                   title="Toggle role"
                                   onClick={() =>
                                     setTeamMemberRole(
@@ -235,7 +279,7 @@ export function TeamsView() {
                                     )
                                   }
                                 >
-                                  {m.role === "admin" ? "A" : "M"}
+                                  {m.role}
                                 </button>
                                 <button
                                   className="pr-member-ic danger"
@@ -249,39 +293,43 @@ export function TeamsView() {
                                   </svg>
                                 </button>
                               </>
+                            ) : (
+                              <span className="pr-status">{m.role}</span>
                             )}
                           </div>
                         </div>
                       );
                     })}
-                    <div className="tm-add-member">
-                      <input
-                        className="tm-input sm"
-                        placeholder="Name or handle"
-                        value={memberName}
-                        onChange={(e) => setMemberName(e.target.value)}
-                        onKeyDown={(e) =>
-                          e.key === "Enter" && handleAddMember()
-                        }
-                      />
-                      <button
-                        className={
-                          "tm-role-pick" +
-                          (memberRole === "admin" ? " admin" : "")
-                        }
-                        onClick={() =>
-                          setMemberRole((r) =>
-                            r === "admin" ? "member" : "admin",
-                          )
-                        }
-                        title="Role for the new member"
-                      >
-                        {memberRole}
-                      </button>
-                      <button className="tm-btn sm" onClick={handleAddMember}>
-                        Add
-                      </button>
-                    </div>
+                    {canManage && (
+                      <div className="tm-add-member">
+                        <input
+                          className="tm-input sm"
+                          placeholder="Name or handle"
+                          value={memberName}
+                          onChange={(e) => setMemberName(e.target.value)}
+                          onKeyDown={(e) =>
+                            e.key === "Enter" && handleAddMember()
+                          }
+                        />
+                        <button
+                          className={
+                            "tm-role-pick" +
+                            (memberRole === "admin" ? " admin" : "")
+                          }
+                          onClick={() =>
+                            setMemberRole((r) =>
+                              r === "admin" ? "member" : "admin",
+                            )
+                          }
+                          title="Role for the new member"
+                        >
+                          {memberRole}
+                        </button>
+                        <button className="tm-btn sm" onClick={handleAddMember}>
+                          Add
+                        </button>
+                      </div>
+                    )}
                   </>
                 )}
               </>
@@ -330,18 +378,25 @@ export function TeamsView() {
                     </span>
                   ))}
                 </div>
-                <button
-                  className="pr-act"
-                  onClick={() => archiveTeam(active.id)}
-                >
-                  {active.status === "archived" ? "Reactivate" : "Archive"}
+                <button className="pr-act primary" onClick={copyInvite}>
+                  {copied ? "Link copied" : "Invite"}
                 </button>
-                <button
-                  className="pr-act"
-                  onClick={() => deleteTeam(active.id)}
-                >
-                  Delete
-                </button>
+                {canManage && (
+                  <button
+                    className="pr-act"
+                    onClick={() => archiveTeam(active.id)}
+                  >
+                    {active.status === "archived" ? "Reactivate" : "Archive"}
+                  </button>
+                )}
+                {canManage && active.ownerId === myMember?.id && (
+                  <button
+                    className="pr-act"
+                    onClick={() => deleteTeam(active.id)}
+                  >
+                    Delete
+                  </button>
+                )}
                 <button
                   className={"pr-act" + (threadOpen ? " on" : "")}
                   onClick={() => setThreadOpen((v) => !v)}
@@ -527,6 +582,24 @@ export function TeamsView() {
             </div>
 
             <div className="tm-side-title" style={{ marginTop: 22 }}>
+              Invite people
+            </div>
+            <p className="tm-side-p">
+              Anyone who opens this link joins {active.name} as a member, sees
+              the team, and can share memory.
+            </p>
+            <code className="tm-code" style={{ wordBreak: "break-all" }}>
+              {inviteUrl || "…"}
+            </code>
+            <button
+              className="tm-btn sm"
+              style={{ marginTop: 8 }}
+              onClick={copyInvite}
+            >
+              {copied ? "Link copied" : "Copy invite link"}
+            </button>
+
+            <div className="tm-side-title" style={{ marginTop: 22 }}>
               Connect anywhere
             </div>
             <p className="tm-side-p">
@@ -542,6 +615,10 @@ export function TeamsView() {
             <div className="tm-side-title" style={{ marginTop: 22 }}>
               Shared memory · {active.memoryRefs.length}
             </div>
+            <p className="tm-side-note" style={{ marginTop: 0 }}>
+              The whole team owns these. Admins can remove any; you can always
+              remove your own.
+            </p>
             <div className="tm-side-mem">
               {active.memoryRefs.length === 0 && (
                 <div className="tm-side-empty">
@@ -551,7 +628,18 @@ export function TeamsView() {
               )}
               {active.memoryRefs.map((r) => (
                 <div key={r.id} className="tm-side-ref">
-                  <span className="tm-ref-text">{r.text}</span>
+                  <div className="tm-side-ref-top">
+                    <span className="tm-ref-text">{r.text}</span>
+                    {canRemoveRef(r.byId) && (
+                      <button
+                        className="tm-side-x"
+                        title="Remove from team memory"
+                        onClick={() => removeTeamMemory(active.id, r.id)}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
                   <span className="tm-side-by">
                     via {r.byName} · {ago(r.at)}
                   </span>

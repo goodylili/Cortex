@@ -17,10 +17,7 @@ import {
   ago,
   MODELS,
 } from "./logic";
-import {
-  type CustomModel,
-  providerInfo,
-} from "@/lib/llm/byok";
+import { type CustomModel, providerInfo } from "@/lib/llm/byok";
 import {
   loadVault as loadByokVault,
   addModel as addByokModel,
@@ -158,11 +155,7 @@ async function runAgentMediaStep(
   memoryRefs: string[],
 ): Promise<void> {
   const output: MediaOutput =
-    modelKind(custom) === "image"
-      ? "image"
-      : get().gifMode
-        ? "gif"
-        : "video";
+    modelKind(custom) === "image" ? "image" : get().gifMode ? "gif" : "video";
   const base =
     output === "image"
       ? ("image" as const)
@@ -210,7 +203,12 @@ async function runAgentMediaStep(
           : t,
       );
       if (media.status !== "generating") {
-        persist({ memories: s.memories, events: s.events, cost: s.cost, tasks });
+        persist({
+          memories: s.memories,
+          events: s.events,
+          cost: s.cost,
+          tasks,
+        });
       }
       return { tasks };
     });
@@ -227,9 +225,21 @@ async function runAgentMediaStep(
     },
     (ev: GenerateEvent) => {
       if (ev.phase === "start") {
-        update({ kind: base, status: "generating", progress: 1, mime: "", prompt: goal });
+        update({
+          kind: base,
+          status: "generating",
+          progress: 1,
+          mime: "",
+          prompt: goal,
+        });
       } else if (ev.phase === "progress") {
-        update({ kind: base, status: "generating", progress: ev.progress, mime: "", prompt: goal });
+        update({
+          kind: base,
+          status: "generating",
+          progress: ev.progress,
+          mime: "",
+          prompt: goal,
+        });
       } else if (ev.phase === "partial") {
         update({
           kind: base,
@@ -249,7 +259,13 @@ async function runAgentMediaStep(
           prompt: goal,
         });
       } else {
-        update({ kind: base, status: "error", mime: "", prompt: goal, reason: ev.reason });
+        update({
+          kind: base,
+          status: "error",
+          mime: "",
+          prompt: goal,
+          reason: ev.reason,
+        });
       }
     },
   );
@@ -428,10 +444,7 @@ interface State {
   setSessions: (sessions: SessionMeta[]) => void;
   // multi-agent collaboration
   createTask: (goal: string, assignTo: string) => string;
-  runAgentStep: (
-    taskId: string,
-    recalled?: RecalledMemory[],
-  ) => Promise<void>;
+  runAgentStep: (taskId: string, recalled?: RecalledMemory[]) => Promise<void>;
   handoffTask: (taskId: string, toAgentId: string) => void;
   completeTask: (taskId: string) => void;
   saveObservationAsMemory: (taskId: string, obsId: string) => string | null;
@@ -468,6 +481,8 @@ interface State {
   ) => void;
   removeTeamMember: (teamId: string, memberId: string) => void;
   setTeamMemberRole: (teamId: string, memberId: string, role: TeamRole) => void;
+  joinTeamByInvite: (invite: string) => string;
+  removeTeamMemory: (teamId: string, refId: string) => void;
   postTeamMessage: (
     teamId: string,
     text: string,
@@ -520,7 +535,8 @@ function persist(s: {
   if (s.sessions !== undefined) sessionCache.sessions = s.sessions;
   if (s.activeId !== undefined) sessionCache.activeId = s.activeId;
   if (s.tasks !== undefined) sessionCache.tasks = s.tasks;
-  if (s.agentMessages !== undefined) sessionCache.agentMessages = s.agentMessages;
+  if (s.agentMessages !== undefined)
+    sessionCache.agentMessages = s.agentMessages;
   if (s.agents !== undefined) sessionCache.agents = s.agents;
   if (s.loops !== undefined) sessionCache.loops = s.loops;
   const activeId = sessionCache.activeId ?? "";
@@ -548,7 +564,8 @@ function buildTeamRefs(
   memoryIds: string[],
 ): TeamMemoryRef[] {
   if (!team) return [];
-  const author = team.members.find((m) => m.id === team.ownerId) ?? team.members[0];
+  const author =
+    team.members.find((m) => m.id === team.ownerId) ?? team.members[0];
   const byId = author?.id ?? "system";
   const byName = author?.name ?? "You";
   const now = Date.now();
@@ -556,7 +573,14 @@ function buildTeamRefs(
   for (const id of memoryIds) {
     const mem = memories.find((m) => m.id === id);
     if (!mem) continue;
-    refs.push({ id: uid("tref"), memoryId: mem.id, text: mem.text, byId, byName, at: now });
+    refs.push({
+      id: uid("tref"),
+      memoryId: mem.id,
+      text: mem.text,
+      byId,
+      byName,
+      at: now,
+    });
   }
   return refs;
 }
@@ -807,9 +831,9 @@ export const useCortex = create<State>((set, get) => ({
     // the whole text as a single memory.
     const provided = (input.facts ?? []).map((f) => f.trim()).filter(Boolean);
     const extracted = provided.length ? provided : extract(input.text);
-    const facts = (
-      extracted.length ? extracted : [input.text.trim()]
-    ).filter(isMeaningfulMemory);
+    const facts = (extracted.length ? extracted : [input.text.trim()]).filter(
+      isMeaningfulMemory,
+    );
     if (!facts.length) return { docId, facts: [] };
     let createdFacts: string[] = [];
     set((s) => {
@@ -927,10 +951,7 @@ export const useCortex = create<State>((set, get) => ({
       await addByokModel(model, apiKey);
     }
     set((s) => ({
-      customModels: [
-        ...s.customModels.filter((m) => m.id !== model.id),
-        model,
-      ],
+      customModels: [...s.customModels.filter((m) => m.id !== model.id), model],
       byokKeys: { ...s.byokKeys, [model.id]: apiKey },
       byokUnlocked: true,
     }));
@@ -997,7 +1018,9 @@ export const useCortex = create<State>((set, get) => ({
           ? {
               ...se,
               title:
-                se.title === "New chat" ? q.slice(0, 40) || "New chat" : se.title,
+                se.title === "New chat"
+                  ? q.slice(0, 40) || "New chat"
+                  : se.title,
               updatedAt: Date.now(),
             }
           : se,
@@ -1128,7 +1151,9 @@ export const useCortex = create<State>((set, get) => ({
           ? {
               ...se,
               title:
-                se.title === "New chat" ? q.slice(0, 40) || "New chat" : se.title,
+                se.title === "New chat"
+                  ? q.slice(0, 40) || "New chat"
+                  : se.title,
               updatedAt: Date.now(),
             }
           : se,
@@ -1278,9 +1303,21 @@ export const useCortex = create<State>((set, get) => ({
         },
         (ev: GenerateEvent) => {
           if (ev.phase === "start") {
-            setMedia({ kind: base, status: "generating", progress: 1, mime: "", prompt: q });
+            setMedia({
+              kind: base,
+              status: "generating",
+              progress: 1,
+              mime: "",
+              prompt: q,
+            });
           } else if (ev.phase === "progress") {
-            setMedia({ kind: base, status: "generating", progress: ev.progress, mime: "", prompt: q });
+            setMedia({
+              kind: base,
+              status: "generating",
+              progress: ev.progress,
+              mime: "",
+              prompt: q,
+            });
           } else if (ev.phase === "partial") {
             setMedia({
               kind: base,
@@ -1300,7 +1337,13 @@ export const useCortex = create<State>((set, get) => ({
               prompt: q,
             });
           } else {
-            setMedia({ kind: base, status: "error", mime: "", prompt: q, reason: ev.reason });
+            setMedia({
+              kind: base,
+              status: "error",
+              mime: "",
+              prompt: q,
+              reason: ev.reason,
+            });
           }
         },
       );
@@ -1585,9 +1628,7 @@ export const useCortex = create<State>((set, get) => ({
   setChatMediaBlob: (index, blobId) =>
     set((s) => {
       const chat = s.chat.map((m, i) =>
-        i === index && m.media
-          ? { ...m, media: { ...m.media, blobId } }
-          : m,
+        i === index && m.media ? { ...m, media: { ...m.media, blobId } } : m,
       );
       persist({ memories: s.memories, events: s.events, cost: s.cost, chat });
       return { chat };
@@ -1617,12 +1658,22 @@ export const useCortex = create<State>((set, get) => ({
     }),
   setDocuments: (documents) =>
     set((s) => {
-      persist({ memories: s.memories, events: s.events, cost: s.cost, documents });
+      persist({
+        memories: s.memories,
+        events: s.events,
+        cost: s.cost,
+        documents,
+      });
       return { documents };
     }),
   setSessions: (sessions) =>
     set((s) => {
-      persist({ memories: s.memories, events: s.events, cost: s.cost, sessions });
+      persist({
+        memories: s.memories,
+        events: s.events,
+        cost: s.cost,
+        sessions,
+      });
       return { sessions };
     }),
   newSession: () =>
@@ -1674,7 +1725,12 @@ export const useCortex = create<State>((set, get) => ({
       const sessions = s.sessions.map((se) =>
         se.id === id ? { ...se, title: title || se.title } : se,
       );
-      persist({ memories: s.memories, events: s.events, cost: s.cost, sessions });
+      persist({
+        memories: s.memories,
+        events: s.events,
+        cost: s.cost,
+        sessions,
+      });
       return { sessions };
     }),
   // ---- multi-agent collaboration ----
@@ -1763,7 +1819,15 @@ export const useCortex = create<State>((set, get) => ({
     const custom = state.customModels.find((m) => m.label === selected.name);
     const kind = custom ? modelKind(custom) : "text";
     if (custom && kind !== "text") {
-      await runAgentMediaStep(taskId, agent, task.goal, custom, get, set, memoryRefs);
+      await runAgentMediaStep(
+        taskId,
+        agent,
+        task.goal,
+        custom,
+        get,
+        set,
+        memoryRefs,
+      );
       return;
     }
     let observationText: string;
@@ -1986,7 +2050,9 @@ export const useCortex = create<State>((set, get) => ({
     const goal = task.trim();
     if (!goal) return "";
     const agent =
-      findAgent(get().agents, assignTo) ?? agentById(assignTo) ?? get().agents[0];
+      findAgent(get().agents, assignTo) ??
+      agentById(assignTo) ??
+      get().agents[0];
     if (!agent) return "";
     const now = Date.now();
     const cfg = get().config;
@@ -2036,7 +2102,11 @@ export const useCortex = create<State>((set, get) => ({
       const now = Date.now();
       const loops = s.loops.map((r) =>
         r.spec.id === loopId
-          ? { ...r, spec: { ...r.spec, ...patch, updatedAt: now }, updatedAt: now }
+          ? {
+              ...r,
+              spec: { ...r.spec, ...patch, updatedAt: now },
+              updatedAt: now,
+            }
           : r,
       );
       persist({ memories: s.memories, events: s.events, cost: s.cost, loops });
@@ -2058,7 +2128,12 @@ export const useCortex = create<State>((set, get) => ({
         const loops = s.loops.map((r) =>
           r.spec.id === loopId ? setRunStatus(r, status, Date.now()) : r,
         );
-        persist({ memories: s.memories, events: s.events, cost: s.cost, loops });
+        persist({
+          memories: s.memories,
+          events: s.events,
+          cost: s.cost,
+          loops,
+        });
         return { loops };
       });
     const askAgent = async (
@@ -2112,12 +2187,7 @@ export const useCortex = create<State>((set, get) => ({
           .filter((m) => isRetrievable(m, now, cfg));
         const cites = retrieve(run.spec.goal, live).slice(0, STEP_MEMORY_LIMIT);
         const priorObs = run.iterations.map((it) => it.acted);
-        const acted = await askAgent(
-          agent.id,
-          run.spec.goal,
-          priorObs,
-          cites,
-        );
+        const acted = await askAgent(agent.id, run.spec.goal, priorObs, cites);
         const reviewer = run.spec.gates.find((g) => g.kind === "reviewer");
         const command = run.spec.gates.find((g) => g.kind !== "reviewer");
         let verdict: "pass" | "fail" | "pending" = "pending";
@@ -2282,7 +2352,10 @@ export const useCortex = create<State>((set, get) => ({
         t.id === teamId
           ? {
               ...t,
-              status: t.status === "archived" ? ("active" as const) : ("archived" as const),
+              status:
+                t.status === "archived"
+                  ? ("active" as const)
+                  : ("archived" as const),
               updatedAt: Date.now(),
             }
           : t,
@@ -2294,7 +2367,10 @@ export const useCortex = create<State>((set, get) => ({
     set((s) => {
       const teams = s.teams.filter((t) => t.id !== teamId);
       saveTeams(teams);
-      return { teams, activeTeamId: s.activeTeamId === teamId ? "" : s.activeTeamId };
+      return {
+        teams,
+        activeTeamId: s.activeTeamId === teamId ? "" : s.activeTeamId,
+      };
     }),
   setActiveTeam: (activeTeamId) => set({ activeTeamId }),
   addTeamMember: (teamId, input) =>
@@ -2349,7 +2425,9 @@ export const useCortex = create<State>((set, get) => ({
         if (t.id !== teamId || memberId === t.ownerId) return t;
         return {
           ...t,
-          members: t.members.map((m) => (m.id === memberId ? { ...m, role } : m)),
+          members: t.members.map((m) =>
+            m.id === memberId ? { ...m, role } : m,
+          ),
           updatedAt: Date.now(),
         };
       });
@@ -2364,7 +2442,8 @@ export const useCortex = create<State>((set, get) => ({
       if (!clean && refs.length === 0) return {};
       const teams = s.teams.map((t) => {
         if (t.id !== teamId) return t;
-        const author = t.members.find((m) => m.id === t.ownerId) ?? t.members[0];
+        const author =
+          t.members.find((m) => m.id === t.ownerId) ?? t.members[0];
         const msg: TeamMessage = {
           id: uid("tmsg"),
           authorId: author?.id ?? "system",
@@ -2392,7 +2471,8 @@ export const useCortex = create<State>((set, get) => ({
       if (refs.length === 0) return {};
       const teams = s.teams.map((t) => {
         if (t.id !== teamId) return t;
-        const author = t.members.find((m) => m.id === t.ownerId) ?? t.members[0];
+        const author =
+          t.members.find((m) => m.id === t.ownerId) ?? t.members[0];
         const msg: TeamMessage = {
           id: uid("tmsg"),
           authorId: author?.id ?? "system",
@@ -2410,6 +2490,61 @@ export const useCortex = create<State>((set, get) => ({
           updatedAt: Date.now(),
         };
       });
+      saveTeams(teams);
+      return { teams };
+    }),
+  joinTeamByInvite: (invite) => {
+    const profile = get().profile;
+    const candidate = newMember({
+      name: (profile.name ?? "").trim() || "You",
+      handle: profile.handle,
+      role: "member",
+    });
+    let joinedId = "";
+    set((s) => {
+      const idx = s.teams.findIndex(
+        (t) => t.invite === invite || t.id === invite,
+      );
+      if (idx < 0) return {};
+      const team = s.teams[idx]!;
+      joinedId = team.id;
+      if (team.members.some((m) => m.handle === candidate.handle)) {
+        return { activeTeamId: team.id };
+      }
+      const member = candidate;
+      const sys: TeamMessage = {
+        id: uid("tmsg"),
+        authorId: "system",
+        authorName: "Cortex",
+        authorAccent: "#64748b",
+        text: `${fullHandle(member.handle)} joined the team via invite link.`,
+        at: Date.now(),
+        kind: "system",
+        refs: [],
+      };
+      const updated = {
+        ...team,
+        members: [...team.members, member],
+        messages: [...team.messages, sys],
+        updatedAt: Date.now(),
+      };
+      const teams = s.teams.map((t, i) => (i === idx ? updated : t));
+      saveTeams(teams);
+      return { teams, activeTeamId: team.id };
+    });
+    return joinedId;
+  },
+  removeTeamMemory: (teamId, refId) =>
+    set((s) => {
+      const teams = s.teams.map((t) =>
+        t.id === teamId
+          ? {
+              ...t,
+              memoryRefs: t.memoryRefs.filter((r) => r.id !== refId),
+              updatedAt: Date.now(),
+            }
+          : t,
+      );
       saveTeams(teams);
       return { teams };
     }),

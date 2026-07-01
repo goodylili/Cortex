@@ -11293,3 +11293,36 @@ body.dev .dev-switch::after {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
+
+/* Teams: header Invite button + shared-memory row controls */
+.pr-act.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+}
+.pr-act.primary:hover {
+  opacity: 0.9;
+  background: var(--accent);
+}
+.tm-side-ref-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tm-side-x {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.tm-side-x:hover {
+  background: color-mix(in srgb, #ef4444 14%, transparent);
+  color: #ef4444;
+}

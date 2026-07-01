@@ -52,6 +52,8 @@ export interface Team {
   members: TeamMember[];
   messages: TeamMessage[];
   memoryRefs: TeamMemoryRef[];
+  // opaque token shared in the invite link; anyone who opens the link joins.
+  invite: string;
   createdAt: number;
   updatedAt: number;
   // the on-chain Team object id, once `teams::team::create_team` has been run.
@@ -137,6 +139,7 @@ export function newTeam(input: { name: string; owner: TeamMember }): Team {
       },
     ],
     memoryRefs: [],
+    invite: uid("inv"),
     createdAt: now,
     updatedAt: now,
   };

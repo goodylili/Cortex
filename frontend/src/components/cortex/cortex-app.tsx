@@ -204,12 +204,7 @@ type View =
 // Durable sources restored on sign-in and backed up by the debounced sync; each
 // tracks its own restore status (see the `hydrate` state).
 type HydrateKey =
-  | "chat"
-  | "events"
-  | "documents"
-  | "agents"
-  | "loops"
-  | "memories";
+  "chat" | "events" | "documents" | "agents" | "loops" | "memories";
 type Theme = "light" | "dark" | "system";
 type SettingsSection =
   | "account"
@@ -467,6 +462,13 @@ export function CortexApp({
 }) {
   const s = useCortex();
   const [view, setView] = useState<View>("home");
+  // A team invite link (`/app?join=<token>`) or a `#teams` deep-link opens the
+  // Teams view on load; TeamsView then performs the actual join.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hasJoin = new URLSearchParams(window.location.search).has("join");
+    if (hasJoin || window.location.hash === "#teams") setView("teams");
+  }, []);
   // Per-source restore status, driving skeletons (loading) and the save gate
   // (only "ready" sources may be backed up, so a failed restore never overwrites an
   // intact on-chain blob with an empty/partial local copy). Sources start "loading"
@@ -1157,10 +1159,10 @@ export function CortexApp({
     const source: View | "settings" = settingsOpen ? "settings" : view;
     setToasts((t) => [...t, { id, body: m, kind, source, tx }].slice(-4));
     setNotifications((n) =>
-      [{ id, body: m, kind, source, tx, ts: Date.now(), read: false }, ...n].slice(
-        0,
-        50,
-      ),
+      [
+        { id, body: m, kind, source, tx, ts: Date.now(), read: false },
+        ...n,
+      ].slice(0, 50),
     );
     setTimeout(
       () => setToasts((t) => t.filter((x) => x.id !== id)),
@@ -1245,7 +1247,10 @@ export function CortexApp({
       setMcpTokenCopied(true);
       setTimeout(() => setMcpTokenCopied(false), 2000);
     } catch {
-      flash("Couldn't copy to clipboard - select and copy the token manually.", "error");
+      flash(
+        "Couldn't copy to clipboard - select and copy the token manually.",
+        "error",
+      );
     }
   }
 
@@ -1349,8 +1354,7 @@ export function CortexApp({
         // When the executor gas station isn't set up (or is empty), auto-funding
         // can't help; point the user at the manual faucet, which always works.
         const unfunded =
-          res.status === 503 ||
-          /not configured|empty/i.test(data.error ?? "");
+          res.status === 503 || /not configured|empty/i.test(data.error ?? "");
         flash(
           unfunded
             ? "Auto-funding is unavailable. Copy your address from your profile and request WAL and SUI test tokens at faucet.suilearn.io."
@@ -1897,10 +1901,7 @@ export function CortexApp({
       <>
         <circle key="a" cx="8" cy="8" r="2.6" />
         <circle key="b" cx="16" cy="8" r="2.6" />
-        <path
-          key="c"
-          d="M3.5 19a4.5 4.5 0 0 1 9 0M11.5 19a4.5 4.5 0 0 1 9 0"
-        />
+        <path key="c" d="M3.5 19a4.5 4.5 0 0 1 9 0M11.5 19a4.5 4.5 0 0 1 9 0" />
       </>,
     ],
     [
@@ -1958,7 +1959,10 @@ export function CortexApp({
   // Files stored on Walrus (KbFile nodes synced from chain).
   const walrusFiles = useMemo(() => live.filter(isFileNode), [live]);
   // Real memories only (KB files are not memories) for the memory counts.
-  const liveMemories = useMemo(() => live.filter((m) => !isFileNode(m)), [live]);
+  const liveMemories = useMemo(
+    () => live.filter((m) => !isFileNode(m)),
+    [live],
+  );
   // Overview stats (5-slide carousel) + the recent-memories carousel.
   const added24 = liveMemories.filter(
     (m) => now - (m.createdAt ?? m.ts) < 86_400_000,
@@ -3932,7 +3936,11 @@ export function CortexApp({
                               const memUsed = m.sources.filter(
                                 (src) => src.type === "memory",
                               );
-                              if (!m.streaming && !m.thinking && !memUsed.length)
+                              if (
+                                !m.streaming &&
+                                !m.thinking &&
+                                !memUsed.length
+                              )
                                 return null;
                               return (
                                 <details className="think">
@@ -4236,21 +4244,21 @@ export function CortexApp({
                   [...s.events]
                     .sort((a, b) => b.ts - a.ts)
                     .map((ev) => (
-                    <div
-                      key={ev.id}
-                      className={
-                        "snode" +
-                        (ev.warm || ev.type === "reflect" ? " warm" : "")
-                      }
-                    >
-                      <div className="when">
-                        {ev.type === "start" ? "the beginning" : ago(ev.ts)}
+                      <div
+                        key={ev.id}
+                        className={
+                          "snode" +
+                          (ev.warm || ev.type === "reflect" ? " warm" : "")
+                        }
+                      >
+                        <div className="when">
+                          {ev.type === "start" ? "the beginning" : ago(ev.ts)}
+                        </div>
+                        <div className="scard">
+                          <div className="st">{ev.t}</div>
+                          {ev.sub && <div className="ssub">{ev.sub}</div>}
+                        </div>
                       </div>
-                      <div className="scard">
-                        <div className="st">{ev.t}</div>
-                        {ev.sub && <div className="ssub">{ev.sub}</div>}
-                      </div>
-                    </div>
                     ))
                 )}
               </div>
@@ -4302,7 +4310,9 @@ export function CortexApp({
                   )
                 : [];
               return (
-                <div className={"pr-shell" + (roomRailOpen ? " rail-open" : "")}>
+                <div
+                  className={"pr-shell" + (roomRailOpen ? " rail-open" : "")}
+                >
                   <aside className={"pr-rail" + (roomRailOpen ? " open" : "")}>
                     <div className="pr-rail-body">
                       <button
@@ -7837,7 +7847,8 @@ export function CortexApp({
                   </div>
                   <button
                     className={
-                      "cap-tool memory-chip ask-only" + (s.memoryOn ? " on" : "")
+                      "cap-tool memory-chip ask-only" +
+                      (s.memoryOn ? " on" : "")
                     }
                     onClick={() => s.toggleMemory()}
                     title={
