@@ -6735,7 +6735,7 @@ body.dev .dev-switch::after {
   padding: 12px;
 }
 .chat-rail.on-home:not(.open) {
-  width: 288px;
+  width: max-content;
   max-height: none;
   padding: 8px;
   gap: 0;
@@ -10891,17 +10891,6 @@ body.dev .dev-switch::after {
     overflow-y: auto;
   }
 }
-@media (min-width: 1024px) {
-  .wrap,
-  .composer-dock {
-    transition: padding-left 0.22s ease;
-  }
-  .app.home-rail.rail-expanded .wrap,
-  .app.home-rail.rail-expanded .composer-dock {
-    padding-left: 336px;
-  }
-}
-
 /* Mobile: an empty Home (no memories yet) stranded the greeting at the top with a
    large void down to the fixed composer. Center it in the space above the composer
    so the first-run screen reads intentionally instead of broken. */
