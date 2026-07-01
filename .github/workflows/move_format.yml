@@ -31,5 +31,5 @@ jobs:
       - name: Check Move formatting
         uses: ./.github/actions/move-formatter
         with:
-          working-directory: backend/sui/contract/cortex
+          working-directory: backend/sui/contract/teams
           pattern: "**/*.move"

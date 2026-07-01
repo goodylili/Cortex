@@ -11048,554 +11048,27 @@ body.dev .dev-switch::after {
    obstructs nothing. */
 
 /* ==========================================================================
-   TEAMS (tm-*)  -  organization-scale memory sharing. A three-column workspace
-   inside the main column: teams + members rail, a team channel feed, and a
-   "connect anywhere / shared memory" side panel.
+   TEAMS (tm-*)  -  utilities layered on the shared Pipeline Room (pr-*) shell.
+   Layout (rail, feed, composer, thread) is reused from pr-* so Teams matches
+   the Agents page; these are only the create/add controls, the memory-reference
+   picker, referenced-memory chips, and the team detail panel content.
    ========================================================================== */
-.tm-shell {
-  position: absolute;
-  inset: 0;
-  margin: 0 auto;
-  width: 100%;
-  max-width: 1440px;
-  z-index: 8;
-  display: flex;
-  gap: 14px;
-  padding: 18px;
-  background: var(--paper);
-  color: var(--ink);
-  font-size: 14px;
-}
-.tm-rail,
-.tm-side {
-  flex: none;
-  width: 292px;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border: 1px solid var(--line2);
-  border-radius: 16px;
-  background: var(--surface);
-  overflow: hidden;
-}
-.tm-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--line2);
-  border-radius: 16px;
-  background: var(--surface);
-  overflow: hidden;
-}
 
-/* ---- Rail ---- */
-.tm-rail-head {
-  flex: none;
+.tm-create-inline,
+.tm-add-member {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 14px 10px;
-}
-.tm-rail-title {
-  font-weight: 650;
-  font-size: 15px;
-}
-.tm-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  color: var(--muted);
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-.tm-icon:hover {
-  background: var(--paper);
-  color: var(--ink);
+  gap: 6px;
 }
 .tm-create-inline {
-  display: flex;
-  gap: 6px;
-  padding: 0 12px 8px;
-}
-.tm-team-list {
-  flex: none;
-  max-height: 42%;
-  overflow-y: auto;
-  padding: 0 8px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.tm-team {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 9px;
-  border-radius: 10px;
-  text-align: left;
-  transition: background 0.12s;
-}
-.tm-team:hover {
-  background: var(--paper);
-}
-.tm-team.on {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-.tm-team-mark {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 650;
-}
-.tm-team-meta {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.tm-team-name {
-  font-weight: 600;
-  font-size: 13.5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.tm-arch {
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--muted);
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  padding: 0 4px;
-}
-.tm-team-sub {
-  font-size: 11.5px;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ---- Roster ---- */
-.tm-roster {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border-top: 1px solid var(--line);
-  padding: 10px 12px 12px;
-}
-.tm-grp-l {
-  flex: none;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 6px;
-}
-.tm-member-list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.tm-member {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 6px 6px;
-  border-radius: 9px;
-}
-.tm-member:hover {
-  background: var(--paper);
-}
-.tm-av {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  color: #fff;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-}
-.tm-member-meta {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-.tm-member-n {
-  font-size: 13px;
-  font-weight: 550;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tm-member-h {
-  font-size: 11px;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tm-role {
-  font-size: 10.5px;
-  color: var(--muted);
-  padding: 1px 6px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-}
-.tm-role.owner {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
-}
-.tm-role-toggle {
-  font-size: 10.5px;
-  color: var(--ink);
-  padding: 1px 7px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  text-transform: capitalize;
-  transition: background 0.12s;
-}
-.tm-role-toggle:hover {
-  background: var(--paper);
-}
-.tm-member-x {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-  color: var(--muted);
-  font-size: 16px;
-  line-height: 1;
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-.tm-member-x:hover {
-  background: color-mix(in srgb, #ef4444 14%, transparent);
-  color: #ef4444;
+  padding: 6px 2px 2px;
 }
 .tm-add-member {
-  flex: none;
-  display: flex;
-  gap: 6px;
   margin-top: 8px;
 }
-.tm-role-pick {
-  flex: none;
-  font-size: 11px;
-  padding: 0 8px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  color: var(--muted);
-  text-transform: capitalize;
-}
-.tm-role-pick.admin {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
-}
-
-/* ---- Channel / feed ---- */
-.tm-chan-head {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 13px 16px;
-  border-bottom: 1px solid var(--line);
-}
-.tm-chan-id {
-  font-weight: 650;
-  font-size: 15px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.tm-hash {
-  color: var(--muted);
-}
-.tm-chan-topic {
-  flex: 1;
-  min-width: 0;
-  font-size: 12px;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tm-chan-acts {
-  flex: none;
-  display: flex;
-  gap: 6px;
-}
-.tm-feed {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.tm-msg {
-  display: flex;
-  gap: 11px;
-}
-.tm-msg.sys {
-  justify-content: center;
-}
-.tm-sysline {
-  font-size: 12px;
-  color: var(--muted);
-  text-align: center;
-  padding: 3px 12px;
-  border-radius: 20px;
-  background: var(--paper);
-  border: 1px solid var(--line);
-}
-.tm-msg-body {
-  min-width: 0;
-  flex: 1;
-}
-.tm-msg-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.tm-msg-author {
-  font-weight: 650;
-  font-size: 13.5px;
-}
-.tm-tag {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line));
-  border-radius: 5px;
-  padding: 0 5px;
-}
-.tm-time {
-  font-size: 11px;
-  color: var(--muted);
-}
-.tm-msg-text {
-  font-size: 13.5px;
-  line-height: 1.5;
-  margin-top: 2px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.tm-refs {
-  margin-top: 7px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.tm-ref {
+.tm-create-row {
   display: flex;
   gap: 8px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  font-size: 12.5px;
-  line-height: 1.45;
 }
-.tm-ref-ic {
-  flex: none;
-  color: var(--accent);
-  font-size: 10px;
-  line-height: 1.6;
-}
-.tm-ref-text {
-  min-width: 0;
-}
-
-/* ---- Composer ---- */
-.tm-composer {
-  flex: none;
-  border-top: 1px solid var(--line);
-  padding: 12px 14px;
-}
-.tm-picker {
-  border: 1px solid var(--line2);
-  border-radius: 12px;
-  background: var(--paper);
-  margin-bottom: 10px;
-  overflow: hidden;
-}
-.tm-picker-head {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--muted);
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--line);
-}
-.tm-picker-list {
-  max-height: 190px;
-  overflow-y: auto;
-  padding: 4px;
-}
-.tm-picker-empty,
-.tm-side-empty {
-  font-size: 12px;
-  color: var(--muted);
-  padding: 10px 12px;
-  line-height: 1.5;
-}
-.tm-picker-row {
-  display: flex;
-  gap: 9px;
-  align-items: flex-start;
-  padding: 7px 9px;
-  border-radius: 8px;
-  font-size: 12.5px;
-  line-height: 1.45;
-  cursor: pointer;
-}
-.tm-picker-row:hover {
-  background: var(--surface);
-}
-.tm-picker-row input {
-  margin-top: 3px;
-  flex: none;
-}
-.tm-composer-bar {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-}
-.tm-ref-btn {
-  flex: none;
-  align-self: stretch;
-  padding: 0 12px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 12.5px;
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-.tm-ref-btn.on,
-.tm-ref-btn:hover {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-.tm-textarea {
-  flex: 1;
-  min-width: 0;
-  resize: none;
-  border: 1px solid var(--line2);
-  border-radius: 12px;
-  padding: 11px 12px;
-  background: var(--paper);
-  color: var(--ink);
-  font: inherit;
-  font-size: 13.5px;
-  line-height: 1.4;
-  max-height: 160px;
-}
-.tm-textarea:focus {
-  outline: none;
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line2));
-}
-
-/* ---- Side panel ---- */
-.tm-side {
-  padding: 4px;
-}
-.tm-side-sec {
-  padding: 14px;
-  border-bottom: 1px solid var(--line);
-}
-.tm-side-sec:last-child {
-  border-bottom: none;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-.tm-side-title {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-.tm-side-p,
-.tm-side-note {
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--muted);
-}
-.tm-side-note {
-  margin-top: 8px;
-  font-size: 11.5px;
-}
-.tm-code {
-  display: block;
-  margin: 10px 0 0;
-  padding: 9px 11px;
-  border-radius: 9px;
-  border: 1px solid var(--line2);
-  background: var(--paper);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12.5px;
-  color: var(--accent);
-}
-.tm-side-mem {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.tm-side-ref {
-  padding: 9px 10px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  font-size: 12px;
-  line-height: 1.45;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.tm-side-by {
-  font-size: 10.5px;
-  color: var(--muted);
-}
-
-/* ---- Shared controls ---- */
 .tm-input {
   flex: 1;
   min-width: 0;
@@ -11629,7 +11102,7 @@ body.dev .dev-switch::after {
     opacity 0.12s;
 }
 .tm-btn:hover {
-  background: var(--paper);
+  background: var(--surface2);
 }
 .tm-btn.sm {
   padding: 7px 11px;
@@ -11638,36 +11111,156 @@ body.dev .dev-switch::after {
 .tm-btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--surface);
 }
 .tm-btn.primary:hover {
   opacity: 0.9;
-  background: var(--accent);
 }
-.tm-btn.ghost {
-  border-color: transparent;
+.tm-role-pick {
+  flex: none;
+  font-size: 11px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
   color: var(--muted);
+  text-transform: capitalize;
 }
-.tm-btn.ghost:hover {
-  background: var(--paper);
-  color: var(--ink);
-}
-.tm-btn.danger:hover {
-  color: #ef4444;
-  background: color-mix(in srgb, #ef4444 12%, transparent);
+.tm-role-pick.admin {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
 }
 
-/* ---- Empty states ---- */
-.tm-empty-shell {
-  align-items: center;
-  justify-content: center;
+/* memory reference picker (floats above the composer) */
+.tm-picker {
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+  background: var(--surface);
+  margin-bottom: 10px;
+  overflow: hidden;
 }
-.tm-main-empty {
-  align-items: center;
-  justify-content: center;
+.tm-picker-head {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
 }
+.tm-picker-list {
+  max-height: 190px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.tm-picker-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+.tm-picker-row {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 7px 9px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+.tm-picker-row:hover {
+  background: var(--paper);
+}
+.tm-picker-row input {
+  margin-top: 3px;
+  flex: none;
+}
+
+/* referenced-memory chips inside a feed message */
+.tm-refs {
+  margin-top: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tm-ref {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.tm-ref-ic {
+  flex: none;
+  color: var(--accent);
+  font-size: 10px;
+  line-height: 1.6;
+}
+.tm-ref-text {
+  min-width: 0;
+}
+
+/* team detail panel content (inside pr-thread) */
+.tm-side-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.tm-side-p,
+.tm-side-note {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.tm-side-note {
+  margin-top: 8px;
+  font-size: 11.5px;
+}
+.tm-code {
+  display: block;
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--line2);
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--accent);
+}
+.tm-side-mem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.tm-side-empty {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.tm-side-ref {
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 12px;
+  line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tm-side-by {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+/* empty state (no teams yet) */
 .tm-empty {
-  max-width: 440px;
+  max-width: 460px;
   text-align: center;
   padding: 24px;
 }
@@ -11693,28 +11286,4 @@ body.dev .dev-switch::after {
   line-height: 1.55;
   color: var(--muted);
   margin: 0 0 18px;
-}
-.tm-create-row {
-  display: flex;
-  gap: 8px;
-}
-
-@media (max-width: 1080px) {
-  .tm-side {
-    display: none;
-  }
-}
-@media (max-width: 860px) {
-  .tm-shell {
-    flex-direction: column;
-    padding: 12px;
-  }
-  .tm-rail {
-    width: 100%;
-    flex: none;
-    max-height: 260px;
-  }
-  .tm-team-list {
-    max-height: 140px;
-  }
 }
