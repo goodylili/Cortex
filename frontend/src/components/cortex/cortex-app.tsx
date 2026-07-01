@@ -796,16 +796,21 @@ export function CortexApp({
     void w
       .listSessions()
       .then((sessions) => {
-        if (sessions.length) s.setSessions(sessions);
-        const active = sessions[0];
-        if (active?.blobId && !s.chat.length) {
-          loadedSessions.current.add(active.id);
-          return w.loadSession(active.blobId).then((chat) => {
-            if (Array.isArray(chat) && chat.length) {
-              s.setChat(chat as Parameters<typeof s.setChat>[0]);
-            }
-          });
-        }
+        // Always land on a fresh chat on load (like Claude/ChatGPT). Populate the
+        // history sidebar from Walrus, but never auto-open the last conversation;
+        // past chats load lazily when the user clicks them. Keep the fresh new-chat
+        // session pinned at the top so it stays active and empty.
+        if (!sessions.length) return;
+        const live = useCortex.getState();
+        const fresh =
+          live.chat.length === 0 && live.activeId
+            ? live.sessions.find((x) => x.id === live.activeId)
+            : undefined;
+        s.setSessions(
+          fresh
+            ? [fresh, ...sessions.filter((x) => x.id !== fresh.id)]
+            : sessions,
+        );
       })
       .then(() => markHydrate("chat", "ready"))
       .catch(() => markHydrate("chat", "failed"));
