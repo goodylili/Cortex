@@ -8334,10 +8334,10 @@ body.dev .dev-switch::after {
 .pr-rail {
   position: fixed;
   left: 24px;
-  bottom: 150px;
+  bottom: 22px;
   z-index: 37;
   width: 288px;
-  max-height: min(520px, calc(100vh - 230px));
+  max-height: min(520px, calc(100vh - 110px));
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -8352,6 +8352,7 @@ body.dev .dev-switch::after {
     padding 0.22s ease;
 }
 .pr-rail:not(.open) {
+  width: max-content;
   max-height: 54px;
   padding: 6px;
 }
@@ -11042,13 +11043,6 @@ body.dev .dev-switch::after {
   }
 }
 
-/* Agents roster rail: same principle as the chat rail. On desktop, push the room
-   content right while the rail is open so the floating rail never overlaps it. */
-@media (min-width: 1024px) {
-  .pr-main {
-    transition: padding-left 0.22s ease;
-  }
-  .pr-shell.rail-open .pr-main {
-    padding-left: 328px;
-  }
-}
+/* Agents roster rail: same principle as the chat rail. The expanded rail floats
+   over the room instead of squeezing it, and collapses to a compact pill that
+   obstructs nothing. */
