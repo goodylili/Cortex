@@ -1,0 +1,9 @@
+[package]
+name = "teams"
+edition = "2024"
+
+[dependencies]
+cortex = { local = "../cortex" }
+
+[addresses]
+teams = "0x0"

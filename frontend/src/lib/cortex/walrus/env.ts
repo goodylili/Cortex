@@ -54,6 +54,9 @@ export interface CortexEnv {
   suiRpc: string;
   suiGraphql: string;
   packageId: string;
+  // the standalone teams::team package id (published separately from cortex). Empty
+  // until deployed; the Teams workspace runs client-side either way.
+  teamsPackageId: string;
   registryId: string;
   accessRegistryId: string;
   executorCapId: string;
@@ -96,6 +99,7 @@ const WALRUS_EPOCHS = parseIntOr(
 // Per-network raw slots. Each key is a STATIC literal so Next inlines it.
 interface NetSlots {
   packageId?: string;
+  teamsPackageId?: string;
   registryId?: string;
   accessRegistryId?: string;
   executorCapId?: string;
@@ -111,6 +115,7 @@ interface NetSlots {
 const SLOTS: Record<CortexNetwork, NetSlots> = {
   mainnet: {
     packageId: process.env.NEXT_PUBLIC_CORTEX_PACKAGE_ID_MAINNET,
+    teamsPackageId: process.env.NEXT_PUBLIC_CORTEX_TEAMS_PACKAGE_ID_MAINNET,
     registryId: process.env.NEXT_PUBLIC_CORTEX_REGISTRY_ID_MAINNET,
     accessRegistryId: process.env.NEXT_PUBLIC_CORTEX_ACCESS_REGISTRY_MAINNET,
     executorCapId: process.env.NEXT_PUBLIC_CORTEX_EXECUTOR_CAP_MAINNET,
@@ -124,6 +129,7 @@ const SLOTS: Record<CortexNetwork, NetSlots> = {
   },
   testnet: {
     packageId: process.env.NEXT_PUBLIC_CORTEX_PACKAGE_ID_TESTNET,
+    teamsPackageId: process.env.NEXT_PUBLIC_CORTEX_TEAMS_PACKAGE_ID_TESTNET,
     registryId: process.env.NEXT_PUBLIC_CORTEX_REGISTRY_ID_TESTNET,
     accessRegistryId: process.env.NEXT_PUBLIC_CORTEX_ACCESS_REGISTRY_TESTNET,
     executorCapId: process.env.NEXT_PUBLIC_CORTEX_EXECUTOR_CAP_TESTNET,
@@ -145,6 +151,7 @@ function buildEnv(network: CortexNetwork): CortexEnv {
     suiRpc: DEFAULT_RPC[network],
     suiGraphql: DEFAULT_GRAPHQL[network],
     packageId: s.packageId ?? "",
+    teamsPackageId: s.teamsPackageId ?? "",
     registryId: s.registryId ?? "",
     accessRegistryId: s.accessRegistryId ?? "",
     executorCapId: s.executorCapId ?? "",
@@ -251,6 +258,17 @@ export function authEnabled(): boolean {
 // Recording files as on-chain KbFile objects needs the deployed cortex package.
 export function contractsEnabled(env: CortexEnv = CORTEX_ENV): boolean {
   return env.packageId.length > 0 && env.registryId.length > 0;
+}
+
+// On-chain team objects (teams::team) are used only when the standalone teams
+// package is deployed and its id configured; the Teams workspace works client-side
+// regardless, syncing to chain once this lights up.
+export function teamsOnchainEnabled(env: CortexEnv = CORTEX_ENV): boolean {
+  return (
+    env.teamsPackageId.length > 0 &&
+    env.registryId.length > 0 &&
+    env.accessRegistryId.length > 0
+  );
 }
 
 // Seal encryption is used only when key servers are configured.

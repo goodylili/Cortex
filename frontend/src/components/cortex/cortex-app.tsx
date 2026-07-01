@@ -31,6 +31,7 @@ import { passkeySupported, passkeyEnrolled } from "@/lib/llm/byok-vault";
 import { LLM_MODELS, type Modality, type Provider } from "@/lib/llm/models";
 import { modelProvider } from "@/lib/cortex/avatar";
 import { GenAvatar } from "./gen-avatar";
+import { TeamsView } from "./teams-view";
 import { Logo } from "@/components/logo";
 import {
   siClaude,
@@ -196,6 +197,7 @@ type View =
   | "memories"
   | "brain"
   | "agents"
+  | "teams"
   | "studio"
   | "knowledge"
   | "integrations";
@@ -1886,6 +1888,18 @@ export function CortexApp({
         <path
           key="c"
           d="M3 20a6 6 0 0 1 12 0M14.5 14.5a4.5 4.5 0 0 1 6.5 4.1"
+        />
+      </>,
+    ],
+    [
+      "teams",
+      "Teams",
+      <>
+        <circle key="a" cx="8" cy="8" r="2.6" />
+        <circle key="b" cx="16" cy="8" r="2.6" />
+        <path
+          key="c"
+          d="M3.5 19a4.5 4.5 0 0 1 9 0M11.5 19a4.5 4.5 0 0 1 9 0"
         />
       </>,
     ],
@@ -4242,6 +4256,9 @@ export function CortexApp({
               </div>
             )}
           </section>
+
+          {/* TEAMS  -  organization-scale memory sharing (teams::team) */}
+          {view === "teams" && <TeamsView />}
 
           {/* AGENTS  -  Pipeline Room: a Slack-style room where agents are members */}
           {view === "agents" &&

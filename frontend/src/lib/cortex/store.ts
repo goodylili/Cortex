@@ -85,6 +85,17 @@ import {
   handoff as taskHandoff,
 } from "./agents";
 import {
+  type Team,
+  type TeamRole,
+  type TeamMemoryRef,
+  type TeamMessage,
+  newTeam,
+  newMember,
+  fullHandle,
+  loadTeams,
+  saveTeams,
+} from "./teams";
+import {
   type LoopRun,
   type LoopSpec,
   newRun,
@@ -321,6 +332,11 @@ interface State {
   sharedMemories: Memory[];
   // shares I have created and granted to others (display + management).
   shares: ShareSummary[];
+  // teams I own or belong to: organization-scale memory sharing (teams::team). Kept
+  // client-side and mirrored to localStorage, so the workspace is usable before the
+  // teams contract is published; the on-chain Team id is tracked per team once created.
+  teams: Team[];
+  activeTeamId: string;
   // ephemeral UI
   mode: Mode;
   importance: Importance;
@@ -441,6 +457,24 @@ interface State {
   // memory sharing (cortex::sharing)
   setSharedMemories: (memories: Memory[]) => void;
   setShares: (shares: ShareSummary[]) => void;
+  // teams (teams::team)
+  createTeam: (name: string) => string;
+  archiveTeam: (teamId: string) => void;
+  deleteTeam: (teamId: string) => void;
+  setActiveTeam: (teamId: string) => void;
+  addTeamMember: (
+    teamId: string,
+    input: { name: string; handle?: string; role: TeamRole },
+  ) => void;
+  removeTeamMember: (teamId: string, memberId: string) => void;
+  setTeamMemberRole: (teamId: string, memberId: string, role: TeamRole) => void;
+  postTeamMessage: (
+    teamId: string,
+    text: string,
+    memoryIds?: string[],
+    kind?: TeamMessage["kind"],
+  ) => void;
+  referenceMemoriesToTeam: (teamId: string, memoryIds: string[]) => void;
   // hydrate the store's memories from a MemWal recall on sign-in (display + brain)
   loadMemoriesFromRecall: (recalled: RecalledMemory[]) => void;
   // merge MemWal recall results into the existing set, deduping by normalized text
@@ -506,6 +540,37 @@ function logEvent(
   return [{ id: uid("ev"), ts: Date.now(), type, t, sub, warm }, ...events];
 }
 
+// Turn a set of memory ids into team references, tagged with the acting member as
+// provenance so a handoff records who pulled each memory in.
+function buildTeamRefs(
+  memories: Memory[],
+  team: Team | undefined,
+  memoryIds: string[],
+): TeamMemoryRef[] {
+  if (!team) return [];
+  const author = team.members.find((m) => m.id === team.ownerId) ?? team.members[0];
+  const byId = author?.id ?? "system";
+  const byName = author?.name ?? "You";
+  const now = Date.now();
+  const refs: TeamMemoryRef[] = [];
+  for (const id of memoryIds) {
+    const mem = memories.find((m) => m.id === id);
+    if (!mem) continue;
+    refs.push({ id: uid("tref"), memoryId: mem.id, text: mem.text, byId, byName, at: now });
+  }
+  return refs;
+}
+
+// Append new references to the team's pooled index, deduping by memory id so a
+// memory referenced twice is only pooled once.
+function mergeTeamRefs(
+  existing: TeamMemoryRef[],
+  incoming: TeamMemoryRef[],
+): TeamMemoryRef[] {
+  const seen = new Set(existing.map((r) => r.memoryId));
+  return [...existing, ...incoming.filter((r) => !seen.has(r.memoryId))];
+}
+
 const PROFILE_KEY = "cortex-profile";
 const ONBOARDED_KEY = "cortex-onboarded";
 
@@ -542,6 +607,8 @@ export const useCortex = create<State>((set, get) => ({
   loops: [],
   sharedMemories: [],
   shares: [],
+  teams: loadTeams(),
+  activeTeamId: "",
   mode: "ask",
   importance: "normal",
   model: MODELS.find((m) => m.name === DEFAULT_MODEL.name) ?? MODELS[1]!,
@@ -2184,6 +2251,168 @@ export const useCortex = create<State>((set, get) => ({
     }),
   setSharedMemories: (sharedMemories) => set({ sharedMemories }),
   setShares: (shares) => set({ shares }),
+  // ---- teams (teams::team) ----
+  createTeam: (name) => {
+    const clean = name.trim();
+    if (!clean) return "";
+    const profile = get().profile;
+    const self = newMember({
+      name: (profile.name ?? "").trim() || "You",
+      handle: profile.handle,
+      role: "admin",
+    });
+    const team = newTeam({ name: clean, owner: self });
+    set((s) => {
+      const teams = [team, ...s.teams];
+      saveTeams(teams);
+      const events = logEvent(
+        s.events,
+        "team",
+        `Created team ${team.name}`,
+        `@${team.handle} · 1 member`,
+      );
+      persist({ memories: s.memories, events, cost: s.cost });
+      return { teams, activeTeamId: team.id, events };
+    });
+    return team.id;
+  },
+  archiveTeam: (teamId) =>
+    set((s) => {
+      const teams = s.teams.map((t) =>
+        t.id === teamId
+          ? {
+              ...t,
+              status: t.status === "archived" ? ("active" as const) : ("archived" as const),
+              updatedAt: Date.now(),
+            }
+          : t,
+      );
+      saveTeams(teams);
+      return { teams };
+    }),
+  deleteTeam: (teamId) =>
+    set((s) => {
+      const teams = s.teams.filter((t) => t.id !== teamId);
+      saveTeams(teams);
+      return { teams, activeTeamId: s.activeTeamId === teamId ? "" : s.activeTeamId };
+    }),
+  setActiveTeam: (activeTeamId) => set({ activeTeamId }),
+  addTeamMember: (teamId, input) =>
+    set((s) => {
+      const name = input.name.trim();
+      if (!name) return {};
+      const teams = s.teams.map((t) => {
+        if (t.id !== teamId) return t;
+        const member = newMember({
+          name,
+          handle: input.handle,
+          role: input.role,
+          seed: t.members.length,
+        });
+        if (t.members.some((m) => m.handle === member.handle)) return t;
+        const sys: TeamMessage = {
+          id: uid("tmsg"),
+          authorId: "system",
+          authorName: "Cortex",
+          authorAccent: "#64748b",
+          text: `${fullHandle(member.handle)} joined the team as ${member.role}.`,
+          at: Date.now(),
+          kind: "system",
+          refs: [],
+        };
+        return {
+          ...t,
+          members: [...t.members, member],
+          messages: [...t.messages, sys],
+          updatedAt: Date.now(),
+        };
+      });
+      saveTeams(teams);
+      return { teams };
+    }),
+  removeTeamMember: (teamId, memberId) =>
+    set((s) => {
+      const teams = s.teams.map((t) => {
+        if (t.id !== teamId || memberId === t.ownerId) return t;
+        return {
+          ...t,
+          members: t.members.filter((m) => m.id !== memberId),
+          updatedAt: Date.now(),
+        };
+      });
+      saveTeams(teams);
+      return { teams };
+    }),
+  setTeamMemberRole: (teamId, memberId, role) =>
+    set((s) => {
+      const teams = s.teams.map((t) => {
+        if (t.id !== teamId || memberId === t.ownerId) return t;
+        return {
+          ...t,
+          members: t.members.map((m) => (m.id === memberId ? { ...m, role } : m)),
+          updatedAt: Date.now(),
+        };
+      });
+      saveTeams(teams);
+      return { teams };
+    }),
+  postTeamMessage: (teamId, text, memoryIds, kind) =>
+    set((s) => {
+      const clean = text.trim();
+      const team = s.teams.find((t) => t.id === teamId);
+      const refs = buildTeamRefs(s.memories, team, memoryIds ?? []);
+      if (!clean && refs.length === 0) return {};
+      const teams = s.teams.map((t) => {
+        if (t.id !== teamId) return t;
+        const author = t.members.find((m) => m.id === t.ownerId) ?? t.members[0];
+        const msg: TeamMessage = {
+          id: uid("tmsg"),
+          authorId: author?.id ?? "system",
+          authorName: author?.name ?? "You",
+          authorAccent: author?.accent ?? "#64748b",
+          text: clean,
+          at: Date.now(),
+          kind: kind ?? "message",
+          refs,
+        };
+        return {
+          ...t,
+          messages: [...t.messages, msg],
+          memoryRefs: mergeTeamRefs(t.memoryRefs, refs),
+          updatedAt: Date.now(),
+        };
+      });
+      saveTeams(teams);
+      return { teams };
+    }),
+  referenceMemoriesToTeam: (teamId, memoryIds) =>
+    set((s) => {
+      const team = s.teams.find((t) => t.id === teamId);
+      const refs = buildTeamRefs(s.memories, team, memoryIds);
+      if (refs.length === 0) return {};
+      const teams = s.teams.map((t) => {
+        if (t.id !== teamId) return t;
+        const author = t.members.find((m) => m.id === t.ownerId) ?? t.members[0];
+        const msg: TeamMessage = {
+          id: uid("tmsg"),
+          authorId: author?.id ?? "system",
+          authorName: author?.name ?? "You",
+          authorAccent: author?.accent ?? "#64748b",
+          text: `Referenced ${refs.length} ${refs.length === 1 ? "memory" : "memories"} into the team.`,
+          at: Date.now(),
+          kind: "handoff",
+          refs,
+        };
+        return {
+          ...t,
+          memoryRefs: mergeTeamRefs(t.memoryRefs, refs),
+          messages: [...t.messages, msg],
+          updatedAt: Date.now(),
+        };
+      });
+      saveTeams(teams);
+      return { teams };
+    }),
   loadMemoriesFromRecall: (recalled) =>
     set((s) => {
       const now = Date.now();
