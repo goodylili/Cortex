@@ -6703,9 +6703,9 @@ body.dev .dev-switch::after {
 .chat-rail {
   position: fixed;
   left: 24px;
-  bottom: 150px;
+  bottom: 22px;
   width: 288px;
-  max-height: min(520px, calc(100vh - 230px));
+  max-height: min(520px, calc(100vh - 110px));
   display: flex;
   flex-direction: column;
   gap: 8px;
