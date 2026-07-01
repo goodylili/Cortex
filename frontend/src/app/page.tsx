@@ -10,7 +10,6 @@ import { CtaSection } from "@/components/landing/cta-section";
 import { Footer } from "@/components/landing/footer";
 import { MarqueeBand } from "@/components/landing/marquee-band";
 import { LandingThemeProvider } from "@/components/landing/theme-provider";
-import { ThemeToggle } from "@/components/landing/theme-toggle";
 export default function Home() {
   return (
     <LandingThemeProvider>
@@ -37,7 +36,6 @@ export default function Home() {
 
       <Footer />
       <MarqueeBand />
-      <ThemeToggle />
     </LandingThemeProvider>
   );
 }

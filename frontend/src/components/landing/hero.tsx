@@ -187,15 +187,7 @@ export function Hero() {
                   width={2000}
                   height={1293}
                   priority
-                  className="block h-auto w-full [.theme-light_&]:hidden"
-                />
-                <Image
-                  src="/cortex-app-light.png"
-                  alt="Cortex app"
-                  width={2000}
-                  height={1293}
-                  priority
-                  className="hidden h-auto w-full [.theme-light_&]:block"
+                  className="block h-auto w-full"
                 />
               </div>
 

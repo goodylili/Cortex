@@ -143,11 +143,6 @@
   --radius: var(--r);
 }
 
-.cortex-landing.theme-light {
-  --canvas: #ffffff;
-  --ink: #000000;
-}
-
 .cortex-landing :is(h1, h2, h3, h4) {
   font-family: "Expose", sans-serif;
 }

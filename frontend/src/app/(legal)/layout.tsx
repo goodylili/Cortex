@@ -2,7 +2,6 @@ import { type ReactNode } from "react";
 
 import { Footer } from "@/components/landing/footer";
 import { LandingThemeProvider } from "@/components/landing/theme-provider";
-import { ThemeToggle } from "@/components/landing/theme-toggle";
 
 export default function LegalLayout({ children }: { children: ReactNode }) {
   return (
@@ -11,7 +10,6 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <Footer />
-      <ThemeToggle />
     </LandingThemeProvider>
   );
 }
