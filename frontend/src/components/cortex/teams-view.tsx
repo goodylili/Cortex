@@ -25,6 +25,7 @@ export function TeamsView() {
 
   const ta = useRef<HTMLTextAreaElement>(null);
   const [railOpen, setRailOpen] = useState(true);
+  const [threadOpen, setThreadOpen] = useState(false);
   const [secTeams, setSecTeams] = useState(true);
   const [secMembers, setSecMembers] = useState(true);
   const [newTeamName, setNewTeamName] = useState("");
@@ -341,14 +342,20 @@ export function TeamsView() {
                 >
                   Delete
                 </button>
+                <button
+                  className={"pr-act" + (threadOpen ? " on" : "")}
+                  onClick={() => setThreadOpen((v) => !v)}
+                  title="Team details"
+                >
+                  Details
+                </button>
               </div>
             </div>
 
             <div className="pr-feed">
-              <div className="pr-day">Team channel</div>
               {active.messages.map((msg) =>
                 msg.kind === "system" ? (
-                  <div className="pr-sysline" key={msg.id}>
+                  <div className="pr-day" key={msg.id}>
                     {msg.text}
                   </div>
                 ) : (
@@ -435,12 +442,20 @@ export function TeamsView() {
                 />
                 <div className="capture-bar">
                   <button
-                    className={"cap-tool" + (pickerOpen ? " on" : "")}
+                    className={
+                      "cap-tool" +
+                      (pickerOpen || picked.length > 0 ? " on" : "")
+                    }
                     onClick={() => setPickerOpen((v) => !v)}
-                    title="Reference memories"
+                    title="Reference memories from your brain"
                   >
-                    <span aria-hidden>◆</span>
-                    {picked.length > 0 ? picked.length : "Reference"}
+                    <svg viewBox="0 0 24 24">
+                      <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" />
+                      <path d="M12 12v9M4 7.5l8 4.5 8-4.5" />
+                    </svg>
+                    {picked.length > 0
+                      ? `${picked.length} referenced`
+                      : "Reference"}
                   </button>
                   <div className="mode-toggle pr-mode">
                     <button
@@ -470,7 +485,7 @@ export function TeamsView() {
                       aria-label="Send"
                     >
                       <svg viewBox="0 0 24 24">
-                        <path d="M4 12h15M13 6l6 6-6 6" />
+                        <path d="M12 19V5M5 12l7-7 7 7" />
                       </svg>
                     </button>
                   </div>
@@ -490,10 +505,17 @@ export function TeamsView() {
         )}
       </div>
 
-      {active && (
+      {active && threadOpen && (
         <aside className="pr-thread">
           <div className="pr-thread-head">
             <span className="pr-thread-crumb">Team</span>
+            <button
+              className="pr-act"
+              onClick={() => setThreadOpen(false)}
+              aria-label="Close details"
+            >
+              Close
+            </button>
           </div>
           <div className="pr-thread-scroll">
             <div className="pr-thread-title">{active.name}</div>

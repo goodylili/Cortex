@@ -11287,3 +11287,9 @@ body.dev .dev-switch::after {
   color: var(--muted);
   margin: 0 0 18px;
 }
+
+/* active state for the Teams composer "Reference" tool */
+.pr-capture .cap-tool.on {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
