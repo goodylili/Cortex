@@ -3193,11 +3193,11 @@ export function CortexApp({
               </button>
             ) : saveState === "saving" ? (
               <span
+                className="tb-saving"
+                role="status"
+                aria-label="Saving to Walrus"
                 title="Saving to Walrus"
-                style={{ fontSize: 12, opacity: 0.7 }}
-              >
-                Saving…
-              </span>
+              />
             ) : null}
             <button
               className="tb-add"

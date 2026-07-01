@@ -6004,6 +6004,26 @@ body.dev .dev-switch::after {
   justify-self: end;
   min-width: 0;
 }
+.tb-saving {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ink);
+  cursor: help;
+  flex: none;
+  animation: tb-saving-pulse 1.4s ease-in-out infinite;
+}
+@keyframes tb-saving-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--ink) 35%, transparent);
+  }
+  50% {
+    opacity: 0.85;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--ink) 0%, transparent);
+  }
+}
 .tb-add {
   display: inline-flex;
   align-items: center;
